@@ -1,0 +1,14 @@
+{
+  "name": "jobtimize",
+  "version": "1.0.0",
+  "description": "Jobtimize - AI-Powered Recruitment Platform (Fullstack Monorepo)",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev": "npx concurrently \"npm run dev:server\" \"npm run dev:client\""
+  },
+  "keywords": ["recruitment", "ai", "react", "nodejs", "mssql"],
+  "author": "Jobtimize Team",
+  "license": "ISC"
+}
