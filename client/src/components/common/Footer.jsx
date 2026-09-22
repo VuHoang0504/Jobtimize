@@ -17,7 +17,7 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Nền tảng tuyển dụng thông minh tích hợp AI, tối ưu hóa điểm tương thích CV và đề xuất lộ trình khóa học bù đắp kỹ năng thiếu hụt.
+              Nền tảng tuyển dụng việc làm Công nghệ thông tin hàng đầu, kết nối nhân tài IT với các doanh nghiệp công nghệ uy tín trên toàn quốc.
             </p>
           </div>
 
@@ -26,16 +26,16 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-gray-600">
               <li><a href="/" className="hover:text-brand-blue">Tìm kiếm việc làm IT</a></li>
               <li><a href="/candidate/dashboard" className="hover:text-brand-blue">Tạo & Quản lý nhiều bản CV</a></li>
-              <li><a href="/candidate/skill-gap" className="hover:text-brand-purple flex items-center gap-1">AI Skill Gap Analysis <Sparkles className="w-3 h-3 text-brand-purple" /></a></li>
-              <li><a href="/" className="hover:text-brand-blue">Khóa học gợi ý từ AI</a></li>
+              <li><a href="/candidate/skill-gap" className="hover:text-brand-purple flex items-center gap-1">Phân tích kỹ năng chuyên môn <Sparkles className="w-3 h-3 text-brand-purple" /></a></li>
+              <li><a href="/" className="hover:text-brand-blue">Khóa học nâng cao tay nghề</a></li>
             </ul>
           </div>
 
           <div>
             <h4 className="text-sm font-bold text-gray-800 tracking-wide uppercase mb-3">Dành cho Nhà tuyển dụng</h4>
             <ul className="space-y-2 text-sm text-gray-600">
-              <li><a href="/employer/post-job" className="hover:text-brand-green">Đăng tin tuyển dụng</a></li>
-              <li><a href="/employer/dashboard" className="hover:text-brand-green">Hệ thống ATS phân loại AI</a></li>
+              <li><a href="/employer/post-job" className="hover:text-brand-green">Đăng tin tuyển dụng IT</a></li>
+              <li><a href="/employer/dashboard" className="hover:text-brand-green">Hệ thống ATS quản lý ứng viên</a></li>
               <li><a href="/" className="hover:text-brand-green">Gói dịch vụ tuyển dụng</a></li>
               <li><a href="/" className="hover:text-brand-green">Xác thực doanh nghiệp (KYC)</a></li>
             </ul>
@@ -47,7 +47,7 @@ export default function Footer() {
               <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-blue-50 text-blue-700">React + Vite</span>
               <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700">Node.js Express</span>
               <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-700">MS SQL Server</span>
-              <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-purple-50 text-purple-700">AI Matching Engine</span>
+              <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-purple-50 text-purple-700">Smart Matching Engine</span>
             </div>
             <p className="text-xs text-gray-400 mt-4">Database: JobtimizeDB (MSSQL Localhost:1433)</p>
           </div>
@@ -55,9 +55,9 @@ export default function Footer() {
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">
-          <p>© 2024 Jobtimize AI Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
+          <p>© 2024 Jobtimize IT Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
           <p className="flex items-center gap-1 mt-2 sm:mt-0">
-            Xây dựng với <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> và AI thế hệ mới
+            Xây dựng với <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> dành cho cộng đồng IT Việt Nam
           </p>
         </div>
       </div>

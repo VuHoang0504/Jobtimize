@@ -49,8 +49,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const googleLogin = async (mockData) => {
-    const res = await api.post('/auth/google-mock', mockData);
+  const googleLogin = async (googlePayload) => {
+    const res = await api.post('/auth/google', googlePayload);
     if (res.data.success) {
       localStorage.setItem('jobtimize_token', res.data.data.token);
       setUser(res.data.data.user);
@@ -60,11 +60,36 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     const res = await api.post('/auth/register', userData);
+    return res.data;
+  };
+
+  const verifyOtp = async (email, otp) => {
+    const res = await api.post('/auth/verify-otp', { email, otp });
     if (res.data.success) {
       localStorage.setItem('jobtimize_token', res.data.data.token);
       setUser(res.data.data.user);
       return res.data.data;
     }
+  };
+
+  const resendOtp = async (email) => {
+    const res = await api.post('/auth/resend-otp', { email });
+    return res.data;
+  };
+
+  const forgotPassword = async (email) => {
+    const res = await api.post('/auth/forgot-password', { email });
+    return res.data;
+  };
+
+  const verifyResetOtp = async (email, otp) => {
+    const res = await api.post('/auth/verify-reset-otp', { email, otp });
+    return res.data;
+  };
+
+  const resetPassword = async (email, otp, newPassword) => {
+    const res = await api.post('/auth/reset-password', { email, otp, newPassword });
+    return res.data;
   };
 
   const logout = () => {
@@ -82,6 +107,11 @@ export const AuthProvider = ({ children }) => {
         login,
         googleLogin,
         register,
+        verifyOtp,
+        resendOtp,
+        forgotPassword,
+        verifyResetOtp,
+        resetPassword,
         logout,
         refreshUser: fetchCurrentUser,
       }}

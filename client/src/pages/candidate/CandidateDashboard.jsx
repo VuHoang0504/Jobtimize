@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -20,7 +20,14 @@ import {
   Save, 
   Star,
   ExternalLink,
-  BookOpen
+  BookOpen,
+  Camera,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  RefreshCw
 } from 'lucide-react';
 
 export default function CandidateDashboard() {
@@ -31,6 +38,13 @@ export default function CandidateDashboard() {
   const queryParams = new URLSearchParams(location.search);
   const initialTab = queryParams.get('tab') || 'profile';
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
 
   // Profile data state
   const [profile, setProfile] = useState(null);
@@ -53,6 +67,24 @@ export default function CandidateDashboard() {
   const [cvTitle, setCvTitle] = useState('');
   const [cvFile, setCvFile] = useState(null);
   const [uploadingCv, setUploadingCv] = useState(false);
+
+  // Avatar upload state
+  const fileInputRef = useRef(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarSuccess, setAvatarSuccess] = useState('');
+  const [avatarError, setAvatarError] = useState('');
+  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   const fetchProfileData = async () => {
     try {
@@ -175,6 +207,104 @@ export default function CandidateDashboard() {
     }
   };
 
+  // Handle Avatar Upload from File
+  const handleAvatarFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Vui lòng chọn file hình ảnh (PNG, JPG, JPEG, WEBP)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Kích thước ảnh tối đa là 5MB');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    setAvatarUploading(true);
+    setAvatarError('');
+    setAvatarSuccess('');
+
+    try {
+      const res = await api.post('/auth/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data.success) {
+        setAvatarSuccess('Cập nhật ảnh đại diện thành công!');
+        await refreshUser();
+        await fetchProfileData();
+      }
+    } catch (err) {
+      setAvatarError(err.response?.data?.message || 'Lỗi khi tải ảnh đại diện lên');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // Handle Avatar Update from URL
+  const handleAvatarUrlSave = async (e) => {
+    e.preventDefault();
+    if (!customAvatarUrl) return;
+
+    setAvatarUploading(true);
+    setAvatarError('');
+    setAvatarSuccess('');
+
+    try {
+      const res = await api.post('/auth/avatar', { avatarUrl: customAvatarUrl });
+      if (res.data.success) {
+        setAvatarSuccess('Cập nhật ảnh đại diện thành công!');
+        setCustomAvatarUrl('');
+        await refreshUser();
+        await fetchProfileData();
+      }
+    } catch (err) {
+      setAvatarError(err.response?.data?.message || 'Lỗi khi cập nhật ảnh đại diện');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // Handle Change Password
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (newPassword.length < 6) {
+      setPasswordError('Mật khẩu mới phải có tối thiểu 6 ký tự');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('Mật khẩu mới và xác nhận mật khẩu không trùng khớp');
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const res = await api.post('/auth/change-password', {
+        currentPassword,
+        newPassword
+      });
+      if (res.data.success) {
+        setPasswordSuccess('Đổi mật khẩu thành công!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+      }
+    } catch (err) {
+      setPasswordError(err.response?.data?.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center animate-pulse space-y-4">
@@ -190,11 +320,33 @@ export default function CandidateDashboard() {
       {/* Dashboard Top Banner */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-5">
-          <img
-            src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'}
-            alt={user?.fullName}
-            className="w-20 h-20 rounded-2xl object-cover border-2 border-brand-blue/30 shadow-md"
-          />
+          <div className="relative group">
+            <img
+              src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'}
+              alt={user?.fullName}
+              className="w-20 h-20 rounded-2xl object-cover border-2 border-brand-blue/30 shadow-md group-hover:opacity-90 transition-opacity"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={avatarUploading}
+              title="Thay đổi ảnh đại diện"
+              className="absolute -bottom-1 -right-1 p-2 rounded-xl bg-brand-blue text-white shadow-md hover:bg-brand-dark hover:scale-105 transition-all cursor-pointer"
+            >
+              {avatarUploading ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Camera className="w-3.5 h-3.5" />
+              )}
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              onChange={handleAvatarFileSelect}
+              className="hidden"
+            />
+          </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
@@ -287,6 +439,18 @@ export default function CandidateDashboard() {
             >
               <Sparkles className="w-4 h-4" />
               <span>AI Skill Gap & Khóa học</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('security')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+                activeTab === 'security'
+                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>Đổi mật khẩu & Avatar</span>
             </button>
           </div>
         </div>
@@ -713,6 +877,245 @@ export default function CandidateDashboard() {
                     </a>
                   ))}
                 </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 4: Security & Avatar Settings */}
+          {activeTab === 'security' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              
+              {/* Avatar Settings Card */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
+                <div className="border-b border-gray-100 pb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-brand-blue" />
+                    <h2 className="text-base font-bold text-gray-900">Thay đổi hình đại diện (Avatar)</h2>
+                  </div>
+                  <span className="text-xs text-gray-400 font-medium">Hỗ trợ PNG, JPG, WEBP tối đa 5MB</span>
+                </div>
+
+                {avatarSuccess && (
+                  <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700 font-medium flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                    <span>{avatarSuccess}</span>
+                  </div>
+                )}
+
+                {avatarError && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium">
+                    {avatarError}
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 pt-2">
+                  <div className="relative group">
+                    <img
+                      src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'}
+                      alt={user?.fullName}
+                      className="w-28 h-28 rounded-3xl object-cover border-4 border-white shadow-xl shadow-brand-blue/10 ring-2 ring-brand-blue/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      className="absolute -bottom-2 -right-2 p-2.5 rounded-2xl bg-brand-blue text-white shadow-lg hover:bg-brand-dark hover:scale-105 transition-all cursor-pointer"
+                      title="Chọn ảnh từ máy tính"
+                    >
+                      {avatarUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 flex-1 w-full text-center sm:text-left">
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-800">Tải ảnh đại diện mới</h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Hình ảnh đại diện rõ nét sẽ giúp hồ sơ của bạn thu hút sự chú ý của nhà tuyển dụng tốt hơn.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 justify-center sm:justify-start">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={avatarUploading}
+                        className="px-5 py-2.5 rounded-xl bg-brand-blue text-white text-xs font-bold hover:bg-brand-dark transition-all shadow-md shadow-brand-blue/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {avatarUploading ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang tải lên...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Tải ảnh từ thiết bị</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* URL Option */}
+                    <div className="pt-2 border-t border-gray-100">
+                      <label className="block text-xs font-bold text-gray-600 mb-1.5">
+                        Hoặc dán liên kết ảnh trực tiếp (URL)
+                      </label>
+                      <form onSubmit={handleAvatarUrlSave} className="flex gap-2">
+                        <input
+                          type="url"
+                          placeholder="https://example.com/avatar.jpg"
+                          value={customAvatarUrl}
+                          onChange={(e) => setCustomAvatarUrl(e.target.value)}
+                          className="flex-1 p-2.5 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={avatarUploading || !customAvatarUrl}
+                          className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-bold hover:bg-black transition-all disabled:opacity-40 cursor-pointer"
+                        >
+                          Lưu URL
+                        </button>
+                      </form>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+              {/* Change Password Card */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
+                <div className="border-b border-gray-100 pb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-5 h-5 text-brand-blue" />
+                    <h2 className="text-base font-bold text-gray-900">Đổi mật khẩu tài khoản</h2>
+                  </div>
+                  <span className="text-xs text-gray-400 font-medium">Bảo mật thông tin đăng nhập</span>
+                </div>
+
+                {passwordSuccess && (
+                  <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700 font-medium flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                    <span>{passwordSuccess}</span>
+                  </div>
+                )}
+
+                {passwordError && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium">
+                    {passwordError}
+                  </div>
+                )}
+
+                <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Mật khẩu hiện tại *
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type={showCurrentPassword ? 'text' : 'password'}
+                        required
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-11 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        tabIndex={-1}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1"
+                      >
+                        {showCurrentPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Mật khẩu mới (Tối thiểu 6 ký tự) *
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        required
+                        minLength={6}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-11 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        tabIndex={-1}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1"
+                      >
+                        {showNewPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Xác nhận mật khẩu mới *
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type={showConfirmNewPassword ? 'text' : 'password'}
+                        required
+                        minLength={6}
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className={`w-full pl-10 pr-11 py-3 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 ${
+                          confirmNewPassword && confirmNewPassword !== newPassword
+                            ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
+                            : confirmNewPassword && confirmNewPassword === newPassword
+                            ? 'border-green-400 focus:border-green-500 focus:ring-green-100'
+                            : 'border-gray-200 focus:border-brand-blue focus:ring-brand-blue/20'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                        tabIndex={-1}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1"
+                      >
+                        {showConfirmNewPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                      </button>
+                    </div>
+                    {confirmNewPassword && confirmNewPassword !== newPassword && (
+                      <p className="text-xs text-red-500 mt-1 font-medium">Mật khẩu xác nhận chưa khớp</p>
+                    )}
+                    {confirmNewPassword && confirmNewPassword === newPassword && (
+                      <p className="text-xs text-green-600 mt-1 font-medium">✓ Mật khẩu đã khớp</p>
+                    )}
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={passwordLoading}
+                      className="px-6 py-3 rounded-xl bg-brand-blue text-white text-xs font-bold hover:bg-brand-dark transition-all shadow-md shadow-brand-blue/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {passwordLoading ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Đang cập nhật...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Cập nhật mật khẩu mới</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
 
             </div>

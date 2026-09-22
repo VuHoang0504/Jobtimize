@@ -107,11 +107,11 @@ BEGIN
 END
 GO
 
--- 6. Nạp Tài khoản Admin mặc định (Password: Admin@123 -> $2a$10$wN9iL6u1v8R4o/807B43Pek204Q4jS5c2p4Csuh.M.zKjJz1B6f6a)
+-- 6. Nạp Tài khoản Admin mặc định (Password: Admin@123 -> $2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.)
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'admin@jobtimize.vn')
 BEGIN
     INSERT INTO Users (Email, PasswordHash, FullName, Phone, Status, IsEmailVerified)
-    VALUES ('admin@jobtimize.vn', '$2a$10$wN9iL6u1v8R4o/807B43Pek204Q4jS5c2p4Csuh.M.zKjJz1B6f6a', N'Hệ Thống Jobtimize Admin', '0901234567', 'Active', 1);
+    VALUES ('admin@jobtimize.vn', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'Hệ Thống Jobtimize Admin', '0901234567', 'Active', 1);
 
     DECLARE @AdminUserID INT = SCOPE_IDENTITY();
     DECLARE @AdminRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Admin');

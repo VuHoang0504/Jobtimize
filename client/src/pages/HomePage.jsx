@@ -96,18 +96,20 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-brand-blue/10 via-brand-purpleLight/40 to-transparent pt-12 pb-16 px-4 sm:px-6 lg:px-8 border-b border-gray-100">
         <div className="max-w-6xl mx-auto text-center space-y-6">
           
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full ai-gradient-badge text-xs font-bold text-brand-dark shadow-sm">
-            <Sparkles className="w-4 h-4 text-brand-purple animate-spin" style={{ animationDuration: '4s' }} />
-            <span>Nền tảng Tuyển dụng thông minh thế hệ mới kết hợp AI</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-brand-blue shadow-sm">
+            <Briefcase className="w-4 h-4 text-brand-blue" />
+            <span>Nền tảng Tuyển dụng & Việc làm IT hàng đầu Việt Nam</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight leading-tight">
-            Tìm Việc Làm Ước Mơ & <br className="hidden sm:inline" />
-            <span className="ai-gradient-text">Tự Động Đo Lường Điểm Phù Hợp AI</span>
+            Tìm kiếm việc làm <br className="hidden sm:inline" />
+            <span className="bg-gradient-to-r from-brand-blue via-brand-dark to-brand-green bg-clip-text text-transparent">
+              công nghệ thông tin trên toàn quốc
+            </span>
           </h1>
 
           <p className="max-w-2xl mx-auto text-gray-600 text-sm sm:text-base leading-relaxed">
-            Hệ thống tự động so khớp CV của bạn với hàng ngàn tin tuyển dụng, cảnh báo kỹ năng còn thiếu và gợi ý khóa học bù đắp Skill Gap chuẩn xác.
+            Khám phá hàng ngàn cơ hội việc làm IT hấp dẫn, kết nối trực tiếp với các nhà tuyển dụng công nghệ hàng đầu và phát triển sự nghiệp lập trình của bạn.
           </p>
 
           {/* Search Box */}
@@ -200,8 +202,8 @@ export default function HomePage() {
             </div>
             <p className="text-sm text-gray-500 mt-1">
               {user?.role === 'Candidate'
-                ? '🎯 Các công việc đã được AI tự động phân tích điểm phù hợp với hồ sơ & CV của bạn'
-                : 'Khám phá các việc làm công nghệ hàng đầu từ các nhà tuyển dụng uy tín'}
+                ? '🎯 Các cơ hội việc làm IT được đề xuất phù hợp nhất với hồ sơ chuyên môn của bạn'
+                : 'Khám phá các việc làm công nghệ thông tin hàng đầu từ các nhà tuyển dụng uy tín'}
             </p>
           </div>
 

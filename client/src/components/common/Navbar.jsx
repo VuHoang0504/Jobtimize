@@ -14,7 +14,8 @@ import {
   Layers, 
   Menu, 
   X,
-  CheckCircle2
+  CheckCircle2,
+  KeyRound
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -58,7 +59,7 @@ export default function Navbar() {
                   Job<span className="text-brand-blue">timize</span>
                 </span>
                 <span className="text-[10px] font-semibold tracking-wider text-brand-green uppercase mt-0.5">
-                  AI Recruitment
+                  IT Recruitment
                 </span>
               </div>
             </Link>
@@ -207,6 +208,14 @@ export default function Navbar() {
                           >
                             <Bookmark className="w-4 h-4 text-gray-400" />
                             Việc làm đã lưu
+                          </Link>
+                          <Link
+                            to="/candidate/dashboard?tab=security"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <KeyRound className="w-4 h-4 text-gray-400" />
+                            Đổi mật khẩu & Avatar
                           </Link>
                         </>
                       )}
