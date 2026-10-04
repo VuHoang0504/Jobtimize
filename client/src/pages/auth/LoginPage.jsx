@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
 import { Briefcase, Lock, Mail, ArrowRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2, RefreshCw, X } from 'lucide-react';
+import { validatePassword } from '../../utils/validation';
 
 export default function LoginPage() {
   const { login, googleLogin, forgotPassword, verifyResetOtp, resetPassword } = useAuth();
@@ -205,8 +206,9 @@ export default function LoginPage() {
   // Forgot Password: Step 3 - Reset Password
   const handleResetSubmit = async (e) => {
     e.preventDefault();
-    if (!newPassword || newPassword.length < 6) {
-      setForgotError('Mật khẩu mới phải có tối thiểu 6 ký tự');
+    const pwdErr = validatePassword(newPassword);
+    if (pwdErr) {
+      setForgotError(pwdErr);
       return;
     }
 
@@ -536,7 +538,7 @@ export default function LoginPage() {
                 <form onSubmit={handleResetSubmit} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                      Mật khẩu mới (Tối thiểu 6 ký tự) *
+                      Mật khẩu mới (Tối thiểu 6 ký tự, 1 chữ hoa, 1 số) *
                     </label>
                     <div className="relative">
                       <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -546,7 +548,7 @@ export default function LoginPage() {
                         minLength={6}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="••••••••"
+                        placeholder="Ví dụ: Jobtimize@2025"
                         className="w-full pl-11 pr-11 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue text-sm"
                       />
                       <button
@@ -558,6 +560,29 @@ export default function LoginPage() {
                         {showNewPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
                       </button>
                     </div>
+
+                    {newPassword && (
+                      <div className="mt-2 p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-xs space-y-1">
+                        <div className={`flex items-center gap-1.5 ${newPassword.length >= 6 ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${newPassword.length >= 6 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                            {newPassword.length >= 6 ? '✓' : '•'}
+                          </span>
+                          <span>Tối thiểu 6 ký tự</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(newPassword) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[A-Z]/.test(newPassword) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                            {/[A-Z]/.test(newPassword) ? '✓' : '•'}
+                          </span>
+                          <span>Chứa ít nhất 1 chữ in hoa (A-Z)</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${/[0-9]/.test(newPassword) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[0-9]/.test(newPassword) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                            {/[0-9]/.test(newPassword) ? '✓' : '•'}
+                          </span>
+                          <span>Chứa ít nhất 1 chữ số (0-9)</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>

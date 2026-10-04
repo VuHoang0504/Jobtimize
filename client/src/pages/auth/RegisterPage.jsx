@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
-import { Briefcase, User, Building2, Lock, Mail, Phone, ArrowRight, Eye, EyeOff, ShieldCheck, RefreshCw, X, CheckCircle2 } from 'lucide-react';
+import { Briefcase, User, Building2, Lock, Mail, Phone, ArrowRight, Eye, EyeOff, ShieldCheck, RefreshCw, X, CheckCircle2, Check, Circle } from 'lucide-react';
+import { validatePassword, checkPasswordCriteria } from '../../utils/validation';
 
 export default function RegisterPage() {
   const { register, verifyOtp, resendOtp, googleLogin } = useAuth();
@@ -45,6 +46,12 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const pwdErr = validatePassword(password);
+    if (pwdErr) {
+      setError(pwdErr);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Mật khẩu và xác nhận mật khẩu không trùng khớp. Vui lòng kiểm tra lại!');
@@ -342,7 +349,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-              Mật khẩu (Tối thiểu 6 ký tự)
+              Mật khẩu (Tối thiểu 6 ký tự, 1 chữ hoa, 1 số) *
             </label>
             <div className="relative">
               <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -352,7 +359,7 @@ export default function RegisterPage() {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Ví dụ: Jobtimize@2025"
                 className="w-full pl-11 pr-11 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue text-sm"
               />
               <button
@@ -369,6 +376,29 @@ export default function RegisterPage() {
                 )}
               </button>
             </div>
+
+            {password && (
+              <div className="mt-2 p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-xs space-y-1">
+                <div className={`flex items-center gap-1.5 ${password.length >= 6 ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${password.length >= 6 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                    {password.length >= 6 ? '✓' : '•'}
+                  </span>
+                  <span>Tối thiểu 6 ký tự</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(password) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[A-Z]/.test(password) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                    {/[A-Z]/.test(password) ? '✓' : '•'}
+                  </span>
+                  <span>Chứa ít nhất 1 chữ in hoa (A-Z)</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${/[0-9]/.test(password) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[0-9]/.test(password) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                    {/[0-9]/.test(password) ? '✓' : '•'}
+                  </span>
+                  <span>Chứa ít nhất 1 chữ số (0-9)</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

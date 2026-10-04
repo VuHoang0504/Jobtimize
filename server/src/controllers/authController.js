@@ -1,5 +1,5 @@
 const { executeQuery } = require('../config/db');
-const { hashPassword, comparePassword, generateToken } = require('../utils/authHelper');
+const { hashPassword, comparePassword, generateToken, validatePasswordStrength } = require('../utils/authHelper');
 const { OAuth2Client } = require('google-auth-library');
 const { sendOtpEmail } = require('../services/emailService');
 const { saveOtp, getOtpRecord, verifyOtp, deleteOtp } = require('../utils/otpStore');
@@ -13,6 +13,14 @@ const register = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập đầy đủ các trường: email, password, fullName, roleName'
+      });
+    }
+
+    const pwdValidation = validatePasswordStrength(password);
+    if (!pwdValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: pwdValidation.message
       });
     }
 
@@ -566,8 +574,9 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đầy đủ email, mã OTP và mật khẩu mới' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Mật khẩu mới phải có tối thiểu 6 ký tự' });
+    const pwdValidation = validatePasswordStrength(newPassword);
+    if (!pwdValidation.valid) {
+      return res.status(400).json({ success: false, message: pwdValidation.message });
     }
 
     const verifyResult = verifyOtp(email, otp);
@@ -612,8 +621,9 @@ const changePassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Mật khẩu mới phải có tối thiểu 6 ký tự' });
+    const pwdValidation = validatePasswordStrength(newPassword);
+    if (!pwdValidation.valid) {
+      return res.status(400).json({ success: false, message: pwdValidation.message });
     }
 
     const userRes = await executeQuery('SELECT PasswordHash, GoogleID FROM Users WHERE UserID = @UserID', { UserID: userId });

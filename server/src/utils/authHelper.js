@@ -22,9 +22,26 @@ const verifyToken = (token) => {
   return jwt.verify(token, secret);
 };
 
+const validatePasswordStrength = (password) => {
+  if (!password || typeof password !== 'string') {
+    return { valid: false, message: 'Vui lòng nhập mật khẩu' };
+  }
+  if (password.length < 6) {
+    return { valid: false, message: 'Mật khẩu phải có tối thiểu 6 ký tự' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, message: 'Mật khẩu phải chứa ít nhất 1 chữ cái viết hoa' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, message: 'Mật khẩu phải chứa ít nhất 1 chữ số' };
+  }
+  return { valid: true };
+};
+
 module.exports = {
   hashPassword,
   comparePassword,
   generateToken,
-  verifyToken
+  verifyToken,
+  validatePasswordStrength
 };

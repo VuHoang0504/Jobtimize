@@ -3,16 +3,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import MatchScoreBadge from '../components/common/MatchScoreBadge';
-import { 
-  Search, 
-  MapPin, 
-  Briefcase, 
-  DollarSign, 
-  Sparkles, 
-  Bookmark, 
-  CheckCircle2, 
-  Clock, 
-  Building2, 
+import {
+  Search,
+  MapPin,
+  Briefcase,
+  DollarSign,
+  Sparkles,
+  Bookmark,
+  CheckCircle2,
+  Clock,
+  Building2,
   ArrowRight,
   Filter,
   Layers
@@ -91,14 +91,14 @@ export default function HomePage() {
 
   return (
     <div className="space-y-12 pb-20">
-      
+
       {/* 1. Hero Search Section */}
       <section className="relative overflow-hidden bg-gradient-to-b from-brand-blue/10 via-brand-purpleLight/40 to-transparent pt-12 pb-16 px-4 sm:px-6 lg:px-8 border-b border-gray-100">
         <div className="max-w-6xl mx-auto text-center space-y-6">
-          
+
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-brand-blue shadow-sm">
             <Briefcase className="w-4 h-4 text-brand-blue" />
-            <span>Nền tảng Tuyển dụng & Việc làm IT hàng đầu Việt Nam</span>
+            <span>Nền tảng Tuyển dụng & Việc làm hàng đầu Việt Nam</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight leading-tight">
@@ -113,7 +113,7 @@ export default function HomePage() {
           </p>
 
           {/* Search Box */}
-          <form 
+          <form
             onSubmit={handleSearchSubmit}
             className="max-w-4xl mx-auto bg-white p-3 rounded-2xl shadow-xl border border-gray-200/80 flex flex-col md:flex-row items-center gap-2"
           >
@@ -188,7 +188,7 @@ export default function HomePage() {
 
       {/* 2. Job Listings Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
@@ -282,11 +282,10 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={(e) => handleToggleSave(e, job.JobID)}
-                      className={`p-2 rounded-xl border transition-colors ${
-                        job.isSaved
-                          ? 'bg-amber-50 border-amber-200 text-amber-500'
-                          : 'bg-gray-50 border-gray-200 text-gray-400 hover:text-amber-500 hover:bg-amber-50'
-                      }`}
+                      className={`p-2 rounded-xl border transition-colors ${job.isSaved
+                        ? 'bg-amber-50 border-amber-200 text-amber-500'
+                        : 'bg-gray-50 border-gray-200 text-gray-400 hover:text-amber-500 hover:bg-amber-50'
+                        }`}
                       title={job.isSaved ? 'Bỏ lưu' : 'Lưu tin'}
                     >
                       <Bookmark className={`w-4 h-4 ${job.isSaved ? 'fill-amber-500' : ''}`} />
@@ -318,11 +317,10 @@ export default function HomePage() {
                       {job.requiredSkills.slice(0, 4).map((skill, idx) => (
                         <span
                           key={idx}
-                          className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${
-                            skill.IsMandatory
-                              ? 'bg-blue-50 text-brand-blue border border-blue-200'
-                              : 'bg-gray-50 text-gray-600 border border-gray-200'
-                          }`}
+                          className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${skill.IsMandatory
+                            ? 'bg-blue-50 text-brand-blue border border-blue-200'
+                            : 'bg-gray-50 text-gray-600 border border-gray-200'
+                            }`}
                         >
                           {skill.SkillName}
                         </span>

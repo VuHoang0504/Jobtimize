@@ -3,6 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import MatchScoreBadge from '../../components/common/MatchScoreBadge';
+import { validatePassword } from '../../utils/validation';
 import { 
   User, 
   FileText, 
@@ -275,8 +276,9 @@ export default function CandidateDashboard() {
     setPasswordError('');
     setPasswordSuccess('');
 
-    if (newPassword.length < 6) {
-      setPasswordError('Mật khẩu mới phải có tối thiểu 6 ký tự');
+    const pwdErr = validatePassword(newPassword);
+    if (pwdErr) {
+      setPasswordError(pwdErr);
       return;
     }
 
@@ -1034,7 +1036,7 @@ export default function CandidateDashboard() {
 
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                      Mật khẩu mới (Tối thiểu 6 ký tự) *
+                      Mật khẩu mới (Tối thiểu 6 ký tự, 1 chữ hoa, 1 số) *
                     </label>
                     <div className="relative">
                       <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1044,7 +1046,7 @@ export default function CandidateDashboard() {
                         minLength={6}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="••••••••"
+                        placeholder="Ví dụ: Jobtimize@2025"
                         className="w-full pl-10 pr-11 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
                       />
                       <button
@@ -1056,6 +1058,29 @@ export default function CandidateDashboard() {
                         {showNewPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
                       </button>
                     </div>
+
+                    {newPassword && (
+                      <div className="mt-2 p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-xs space-y-1">
+                        <div className={`flex items-center gap-1.5 ${newPassword.length >= 6 ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${newPassword.length >= 6 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                            {newPassword.length >= 6 ? '✓' : '•'}
+                          </span>
+                          <span>Tối thiểu 6 ký tự</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(newPassword) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[A-Z]/.test(newPassword) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                            {/[A-Z]/.test(newPassword) ? '✓' : '•'}
+                          </span>
+                          <span>Chứa ít nhất 1 chữ in hoa (A-Z)</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${/[0-9]/.test(newPassword) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[0-9]/.test(newPassword) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
+                            {/[0-9]/.test(newPassword) ? '✓' : '•'}
+                          </span>
+                          <span>Chứa ít nhất 1 chữ số (0-9)</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>
