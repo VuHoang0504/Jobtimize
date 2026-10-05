@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import MatchScoreBadge from '../components/common/MatchScoreBadge';
@@ -15,29 +15,50 @@ import {
   Building2,
   ArrowRight,
   Filter,
-  Layers
+  Layers,
+  ChevronDown,
+  Check,
+  X
 } from 'lucide-react';
 
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [jobs, setJobs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search states
-  const [keyword, setKeyword] = useState('');
-  const [location, setLocation] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
+  const [location, setLocation] = useState(searchParams.get('location') || '');
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef(null);
 
-  const fetchJobs = async () => {
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchJobs = async (customParams) => {
     setLoading(true);
     try {
+      const kw = customParams?.keyword !== undefined ? customParams.keyword : keyword;
+      const loc = customParams?.location !== undefined ? customParams.location : location;
+      const cat = customParams?.categoryId !== undefined ? customParams.categoryId : selectedCategory;
+
       const params = {};
-      if (keyword) params.keyword = keyword;
-      if (location) params.location = location;
-      if (selectedCategory) params.categoryId = selectedCategory;
+      if (kw) params.keyword = kw;
+      if (loc) params.location = loc;
+      if (cat) params.categoryId = cat;
 
       const res = await api.get('/jobs', { params });
       if (res.data.success) {
@@ -61,14 +82,41 @@ export default function HomePage() {
     }
   };
 
+  // Sync state and fetch jobs whenever URL query params change or user changes
   useEffect(() => {
-    fetchJobs();
+    const kw = searchParams.get('keyword') || '';
+    const loc = searchParams.get('location') || '';
+    const cat = searchParams.get('categoryId') || '';
+
+    setKeyword(kw);
+    setLocation(loc);
+    setSelectedCategory(cat);
+
+    fetchJobs({ keyword: kw, location: loc, categoryId: cat });
+  }, [searchParams, user]);
+
+  useEffect(() => {
     fetchCategories();
-  }, [user]);
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchJobs();
+    const params = {};
+    if (keyword) params.keyword = keyword;
+    if (location) params.location = location;
+    if (selectedCategory) params.categoryId = selectedCategory;
+    setSearchParams(params);
+  };
+
+  const handleSelectCategory = (catId) => {
+    setSelectedCategory(catId);
+    setCategoryDropdownOpen(false);
+  };
+
+  const handleSelectPosition = (posName) => {
+    setKeyword(posName.replace('Việc làm ', ''));
+    setSelectedCategory('');
+    setCategoryDropdownOpen(false);
   };
 
   const handleToggleSave = async (e, jobId) => {
@@ -89,6 +137,10 @@ export default function HomePage() {
     }
   };
 
+  // Get current selected category name for button display
+  const selectedCatObj = categories.find(c => String(c.CategoryID) === String(selectedCategory));
+  const categoryButtonLabel = selectedCatObj ? selectedCatObj.CategoryName : 'Tất cả ngành nghề';
+
   return (
     <div className="space-y-12 pb-20">
 
@@ -102,9 +154,9 @@ export default function HomePage() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight leading-tight">
-            Tìm kiếm việc làm <br className="hidden sm:inline" />
+            Tìm kiếm và tuyển dụng việc làm <br className="hidden sm:inline" />
             <span className="bg-gradient-to-r from-brand-blue via-brand-dark to-brand-green bg-clip-text text-transparent">
-              công nghệ thông tin trên toàn quốc
+              trên toàn quốc
             </span>
           </h1>
 
@@ -115,14 +167,14 @@ export default function HomePage() {
           {/* Search Box */}
           <form
             onSubmit={handleSearchSubmit}
-            className="max-w-4xl mx-auto bg-white p-3 rounded-2xl shadow-xl border border-gray-200/80 flex flex-col md:flex-row items-center gap-2"
+            className="max-w-4xl mx-auto bg-white p-3 rounded-2xl shadow-xl border border-gray-200/80 flex flex-col md:flex-row items-center gap-2 relative z-30"
           >
             {/* Keyword */}
             <div className="flex-1 flex items-center gap-2 px-3 py-2 w-full border-b md:border-b-0 md:border-r border-gray-100">
               <Search className="w-5 h-5 text-brand-blue shrink-0" />
               <input
                 type="text"
-                placeholder="Vị trí, kỹ năng (ví dụ: React, Node.js, AI)..."
+                placeholder="Vị trí, tên công ty"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 className="w-full text-sm text-gray-800 placeholder-gray-400 focus:outline-none bg-transparent"
@@ -141,21 +193,150 @@ export default function HomePage() {
               />
             </div>
 
-            {/* Category */}
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 w-full">
-              <Layers className="w-5 h-5 text-brand-purple shrink-0" />
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full text-sm text-gray-700 bg-transparent focus:outline-none cursor-pointer"
+            {/* Category / Position Mega Dropdown */}
+            <div className="flex-1 w-full relative" ref={categoryDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-700 hover:text-brand-blue rounded-xl transition-colors focus:outline-none text-left"
               >
-                <option value="">Tất cả ngành nghề</option>
-                {categories.map((cat) => (
-                  <option key={cat.CategoryID} value={cat.CategoryID}>
-                    {cat.CategoryName}
-                  </option>
-                ))}
-              </select>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Layers className="w-5 h-5 text-brand-purple shrink-0" />
+                  <span className="truncate font-medium text-gray-800">
+                    {categoryButtonLabel}
+                  </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${categoryDropdownOpen ? 'rotate-180 text-brand-purple' : ''}`} />
+              </button>
+
+              {/* Mega Dropdown Popup */}
+              {categoryDropdownOpen && (
+                <div className="absolute top-full left-0 md:left-auto md:right-0 mt-3 w-full md:w-[780px] bg-white rounded-2xl shadow-2xl border border-gray-200/90 p-5 z-50 text-left animate-in fade-in slide-in-from-top-2 duration-150">
+                  
+                  {/* Dropdown Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCategory('')}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        !selectedCategory 
+                          ? 'bg-brand-blue text-white shadow-xs' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Check className={`w-3.5 h-3.5 ${!selectedCategory ? 'text-white' : 'text-transparent'}`} />
+                      <span>Tất cả ngành nghề (Mặc định)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryDropdownOpen(false)}
+                      className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+                    {/* Cột 1 & 2: VIỆC LÀM THEO VỊ TRÍ (7/12) */}
+                    <div className="md:col-span-7 space-y-3 md:border-r md:border-gray-100 md:pr-4">
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        VIỆC LÀM THEO VỊ TRÍ
+                      </h3>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                        {/* Sub-col 1 */}
+                        <div className="space-y-1">
+                          {[
+                            'Việc làm Nhân viên kinh doanh',
+                            'Việc làm Kế toán',
+                            'Việc làm Marketing',
+                            'Việc làm Hành chính nhân sự',
+                            'Việc làm Chăm sóc khách hàng',
+                            'Việc làm Ngân hàng',
+                            'Việc làm IT',
+                          ].map((pos, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleSelectPosition(pos)}
+                              className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-700 hover:text-brand-blue hover:bg-blue-50/60 transition-colors truncate"
+                            >
+                              {pos}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Sub-col 2 */}
+                        <div className="space-y-1">
+                          {[
+                            'Việc làm Lao động phổ thông',
+                            'Việc làm Senior',
+                            'Việc làm Kỹ sư xây dựng',
+                            'Việc làm Thiết kế đồ hoạ',
+                            'Việc làm Bất động sản',
+                            'Việc làm Giáo dục',
+                            'Việc làm Telesales',
+                          ].map((pos, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleSelectPosition(pos)}
+                              className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-700 hover:text-brand-blue hover:bg-blue-50/60 transition-colors truncate"
+                            >
+                              {pos}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cột 3: VIỆC LÀM THEO LĨNH VỰC / NGÀNH NGHỀ (5/12) */}
+                    <div className="md:col-span-5 space-y-3">
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        VIỆC LÀM THEO LĨNH VỰC
+                      </h3>
+                      <div className="space-y-1">
+                        {/* Database categories */}
+                        {categories.map((cat) => (
+                          <button
+                            key={cat.CategoryID}
+                            type="button"
+                            onClick={() => handleSelectCategory(cat.CategoryID)}
+                            className={`w-full text-left flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              String(selectedCategory) === String(cat.CategoryID)
+                                ? 'bg-purple-50 text-brand-purple font-bold'
+                                : 'text-gray-700 hover:text-brand-purple hover:bg-purple-50/50'
+                            }`}
+                          >
+                            <span className="truncate">{cat.CategoryName}</span>
+                            {String(selectedCategory) === String(cat.CategoryID) && (
+                              <Check className="w-3.5 h-3.5 text-brand-purple shrink-0 ml-1" />
+                            )}
+                          </button>
+                        ))}
+
+                        {/* Extended general categories */}
+                        {[
+                          'Việc làm Sản xuất',
+                          'Việc làm Bán lẻ - Hàng tiêu dùng - FMCG',
+                          'Việc làm IT - Phần mềm',
+                          'Việc làm Xây dựng',
+                          'Việc làm Giáo dục/Đào tạo',
+                        ].map((item, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSelectPosition(item)}
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-700 hover:text-brand-purple hover:bg-purple-50/50 transition-colors truncate"
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              )}
             </div>
 
             {/* Submit Button */}
@@ -175,7 +356,7 @@ export default function HomePage() {
               <button
                 key={tag}
                 type="button"
-                onClick={() => { setKeyword(tag); fetchJobs(); }}
+                onClick={() => { setKeyword(tag); fetchJobs({ keyword: tag }); }}
                 className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-brand-blue hover:text-brand-blue transition-colors shadow-xs"
               >
                 {tag}

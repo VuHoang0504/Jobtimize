@@ -6,7 +6,8 @@
     "install:all": "cd server && npm install && cd ../client && npm install",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
-    "dev": "npx concurrently \"npm run dev:server\" \"npm run dev:client\""
+    "dev": "npx concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "seed:jobs": "node server/scripts/seedJobs.js"
   },
   "keywords": [
     "recruitment",

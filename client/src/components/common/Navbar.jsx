@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -15,7 +15,11 @@ import {
   Menu, 
   X,
   CheckCircle2,
-  KeyRound
+  KeyRound,
+  ChevronDown,
+  ThumbsUp,
+  FileCheck2,
+  ExternalLink
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -24,12 +28,26 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileJobSubmenuOpen, setMobileJobSubmenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [jobMenuOpen, setJobMenuOpen] = useState(false);
   const [togglingJob, setTogglingJob] = useState(false);
+  const jobMenuTimeoutRef = useRef(null);
 
   const isCandidate = user?.role === 'Candidate';
   const isEmployer = user?.role === 'Employer';
   const isLooking = user?.profile?.IsLookingForJob;
+
+  const handleMouseEnterJob = () => {
+    if (jobMenuTimeoutRef.current) clearTimeout(jobMenuTimeoutRef.current);
+    setJobMenuOpen(true);
+  };
+
+  const handleMouseLeaveJob = () => {
+    jobMenuTimeoutRef.current = setTimeout(() => {
+      setJobMenuOpen(false);
+    }, 180);
+  };
 
   const handleToggleLooking = async () => {
     try {
@@ -49,8 +67,8 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           
           {/* Logo */}
-          <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2.5 group">
+          <div className="flex items-center gap-6 lg:gap-8">
+            <Link to="/" className="flex items-center gap-2.5 group shrink-0">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-blue via-brand-dark to-brand-green flex items-center justify-center text-white shadow-md shadow-brand-blue/20 group-hover:scale-105 transition-transform">
                 <Briefcase className="w-5 h-5" />
               </div>
@@ -66,16 +84,184 @@ export default function Navbar() {
 
             {/* Main Nav Links */}
             <div className="hidden md:flex items-center space-x-1">
-              <Link
-                to="/"
-                className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === '/' 
-                    ? 'text-brand-blue bg-brand-light font-semibold' 
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
+              {/* Mega Dropdown Việc làm */}
+              <div 
+                className="relative"
+                onMouseEnter={handleMouseEnterJob}
+                onMouseLeave={handleMouseLeaveJob}
               >
-                Việc làm
-              </Link>
+                <button
+                  type="button"
+                  onClick={() => setJobMenuOpen(!jobMenuOpen)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    location.pathname === '/' || jobMenuOpen
+                      ? 'text-brand-blue bg-brand-light font-semibold' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <span>Việc làm</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${jobMenuOpen ? 'rotate-180 text-brand-blue' : 'text-gray-400'}`} />
+                </button>
+
+                {/* Mega Menu Popover */}
+                {jobMenuOpen && (
+                  <div 
+                    className="absolute top-full left-0 mt-1.5 w-[940px] bg-white rounded-2xl shadow-2xl border border-gray-200/90 p-6 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                    onMouseEnter={handleMouseEnterJob}
+                    onMouseLeave={handleMouseLeaveJob}
+                  >
+                    <div className="grid grid-cols-12 gap-6">
+                      
+                      {/* Cột 1: VIỆC LÀM & CÔNG TY */}
+                      <div className="col-span-3 space-y-6 border-r border-gray-100 pr-4">
+                        <div>
+                          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+                            VIỆC LÀM
+                          </h3>
+                          <ul className="space-y-1">
+                            <li>
+                              <Link
+                                to="/"
+                                onClick={() => setJobMenuOpen(false)}
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                              >
+                                <Search className="w-4 h-4 text-gray-500 shrink-0" />
+                                <span>Tìm việc làm</span>
+                              </Link>
+                            </li>
+                            <li>
+                              <Link
+                                to="/candidate/dashboard?tab=saved"
+                                onClick={() => setJobMenuOpen(false)}
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                              >
+                                <Bookmark className="w-4 h-4 text-emerald-500 fill-emerald-100 shrink-0" />
+                                <span>Việc làm đã lưu</span>
+                              </Link>
+                            </li>
+                            <li>
+                              <Link
+                                to="/candidate/dashboard?tab=applications"
+                                onClick={() => setJobMenuOpen(false)}
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                              >
+                                <FileCheck2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <span>Việc làm đã ứng tuyển</span>
+                              </Link>
+                            </li>
+                            <li>
+                              <Link
+                                to="/candidate/skill-gap"
+                                onClick={() => setJobMenuOpen(false)}
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                              >
+                                <ThumbsUp className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <span>Việc làm phù hợp</span>
+                              </Link>
+                            </li>
+                          </ul>
+                        </div>
+
+                        <div>
+                          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+                            CÔNG TY
+                          </h3>
+                          <ul className="space-y-1">
+                            <li>
+                              <Link
+                                to="/?keyword=Công ty"
+                                onClick={() => setJobMenuOpen(false)}
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                              >
+                                <Building2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <span>Danh sách công ty</span>
+                              </Link>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* Cột 2 & 3: VIỆC LÀM THEO VỊ TRÍ */}
+                      <div className="col-span-6 px-2">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+                          VIỆC LÀM THEO VỊ TRÍ
+                        </h3>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                          {/* Nhóm vị trí 1 */}
+                          <div className="space-y-1">
+                            {[
+                              'Việc làm Nhân viên kinh doanh',
+                              'Việc làm Kế toán',
+                              'Việc làm Marketing',
+                              'Việc làm Hành chính nhân sự',
+                              'Việc làm Chăm sóc khách hàng',
+                              'Việc làm Ngân hàng',
+                              'Việc làm IT',
+                            ].map((item, idx) => (
+                              <Link
+                                key={idx}
+                                to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
+                                onClick={() => setJobMenuOpen(false)}
+                                className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-700 font-medium hover:text-brand-blue hover:bg-blue-50/60 transition-colors"
+                              >
+                                {item}
+                              </Link>
+                            ))}
+                          </div>
+
+                          {/* Nhóm vị trí 2 */}
+                          <div className="space-y-1">
+                            {[
+                              'Việc làm Lao động phổ thông',
+                              'Việc làm Senior',
+                              'Việc làm Kỹ sư xây dựng',
+                              'Việc làm Thiết kế đồ hoạ',
+                              'Việc làm Bất động sản',
+                              'Việc làm Giáo dục',
+                              'Việc làm Telesales',
+                            ].map((item, idx) => (
+                              <Link
+                                key={idx}
+                                to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
+                                onClick={() => setJobMenuOpen(false)}
+                                className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-700 font-medium hover:text-brand-blue hover:bg-blue-50/60 transition-colors"
+                              >
+                                {item}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Cột 4: VIỆC LÀM THEO LĨNH VỰC */}
+                      <div className="col-span-3 border-l border-gray-100 pl-4">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+                          VIỆC LÀM THEO LĨNH VỰC
+                        </h3>
+                        <div className="space-y-1">
+                          {[
+                            'Việc làm Sản xuất',
+                            'Việc làm Bán lẻ - Hàng tiêu dùng - FMCG',
+                            'Việc làm IT - Phần mềm',
+                            'Việc làm Xây dựng',
+                            'Việc làm Giáo dục/Đào tạo',
+                          ].map((item, idx) => (
+                            <Link
+                              key={idx}
+                              to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
+                              onClick={() => setJobMenuOpen(false)}
+                              className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-700 font-medium hover:text-brand-blue hover:bg-blue-50/60 transition-colors"
+                            >
+                              {item}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {isCandidate && (
                 <>
@@ -290,13 +476,83 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-gray-200 bg-white px-4 pt-2 pb-6 space-y-3">
-          <Link
-            to="/"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2 rounded-lg text-base font-medium text-gray-800 hover:bg-gray-100"
-          >
-            Tìm việc làm
-          </Link>
+          {/* Việc làm Mobile Accordion */}
+          <div>
+            <button
+              onClick={() => setMobileJobSubmenuOpen(!mobileJobSubmenuOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-base font-medium text-gray-800 hover:bg-gray-100"
+            >
+              <span>Việc làm & Danh mục</span>
+              <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${mobileJobSubmenuOpen ? 'rotate-180 text-brand-blue' : ''}`} />
+            </button>
+
+            {mobileJobSubmenuOpen && (
+              <div className="pl-3 pr-1 py-2 space-y-3 border-l-2 border-brand-blue/30 ml-2 mt-1 bg-gray-50/70 rounded-r-xl text-sm">
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2">Phím tắt nhanh</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    <Link
+                      to="/"
+                      onClick={() => { setMobileMenuOpen(false); setMobileJobSubmenuOpen(false); }}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-brand-blue"
+                    >
+                      <Search className="w-3.5 h-3.5 text-gray-500" />
+                      Tìm việc làm
+                    </Link>
+                    <Link
+                      to="/candidate/dashboard?tab=saved"
+                      onClick={() => { setMobileMenuOpen(false); setMobileJobSubmenuOpen(false); }}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-brand-blue"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 text-emerald-500" />
+                      Việc đã lưu
+                    </Link>
+                    <Link
+                      to="/candidate/dashboard?tab=applications"
+                      onClick={() => { setMobileMenuOpen(false); setMobileJobSubmenuOpen(false); }}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-brand-blue"
+                    >
+                      <FileCheck2 className="w-3.5 h-3.5 text-emerald-500" />
+                      Đã ứng tuyển
+                    </Link>
+                    <Link
+                      to="/candidate/skill-gap"
+                      onClick={() => { setMobileMenuOpen(false); setMobileJobSubmenuOpen(false); }}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-brand-blue"
+                    >
+                      <ThumbsUp className="w-3.5 h-3.5 text-emerald-500" />
+                      Việc phù hợp
+                    </Link>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2">Vị trí phổ biến</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {[
+                      'Kinh doanh',
+                      'Kế toán',
+                      'Marketing',
+                      'Nhân sự',
+                      'CSKH',
+                      'IT',
+                      'Senior',
+                      'Thiết kế đồ hoạ'
+                    ].map((item, idx) => (
+                      <Link
+                        key={idx}
+                        to={`/?keyword=${encodeURIComponent(item)}`}
+                        onClick={() => { setMobileMenuOpen(false); setMobileJobSubmenuOpen(false); }}
+                        className="px-2 py-1 rounded-md text-xs text-gray-600 hover:text-brand-blue"
+                      >
+                        Việc làm {item}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           {user ? (
             <>
               {isCandidate && (
