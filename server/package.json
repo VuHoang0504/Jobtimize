@@ -17,16 +17,19 @@
   "author": "Jobtimize Team",
   "license": "ISC",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "google-auth-library": "^11.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.13.0",
     "morgan": "^1.10.0",
     "mssql": "^10.0.4",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^10.0.10"
+    "nodemailer": "^10.0.10",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

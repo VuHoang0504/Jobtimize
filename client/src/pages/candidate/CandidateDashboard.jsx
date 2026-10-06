@@ -28,8 +28,20 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  Bot,
+  Globe,
+  Linkedin,
+  Github,
+  Award,
+  Briefcase,
+  GraduationCap,
+  Layers,
+  FolderGit2,
+  Users
 } from 'lucide-react';
+import AICVParserModal from '../../components/candidate/AICVParserModal';
+import MockInterviewSection from '../../components/candidate/MockInterviewSection';
 
 export default function CandidateDashboard() {
   const { user, refreshUser } = useAuth();
@@ -62,12 +74,27 @@ export default function CandidateDashboard() {
   const [currentLocation, setCurrentLocation] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [linkedinLink, setLinkedinLink] = useState('');
+  const [githubLink, setGithubLink] = useState('');
+  const [portfolioLink, setPortfolioLink] = useState('');
+  const [profileAdditionalTab, setProfileAdditionalTab] = useState('projects');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Structured profile fields from AI / Bio JSON
+  const [parsedBioData, setParsedBioData] = useState({
+    bioText: '',
+    links: { linkedin: '', github: '', portfolio: '' },
+    skills: { hardSkills: [], softSkills: [], languages: [] },
+    experiences: [],
+    educations: [],
+    additionalInfo: { projects: [], certifications: [], activities: [], references: [] }
+  });
 
   // CV upload state
   const [cvTitle, setCvTitle] = useState('');
   const [cvFile, setCvFile] = useState(null);
   const [uploadingCv, setUploadingCv] = useState(false);
+  const [isCvParserOpen, setIsCvParserOpen] = useState(false);
 
   // Avatar upload state
   const fileInputRef = useRef(null);
@@ -91,13 +118,50 @@ export default function CandidateDashboard() {
     try {
       const res = await api.get('/candidate/profile');
       if (res.data.success) {
-        setProfile(res.data.data);
-        setHeadline(res.data.data.Headline || '');
-        setBio(res.data.data.Bio || '');
-        setDesiredSalary(res.data.data.DesiredSalary || '');
-        setCurrentLocation(res.data.data.CurrentLocation || '');
-        setFullName(res.data.data.FullName || '');
-        setPhone(res.data.data.Phone || '');
+        const p = res.data.data;
+        setProfile(p);
+        setHeadline(p.Headline || '');
+        setDesiredSalary(p.DesiredSalary || '');
+        setCurrentLocation(p.CurrentLocation || '');
+        setFullName(p.FullName || '');
+        setPhone(p.Phone || '');
+
+        let parsed = null;
+        if (p.Bio && typeof p.Bio === 'string' && p.Bio.trim().startsWith('{')) {
+          try {
+            parsed = JSON.parse(p.Bio);
+          } catch (e) {
+            console.warn('Bio parse JSON failed:', e);
+          }
+        }
+
+        if (parsed) {
+          const bioTextVal = parsed.bio || parsed.summary || '';
+          setBio(bioTextVal);
+          setParsedBioData({
+            bioText: bioTextVal,
+            links: parsed.links || { linkedin: '', github: '', portfolio: '' },
+            skills: parsed.skills || { hardSkills: [], softSkills: [], languages: [] },
+            experiences: Array.isArray(parsed.experiences) ? parsed.experiences : [],
+            educations: Array.isArray(parsed.educations) ? parsed.educations : [],
+            additionalInfo: parsed.additionalInfo || { projects: [], certifications: [], activities: [], references: [] }
+          });
+          if (parsed.links) {
+            setLinkedinLink(parsed.links.linkedin || '');
+            setGithubLink(parsed.links.github || '');
+            setPortfolioLink(parsed.links.portfolio || '');
+          }
+        } else {
+          setBio(p.Bio || '');
+          setParsedBioData({
+            bioText: p.Bio || '',
+            links: { linkedin: '', github: '', portfolio: '' },
+            skills: { hardSkills: [], softSkills: [], languages: [] },
+            experiences: [],
+            educations: [],
+            additionalInfo: { projects: [], certifications: [], activities: [], references: [] }
+          });
+        }
       }
     } catch (err) {
       console.error('Fetch candidate profile error:', err);
@@ -145,9 +209,19 @@ export default function CandidateDashboard() {
     e.preventDefault();
     try {
       setSavingProfile(true);
+      const updatedPayload = {
+        ...parsedBioData,
+        bio: bio,
+        links: {
+          linkedin: linkedinLink,
+          github: githubLink,
+          portfolio: portfolioLink
+        }
+      };
+
       await api.put('/candidate/profile', {
         headline,
-        bio,
+        bio: JSON.stringify(updatedPayload),
         desiredSalary: desiredSalary ? parseFloat(desiredSalary) : null,
         currentLocation,
         fullName,
@@ -158,6 +232,51 @@ export default function CandidateDashboard() {
       setIsEditing(false);
     } catch (err) {
       alert('Lỗi cập nhật hồ sơ: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // Handle Apply AI Extracted CV Data
+  const handleApplyExtractedCVData = async (extracted) => {
+    try {
+      setSavingProfile(true);
+      const newFullName = extracted.fullName || fullName;
+      const newPhone = extracted.phone || phone;
+      const newHeadline = extracted.headline || headline;
+      const newLocation = extracted.location || currentLocation;
+      const newBioText = extracted.bio || bio;
+
+      const structuredBioPayload = JSON.stringify({
+        bio: newBioText,
+        links: extracted.links || {},
+        skills: extracted.skills || {},
+        experiences: extracted.experiences || [],
+        educations: extracted.educations || [],
+        additionalInfo: extracted.additionalInfo || {}
+      });
+
+      setFullName(newFullName);
+      setPhone(newPhone);
+      setHeadline(newHeadline);
+      setCurrentLocation(newLocation);
+      setBio(newBioText);
+
+      await api.put('/candidate/profile', {
+        fullName: newFullName,
+        phone: newPhone,
+        headline: newHeadline,
+        bio: structuredBioPayload,
+        desiredSalary: desiredSalary ? parseFloat(desiredSalary) : null,
+        currentLocation: newLocation
+      });
+
+      await fetchProfileData();
+      await refreshUser();
+      alert('✨ Đã tự động cập nhật và đồng bộ toàn bộ thông tin hồ sơ từ AI thành công!');
+    } catch (err) {
+      console.error('Apply CV error:', err);
+      alert('Lỗi cập nhật hồ sơ từ CV: ' + (err.response?.data?.message || err.message));
     } finally {
       setSavingProfile(false);
     }
@@ -321,8 +440,8 @@ export default function CandidateDashboard() {
       
       {/* Dashboard Top Banner */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
-          <div className="relative group">
+        <div className="flex items-center gap-5 flex-1">
+          <div className="relative group shrink-0">
             <img
               src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'}
               alt={user?.fullName}
@@ -349,26 +468,61 @@ export default function CandidateDashboard() {
               className="hidden"
             />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
                 {profile?.FullName || user?.fullName}
               </h1>
               <CheckCircle2 className="w-5 h-5 text-brand-blue fill-brand-light" />
             </div>
-            <p className="text-sm font-semibold text-brand-blue">
+            <p className="text-sm font-bold text-brand-blue">
               {profile?.Headline || 'Ứng viên Jobtimize'}
             </p>
-            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-1">
-              <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {profile?.Email}</span>
-              {profile?.Phone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {profile.Phone}</span>}
-              {profile?.CurrentLocation && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {profile.CurrentLocation}</span>}
+            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 pt-0.5">
+              <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5 text-brand-blue" /> {profile?.Email}</span>
+              {profile?.Phone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5 text-emerald-600" /> {profile.Phone}</span>}
+              {profile?.CurrentLocation && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-red-500" /> {profile.CurrentLocation}</span>}
             </div>
+            {/* Social / Portfolio Links */}
+            {(parsedBioData.links?.linkedin || parsedBioData.links?.github || parsedBioData.links?.portfolio) && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {parsedBioData.links.linkedin && (
+                  <a
+                    href={parsedBioData.links.linkedin.startsWith('http') ? parsedBioData.links.linkedin : `https://${parsedBioData.links.linkedin}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-semibold transition-colors"
+                  >
+                    <Linkedin className="w-3 h-3" /> LinkedIn
+                  </a>
+                )}
+                {parsedBioData.links.github && (
+                  <a
+                    href={parsedBioData.links.github.startsWith('http') ? parsedBioData.links.github : `https://${parsedBioData.links.github}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 text-[11px] font-semibold transition-colors"
+                  >
+                    <Github className="w-3 h-3" /> GitHub
+                  </a>
+                )}
+                {parsedBioData.links.portfolio && (
+                  <a
+                    href={parsedBioData.links.portfolio.startsWith('http') ? parsedBioData.links.portfolio : `https://${parsedBioData.links.portfolio}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[11px] font-semibold transition-colors"
+                  >
+                    <Globe className="w-3 h-3" /> Portfolio
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Action Toggle */}
-        <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-200/80">
+        <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-200/80 shrink-0">
           <div className="text-right">
             <p className="text-xs font-bold text-gray-800">Trạng thái tìm việc</p>
             <p className="text-[11px] text-gray-500">{profile?.IsLookingForJob ? 'Bật hiển thị với NTD' : 'Tạm dừng tìm việc'}</p>
@@ -444,6 +598,23 @@ export default function CandidateDashboard() {
             </button>
 
             <button
+              onClick={() => setActiveTab('interview')}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+                activeTab === 'interview'
+                  ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-md shadow-purple-500/20'
+                  : 'text-purple-700 bg-purple-50/50 hover:bg-purple-100/80'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Bot className="w-4 h-4" />
+                <span>Luyện phỏng vấn AI</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${activeTab === 'interview' ? 'bg-white/20 text-white' : 'bg-purple-200 text-purple-800'}`}>
+                UC-C15
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('security')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
                 activeTab === 'security'
@@ -466,18 +637,28 @@ export default function CandidateDashboard() {
               
               {/* Profile Details Edit Card */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <User className="w-5 h-5 text-brand-blue" />
                     <h2 className="text-base font-bold text-gray-900">Thông tin cá nhân & Giới thiệu</h2>
                   </div>
-                  <button
-                    onClick={() => setIsEditing(!isEditing)}
-                    className="px-3.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    {isEditing ? 'Hủy' : 'Chỉnh sửa'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsCvParserOpen(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>AI Trích xuất CV</span>
+                    </button>
+                    <button
+                      onClick={() => setIsEditing(!isEditing)}
+                      className="px-3.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      {isEditing ? 'Hủy' : 'Chỉnh sửa'}
+                    </button>
+                  </div>
                 </div>
 
                 {isEditing ? (
@@ -538,17 +719,51 @@ export default function CandidateDashboard() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Giới thiệu bản thân & Kinh nghiệm cốt lõi</label>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Tóm tắt bản thân / Mục tiêu nghề nghiệp (3-4 câu)</label>
                       <textarea
-                        rows={4}
+                        rows={3}
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
-                        placeholder="Mô tả kỹ năng, dự án tiêu biểu, định hướng phát triển sự nghiệp..."
+                        placeholder="Tóm tắt điểm mạnh, số năm kinh nghiệm, giá trị mang lại và định hướng sự nghiệp..."
                         className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-brand-blue/20"
                       />
                     </div>
 
-                    <div className="flex justify-end">
+                    {/* Social Links Editing */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">LinkedIn URL</label>
+                        <input
+                          type="text"
+                          value={linkedinLink}
+                          onChange={(e) => setLinkedinLink(e.target.value)}
+                          placeholder="linkedin.com/in/username"
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">GitHub URL</label>
+                        <input
+                          type="text"
+                          value={githubLink}
+                          onChange={(e) => setGithubLink(e.target.value)}
+                          placeholder="github.com/username"
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Portfolio / Website</label>
+                        <input
+                          type="text"
+                          value={portfolioLink}
+                          onChange={(e) => setPortfolioLink(e.target.value)}
+                          placeholder="portfolio.dev"
+                          className="w-full p-2.5 rounded-xl border border-gray-200 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
                       <button
                         type="submit"
                         disabled={savingProfile}
@@ -560,32 +775,254 @@ export default function CandidateDashboard() {
                     </div>
                   </form>
                 ) : (
-                  <div className="space-y-4 text-sm text-gray-700">
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase">Headline</p>
-                      <p className="font-semibold text-gray-900 mt-0.5">{profile?.Headline || 'Chưa cập nhật headline'}</p>
+                  <div className="space-y-6 text-sm text-gray-700">
+                    
+                    {/* 1. Summary & Desired Salary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                      <div className="sm:col-span-2 space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Tóm tắt bản thân & Mục tiêu</p>
+                        <p className="text-gray-700 text-xs leading-relaxed whitespace-pre-line">
+                          {parsedBioData.bioText || profile?.Bio || 'Chưa có thông tin tóm tắt.'}
+                        </p>
+                      </div>
+                      <div className="space-y-1 sm:border-l sm:border-gray-200 sm:pl-4">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Mức lương mong muốn</p>
+                        <p className="font-bold text-emerald-600 text-sm">
+                          {profile?.DesiredSalary ? `${profile.DesiredSalary.toLocaleString()} VNĐ` : 'Thỏa thuận'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase">Mức lương mong muốn</p>
-                      <p className="font-semibold text-emerald-600 mt-0.5">
-                        {profile?.DesiredSalary ? `${profile.DesiredSalary.toLocaleString()} VNĐ` : 'Thỏa thuận'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase">Giới thiệu bản thân</p>
-                      <p className="text-gray-600 mt-0.5 leading-relaxed whitespace-pre-line">{profile?.Bio || 'Chưa có thông tin giới thiệu'}</p>
-                    </div>
+
+                    {/* 2. Skills Section */}
+                    {(parsedBioData.skills?.hardSkills?.length > 0 || parsedBioData.skills?.softSkills?.length > 0 || parsedBioData.skills?.languages?.length > 0) && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase">
+                          <Award className="w-4 h-4 text-purple-600" />
+                          <span>Kỹ năng & Ngoại ngữ</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          {/* Hard Skills */}
+                          <div className="p-3.5 rounded-2xl bg-purple-50/50 border border-purple-100 space-y-2">
+                            <p className="font-bold text-purple-900 text-[11px]">Kỹ năng cứng (Hard Skills):</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {parsedBioData.skills.hardSkills?.map((s, idx) => (
+                                <span key={idx} className="px-2.5 py-1 rounded-xl bg-white text-purple-800 border border-purple-200 text-[11px] font-semibold shadow-2xs">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Soft Skills & Languages */}
+                          <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-2">
+                            <p className="font-bold text-indigo-900 text-[11px]">Kỹ năng mềm & Ngoại ngữ:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {parsedBioData.skills.softSkills?.map((s, idx) => (
+                                <span key={idx} className="px-2.5 py-1 rounded-xl bg-white text-indigo-800 border border-indigo-200 text-[11px] font-semibold shadow-2xs">
+                                  {s}
+                                </span>
+                              ))}
+                              {parsedBioData.skills.languages?.map((lang, idx) => (
+                                <span key={idx} className="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold shadow-2xs">
+                                  🌐 {typeof lang === 'object' ? `${lang.language} (${lang.level})` : lang}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Work Experience */}
+                    {parsedBioData.experiences && parsedBioData.experiences.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase">
+                          <Briefcase className="w-4 h-4 text-brand-blue" />
+                          <span>Kinh nghiệm làm việc ({parsedBioData.experiences.length})</span>
+                        </div>
+                        <div className="space-y-2.5">
+                          {parsedBioData.experiences.map((exp, idx) => (
+                            <div key={idx} className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-1">
+                              <div className="flex flex-wrap justify-between items-start font-bold text-gray-900">
+                                <span className="text-brand-blue text-xs">{exp.position}</span>
+                                <span className="text-[11px] text-gray-500 font-medium bg-white px-2 py-0.5 rounded-lg border border-gray-200">
+                                  {exp.duration}
+                                </span>
+                              </div>
+                              <p className="font-semibold text-gray-700 text-xs">{exp.company}</p>
+                              {exp.description && <p className="text-gray-600 text-xs mt-1 leading-relaxed whitespace-pre-line">{exp.description}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. Education */}
+                    {parsedBioData.educations && parsedBioData.educations.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase">
+                          <GraduationCap className="w-4 h-4 text-emerald-600" />
+                          <span>Học vấn & Bằng cấp ({parsedBioData.educations.length})</span>
+                        </div>
+                        <div className="space-y-2.5">
+                          {parsedBioData.educations.map((edu, idx) => (
+                            <div key={idx} className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-1">
+                              <div className="flex flex-wrap justify-between items-start font-bold text-gray-900">
+                                <span className="text-emerald-700 text-xs">{edu.school}</span>
+                                <span className="text-[11px] text-gray-500 font-medium bg-white px-2 py-0.5 rounded-lg border border-gray-200">
+                                  {edu.year}
+                                </span>
+                              </div>
+                              {edu.major && <p className="text-gray-700 font-medium text-xs">Chuyên ngành: {edu.major}</p>}
+                              {edu.gpa && <p className="text-emerald-600 font-bold text-[11px]">GPA: {edu.gpa}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5. Additional Information (Projects, Certifications, Activities, References) */}
+                    {parsedBioData.additionalInfo && (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                          <Layers className="w-4 h-4 text-brand-purple" />
+                          <h4 className="text-xs font-bold text-gray-800 uppercase">Thông tin bổ sung</h4>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex flex-wrap gap-1.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setProfileAdditionalTab('projects')}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+                              profileAdditionalTab === 'projects' ? 'bg-brand-blue text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <FolderGit2 className="w-3.5 h-3.5" />
+                            <span>Dự án ({parsedBioData.additionalInfo.projects?.length || 0})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProfileAdditionalTab('certifications')}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+                              profileAdditionalTab === 'certifications' ? 'bg-brand-blue text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <Award className="w-3.5 h-3.5" />
+                            <span>Chứng chỉ & Giải thưởng ({parsedBioData.additionalInfo.certifications?.length || 0})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProfileAdditionalTab('activities')}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+                              profileAdditionalTab === 'activities' ? 'bg-brand-blue text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                            <span>Hoạt động ({parsedBioData.additionalInfo.activities?.length || 0})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProfileAdditionalTab('references')}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+                              profileAdditionalTab === 'references' ? 'bg-brand-blue text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Người tham chiếu ({parsedBioData.additionalInfo.references?.length || 0})</span>
+                          </button>
+                        </div>
+
+                        {/* Tab Panel */}
+                        <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200/80 text-xs">
+                          {profileAdditionalTab === 'projects' && (
+                            <div className="space-y-2">
+                              {parsedBioData.additionalInfo.projects?.length > 0 ? (
+                                parsedBioData.additionalInfo.projects.map((proj, idx) => (
+                                  <div key={idx} className="p-3 rounded-xl bg-white border border-gray-200 space-y-1">
+                                    <p className="font-bold text-gray-900">{proj.name} {proj.role ? <span className="text-gray-500 font-normal">({proj.role})</span> : null}</p>
+                                    {proj.technologies && <p className="text-[11px] text-purple-700 font-medium">Công nghệ: {proj.technologies}</p>}
+                                    {proj.description && <p className="text-gray-600 leading-relaxed whitespace-pre-line">{proj.description}</p>}
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-gray-400 italic">Chưa có thông tin dự án.</p>
+                              )}
+                            </div>
+                          )}
+
+                          {profileAdditionalTab === 'certifications' && (
+                            <div className="space-y-2">
+                              {parsedBioData.additionalInfo.certifications?.length > 0 ? (
+                                parsedBioData.additionalInfo.certifications.map((cert, idx) => (
+                                  <div key={idx} className="p-2.5 rounded-xl bg-white border border-gray-200 flex justify-between items-center">
+                                    <div>
+                                      <p className="font-bold text-gray-800">{cert.name}</p>
+                                      {cert.issuer && <p className="text-[11px] text-gray-500">Cấp bởi: {cert.issuer}</p>}
+                                    </div>
+                                    {cert.year && <span className="text-[11px] font-semibold text-gray-400">{cert.year}</span>}
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-gray-400 italic">Chưa có thông tin chứng chỉ hoặc giải thưởng.</p>
+                              )}
+                            </div>
+                          )}
+
+                          {profileAdditionalTab === 'activities' && (
+                            <div className="space-y-2">
+                              {parsedBioData.additionalInfo.activities?.length > 0 ? (
+                                parsedBioData.additionalInfo.activities.map((act, idx) => (
+                                  <div key={idx} className="p-3 rounded-xl bg-white border border-gray-200 space-y-1">
+                                    <p className="font-bold text-gray-800">{act.name} {act.role ? <span className="text-gray-500 font-normal">({act.role})</span> : null}</p>
+                                    {act.description && <p className="text-gray-600 leading-relaxed">{act.description}</p>}
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-gray-400 italic">Chưa có thông tin hoạt động ngoại khóa.</p>
+                              )}
+                            </div>
+                          )}
+
+                          {profileAdditionalTab === 'references' && (
+                            <div className="space-y-2">
+                              {parsedBioData.additionalInfo.references?.length > 0 ? (
+                                parsedBioData.additionalInfo.references.map((ref, idx) => (
+                                  <div key={idx} className="p-3 rounded-xl bg-white border border-gray-200 flex justify-between items-start">
+                                    <div>
+                                      <p className="font-bold text-gray-800">{ref.name}</p>
+                                      <p className="text-[11px] text-gray-500">{ref.position} - {ref.company}</p>
+                                    </div>
+                                    {ref.contact && <span className="text-[11px] font-semibold text-brand-blue">{ref.contact}</span>}
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-gray-400 italic">Sẽ cung cấp khi có yêu cầu.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 )}
               </div>
 
               {/* CV Management Card (UC-C05, UC-C06) */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <FileText className="w-5 h-5 text-brand-green" />
                     <h2 className="text-base font-bold text-gray-900">Quản lý nhiều phiên bản CV (UC-C05)</h2>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCvParserOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>⚡ AI Phân tích CV & Điền hồ sơ</span>
+                  </button>
                 </div>
 
                 {/* Upload Form */}
@@ -1146,9 +1583,21 @@ export default function CandidateDashboard() {
             </div>
           )}
 
+          {/* TAB: AI Mock Interview (UC-C15) */}
+          {activeTab === 'interview' && (
+            <MockInterviewSection />
+          )}
+
         </div>
 
       </div>
+
+      {/* AI CV Parser Modal */}
+      <AICVParserModal
+        isOpen={isCvParserOpen}
+        onClose={() => setIsCvParserOpen(false)}
+        onApplyExtractedData={handleApplyExtractedCVData}
+      />
 
     </div>
   );

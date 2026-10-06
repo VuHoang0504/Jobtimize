@@ -19,13 +19,13 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedExtensions = ['.pdf', '.doc', '.docx', '.png', '.jpg', '.jpeg'];
+  const allowedExtensions = ['.pdf', '.doc', '.docx', '.png', '.jpg', '.jpeg', '.webp', '.txt'];
   const ext = path.extname(file.originalname).toLowerCase();
   
   if (allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Định dạng file không hỗ trợ. Vui lòng tải file PDF, DOC, DOCX hoặc PNG, JPG.'));
+    cb(new Error('Định dạng file không hỗ trợ. Vui lòng tải file PDF, DOC, DOCX, PNG, JPG, WEBP hoặc TXT.'));
   }
 };
 

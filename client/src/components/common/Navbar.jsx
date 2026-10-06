@@ -15,11 +15,11 @@ import {
   Menu, 
   X,
   CheckCircle2,
-  KeyRound,
   ChevronDown,
   ThumbsUp,
   FileCheck2,
-  ExternalLink
+  ExternalLink,
+  Bot
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -285,8 +285,21 @@ export default function Navbar() {
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                   >
-                    <Sparkles className="w-4 h-4 text-brand-purple animate-pulse" />
-                    Phân tích AI Skill Gap
+                    <Sparkles className="w-4 h-4 text-brand-purple" />
+                    AI Skill Gap
+                  </Link>
+
+                  <Link
+                    to="/candidate/dashboard?tab=interview"
+                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      location.search.includes('tab=interview')
+                        ? 'text-purple-700 bg-purple-100 font-semibold'
+                        : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                    }`}
+                  >
+                    <Bot className="w-4 h-4 text-purple-600" />
+                    <span>Luyện phỏng vấn AI</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-purple-600 text-white text-[9px] font-extrabold">NEW</span>
                   </Link>
                 </>
               )}
@@ -388,20 +401,20 @@ export default function Navbar() {
                             Quản lý hồ sơ & CV
                           </Link>
                           <Link
+                            to="/candidate/dashboard?tab=interview"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 font-semibold"
+                          >
+                            <Bot className="w-4 h-4 text-purple-600" />
+                            Luyện phỏng vấn AI
+                          </Link>
+                          <Link
                             to="/candidate/dashboard?tab=saved"
                             onClick={() => setProfileDropdownOpen(false)}
                             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
                             <Bookmark className="w-4 h-4 text-gray-400" />
                             Việc làm đã lưu
-                          </Link>
-                          <Link
-                            to="/candidate/dashboard?tab=security"
-                            onClick={() => setProfileDropdownOpen(false)}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <KeyRound className="w-4 h-4 text-gray-400" />
-                            Đổi mật khẩu & Avatar
                           </Link>
                         </>
                       )}

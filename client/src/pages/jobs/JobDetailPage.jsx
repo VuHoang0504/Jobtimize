@@ -18,7 +18,8 @@ import {
   FileText, 
   Upload, 
   ArrowLeft,
-  Briefcase
+  Briefcase,
+  Bot
 } from 'lucide-react';
 
 export default function JobDetailPage() {
@@ -358,6 +359,29 @@ export default function JobDetailPage() {
 
             </div>
           )}
+
+          {/* AI Mock Interview CTA Card */}
+          <div className="p-6 rounded-3xl bg-linear-to-r from-purple-900 via-indigo-900 to-slate-900 text-white space-y-4 shadow-lg shadow-purple-950/30 relative overflow-hidden">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-xs flex items-center justify-center text-purple-300">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">Luyện Phỏng Vấn AI</h4>
+                <p className="text-[11px] text-purple-200/80">Cho riêng vị trí {job.Title}</p>
+              </div>
+            </div>
+            <p className="text-xs text-purple-100/90 leading-relaxed">
+              Thử sức trả lời các câu hỏi thực tế được tạo dựa trên JD này và nhận phân tích điểm mạnh, điểm yếu từ AI Gemini.
+            </p>
+            <Link
+              to={`/candidate/dashboard?tab=interview&jobId=${job.JobID}&jobTitle=${encodeURIComponent(job.Title)}`}
+              className="w-full py-2.5 px-4 rounded-xl bg-linear-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-500/20 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Phỏng vấn thử ngay</span>
+            </Link>
+          </div>
 
           {/* Company Card */}
           <div className="bg-white rounded-3xl p-6 border border-gray-200/80 shadow-card space-y-4">

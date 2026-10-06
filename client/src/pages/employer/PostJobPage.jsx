@@ -22,6 +22,13 @@ export default function PostJobPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // AI JD Generator states
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiLevel, setAiLevel] = useState('Middle');
+  const [aiNote, setAiNote] = useState('');
+  const [aiSuccessMsg, setAiSuccessMsg] = useState('');
+  const [showAiBox, setShowAiBox] = useState(false);
+
   useEffect(() => {
     const fetchMeta = async () => {
       try {
@@ -59,6 +66,68 @@ export default function PostJobPage() {
       }
       return s;
     }));
+  };
+
+  const handleGenerateJDWithAI = async () => {
+    if (!title.trim()) {
+      setError('Vui lòng nhập Tiêu đề vị trí công việc trước khi nhờ AI viết JD.');
+      return;
+    }
+
+    setError('');
+    setAiSuccessMsg('');
+    setIsAiGenerating(true);
+
+    try {
+      const selectedCategoryObj = categories.find(c => String(c.CategoryID) === String(categoryId));
+      const res = await api.post('/ai/generate-jd', {
+        title,
+        categoryName: selectedCategoryObj?.CategoryName || '',
+        level: aiLevel,
+        skills: selectedSkills.map(s => skillTaxonomy.find(t => t.SkillID === s.skillId)?.SkillName).filter(Boolean).join(', '),
+        additionalNotes: aiNote
+      });
+
+      if (res.data.success && res.data.data) {
+        const aiData = res.data.data;
+        if (aiData.description) setDescription(aiData.description);
+        if (aiData.requirements) setRequirements(aiData.requirements);
+        if (aiData.suggestedSalaryRange && !salaryRange) setSalaryRange(aiData.suggestedSalaryRange);
+
+        // Auto match suggested skills
+        if (Array.isArray(aiData.suggestedSkills) && aiData.suggestedSkills.length > 0) {
+          const matchedSkills = [];
+          const lowerSuggested = aiData.suggestedSkills.map(s => s.toLowerCase());
+
+          skillTaxonomy.forEach(st => {
+            const sName = st.SkillName.toLowerCase();
+            const sNorm = (st.NormalizedName || '').toLowerCase();
+            if (lowerSuggested.some(ls => ls.includes(sName) || sName.includes(ls) || (sNorm && ls.includes(sNorm)))) {
+              matchedSkills.push({ skillId: st.SkillID, isMandatory: true });
+            }
+          });
+
+          if (matchedSkills.length > 0) {
+            setSelectedSkills(prev => {
+              const combined = [...prev];
+              matchedSkills.forEach(ms => {
+                if (!combined.some(c => c.skillId === ms.skillId)) {
+                  combined.push(ms);
+                }
+              });
+              return combined;
+            });
+          }
+        }
+
+        setAiSuccessMsg('✨ AI Gemini đã hoàn thiện bản mô tả công việc (JD), yêu cầu và gợi ý kỹ năng thành công!');
+        setShowAiBox(false);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Có lỗi khi AI soạn thảo JD. Vui lòng thử lại.');
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -117,6 +186,93 @@ export default function PostJobPage() {
           </p>
         </div>
 
+        {/* AI Assistant Banner */}
+        <div className="bg-linear-to-r from-purple-50 to-blue-50 border border-purple-200/80 rounded-2xl p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  Trợ lý AI viết JD tự động
+                  <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-extrabold uppercase">
+                    Gemini AI
+                  </span>
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Nhập tiêu đề vị trí và để AI tự động soạn thảo Mô tả, Yêu cầu và Gợi ý Kỹ năng chuẩn mực trong 3 giây.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAiBox(!showAiBox)}
+              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Sparkles className="w-4 h-4" />
+              {showAiBox ? 'Thu gọn trợ lý' : 'Mở Trợ lý AI'}
+            </button>
+          </div>
+
+          {showAiBox && (
+            <div className="pt-4 border-t border-purple-200/60 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Cấp bậc ứng viên</label>
+                <select
+                  value={aiLevel}
+                  onChange={(e) => setAiLevel(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                >
+                  <option value="Intern / Thực tập sinh">Intern / Thực tập sinh</option>
+                  <option value="Fresher / Mới tốt nghiệp">Fresher / Mới tốt nghiệp</option>
+                  <option value="Junior (1 - 2 năm)">Junior (1 - 2 năm)</option>
+                  <option value="Middle (2 - 4 năm)">Middle (2 - 4 năm)</option>
+                  <option value="Senior (5+ năm)">Senior (5+ năm)</option>
+                  <option value="Tech Lead / Manager">Tech Lead / Manager</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Ghi chú thêm cho AI (Tùy chọn)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={aiNote}
+                    onChange={(e) => setAiNote(e.target.value)}
+                    placeholder="Ví dụ: Ưu tiên ứng viên biết Next.js, làm việc hybrid..."
+                    className="flex-1 p-2.5 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={isAiGenerating}
+                    onClick={handleGenerateJDWithAI}
+                    className="px-5 py-2.5 rounded-xl bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-500/20 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                  >
+                    {isAiGenerating ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Đang viết JD...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Tạo JD ngay</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {aiSuccessMsg && (
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{aiSuccessMsg}</span>
+          </div>
+        )}
+
         {error && (
           <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium">
             {error}
@@ -127,9 +283,22 @@ export default function PostJobPage() {
           
           {/* Job Title */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-              Tiêu đề vị trí công việc *
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Tiêu đề vị trí công việc *
+              </label>
+              {!showAiBox && (
+                <button
+                  type="button"
+                  disabled={isAiGenerating}
+                  onClick={handleGenerateJDWithAI}
+                  className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {isAiGenerating ? 'AI đang tạo...' : 'Tạo nhanh bằng AI'}
+                </button>
+              )}
+            </div>
             <input
               type="text"
               required
