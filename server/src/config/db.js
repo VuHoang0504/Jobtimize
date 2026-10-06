@@ -1,15 +1,16 @@
 const sql = require('mssql');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const config = {
   user: process.env.DB_USER || 'sa',
   password: process.env.DB_PASSWORD || '123',
-  server: process.env.DB_SERVER || 'localhost',
+  server: process.env.DB_SERVER || '127.0.0.1',
   port: parseInt(process.env.DB_PORT, 10) || 1433,
   database: process.env.DB_NAME || 'JobtimizeDB',
   options: {
     encrypt: process.env.DB_ENCRYPT === 'true',
-    trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true' || true,
+    trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false',
     enableArithAbort: true
   },
   pool: {

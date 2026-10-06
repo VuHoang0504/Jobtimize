@@ -40,7 +40,6 @@ import {
   FolderGit2,
   Users
 } from 'lucide-react';
-import AICVParserModal from '../../components/candidate/AICVParserModal';
 import MockInterviewSection from '../../components/candidate/MockInterviewSection';
 
 export default function CandidateDashboard() {
@@ -94,14 +93,12 @@ export default function CandidateDashboard() {
   const [cvTitle, setCvTitle] = useState('');
   const [cvFile, setCvFile] = useState(null);
   const [uploadingCv, setUploadingCv] = useState(false);
-  const [isCvParserOpen, setIsCvParserOpen] = useState(false);
 
   // Avatar upload state
   const fileInputRef = useRef(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarError, setAvatarError] = useState('');
-  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -127,19 +124,27 @@ export default function CandidateDashboard() {
         setPhone(p.Phone || '');
 
         let parsed = null;
-        if (p.Bio && typeof p.Bio === 'string' && p.Bio.trim().startsWith('{')) {
-          try {
-            parsed = JSON.parse(p.Bio);
-          } catch (e) {
-            console.warn('Bio parse JSON failed:', e);
+        let cleanBioText = '';
+
+        if (p.Bio && typeof p.Bio === 'string') {
+          const rawBio = p.Bio.trim();
+          if (rawBio.startsWith('{')) {
+            try {
+              parsed = JSON.parse(rawBio);
+            } catch (e) {
+              console.warn('Bio parse JSON failed:', e);
+            }
+          } else {
+            cleanBioText = rawBio;
           }
         }
 
         if (parsed) {
-          const bioTextVal = parsed.bio || parsed.summary || '';
-          setBio(bioTextVal);
+          const rawTextVal = parsed.bioText || parsed.bio || parsed.summary || '';
+          cleanBioText = (typeof rawTextVal === 'string' && !rawTextVal.trim().startsWith('{')) ? rawTextVal.trim() : '';
+          setBio(cleanBioText);
           setParsedBioData({
-            bioText: bioTextVal,
+            bioText: cleanBioText,
             links: parsed.links || { linkedin: '', github: '', portfolio: '' },
             skills: parsed.skills || { hardSkills: [], softSkills: [], languages: [] },
             experiences: Array.isArray(parsed.experiences) ? parsed.experiences : [],
@@ -152,9 +157,9 @@ export default function CandidateDashboard() {
             setPortfolioLink(parsed.links.portfolio || '');
           }
         } else {
-          setBio(p.Bio || '');
+          setBio(cleanBioText);
           setParsedBioData({
-            bioText: p.Bio || '',
+            bioText: cleanBioText,
             links: { linkedin: '', github: '', portfolio: '' },
             skills: { hardSkills: [], softSkills: [], languages: [] },
             experiences: [],
@@ -209,74 +214,31 @@ export default function CandidateDashboard() {
     e.preventDefault();
     try {
       setSavingProfile(true);
+      const cleanBio = (bio || '').trim();
       const updatedPayload = {
         ...parsedBioData,
-        bio: bio,
+        bioText: cleanBio,
+        bio: cleanBio,
         links: {
-          linkedin: linkedinLink,
-          github: githubLink,
-          portfolio: portfolioLink
+          linkedin: (linkedinLink || '').trim(),
+          github: (githubLink || '').trim(),
+          portfolio: (portfolioLink || '').trim()
         }
       };
 
       await api.put('/candidate/profile', {
-        headline,
+        headline: (headline || '').trim(),
         bio: JSON.stringify(updatedPayload),
         desiredSalary: desiredSalary ? parseFloat(desiredSalary) : null,
-        currentLocation,
-        fullName,
-        phone
+        currentLocation: (currentLocation || '').trim(),
+        fullName: (fullName || '').trim(),
+        phone: (phone || '').trim()
       });
       await fetchProfileData();
       await refreshUser();
       setIsEditing(false);
     } catch (err) {
       alert('Lỗi cập nhật hồ sơ: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setSavingProfile(false);
-    }
-  };
-
-  // Handle Apply AI Extracted CV Data
-  const handleApplyExtractedCVData = async (extracted) => {
-    try {
-      setSavingProfile(true);
-      const newFullName = extracted.fullName || fullName;
-      const newPhone = extracted.phone || phone;
-      const newHeadline = extracted.headline || headline;
-      const newLocation = extracted.location || currentLocation;
-      const newBioText = extracted.bio || bio;
-
-      const structuredBioPayload = JSON.stringify({
-        bio: newBioText,
-        links: extracted.links || {},
-        skills: extracted.skills || {},
-        experiences: extracted.experiences || [],
-        educations: extracted.educations || [],
-        additionalInfo: extracted.additionalInfo || {}
-      });
-
-      setFullName(newFullName);
-      setPhone(newPhone);
-      setHeadline(newHeadline);
-      setCurrentLocation(newLocation);
-      setBio(newBioText);
-
-      await api.put('/candidate/profile', {
-        fullName: newFullName,
-        phone: newPhone,
-        headline: newHeadline,
-        bio: structuredBioPayload,
-        desiredSalary: desiredSalary ? parseFloat(desiredSalary) : null,
-        currentLocation: newLocation
-      });
-
-      await fetchProfileData();
-      await refreshUser();
-      alert('✨ Đã tự động cập nhật và đồng bộ toàn bộ thông tin hồ sơ từ AI thành công!');
-    } catch (err) {
-      console.error('Apply CV error:', err);
-      alert('Lỗi cập nhật hồ sơ từ CV: ' + (err.response?.data?.message || err.message));
     } finally {
       setSavingProfile(false);
     }
@@ -365,29 +327,6 @@ export default function CandidateDashboard() {
     }
   };
 
-  // Handle Avatar Update from URL
-  const handleAvatarUrlSave = async (e) => {
-    e.preventDefault();
-    if (!customAvatarUrl) return;
-
-    setAvatarUploading(true);
-    setAvatarError('');
-    setAvatarSuccess('');
-
-    try {
-      const res = await api.post('/auth/avatar', { avatarUrl: customAvatarUrl });
-      if (res.data.success) {
-        setAvatarSuccess('Cập nhật ảnh đại diện thành công!');
-        setCustomAvatarUrl('');
-        await refreshUser();
-        await fetchProfileData();
-      }
-    } catch (err) {
-      setAvatarError(err.response?.data?.message || 'Lỗi khi cập nhật ảnh đại diện');
-    } finally {
-      setAvatarUploading(false);
-    }
-  };
 
   // Handle Change Password
   const handleChangePassword = async (e) => {

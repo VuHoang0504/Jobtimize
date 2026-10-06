@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "Jobtimize - AI-Powered Recruitment Platform (Fullstack Monorepo)",
   "scripts": {
-    "install:all": "cd server && npm install && cd ../client && npm install",
-    "dev:server": "cd server && npm run dev",
-    "dev:client": "cd client && npm run dev",
-    "dev": "npx concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "seed:jobs": "node server/scripts/seedJobs.js"
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "npx concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
+    "db:init": "npm --prefix server run db:init",
+    "seed:jobs": "npm --prefix server run seed:jobs",
+    "build": "npm --prefix client run build"
   },
   "keywords": [
     "recruitment",
@@ -17,8 +19,5 @@
     "mssql"
   ],
   "author": "Jobtimize Team",
-  "license": "ISC",
-  "dependencies": {
-    "bcryptjs": "^3.0.3"
-  }
+  "license": "ISC"
 }

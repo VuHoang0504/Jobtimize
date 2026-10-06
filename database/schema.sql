@@ -1,4 +1,7 @@
-CREATE DATABASE JobtimizeDB;
+IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'JobtimizeDB')
+BEGIN
+    CREATE DATABASE JobtimizeDB;
+END
 GO
 USE JobtimizeDB;
 GO
