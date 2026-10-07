@@ -57,6 +57,9 @@ Jobtimize/
 
 Dự án đã được tối ưu hóa để có thể chạy trên **bất kỳ máy tính nào** chỉ với 3 bước:
 
+Note: database đổi tk: sa  mật khẩu: 123
+Cách đổi: sercurity -> login -> sa rồi đổi mk
+
 ### Bước 1: Cấu hình Môi trường (`.env`)
 Tại thư mục `server/`, tạo file `.env` từ file mẫu:
 ```bash
