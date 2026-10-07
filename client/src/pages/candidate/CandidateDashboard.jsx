@@ -41,6 +41,7 @@ import {
   Users
 } from 'lucide-react';
 import MockInterviewSection from '../../components/candidate/MockInterviewSection';
+import AICVParserModal from '../../components/candidate/AICVParserModal';
 
 export default function CandidateDashboard() {
   const { user, refreshUser } = useAuth();
@@ -64,6 +65,9 @@ export default function CandidateDashboard() {
   const [savedJobs, setSavedJobs] = useState([]);
   const [skillGapData, setSkillGapData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // AI CV Parser modal state
+  const [isCvParserOpen, setIsCvParserOpen] = useState(false);
 
   // Edit profile state
   const [isEditing, setIsEditing] = useState(false);
@@ -241,6 +245,57 @@ export default function CandidateDashboard() {
       alert('Lỗi cập nhật hồ sơ: ' + (err.response?.data?.message || err.message));
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  // Handle Apply AI Extracted CV Data
+  const handleApplyExtractedCVData = async (data) => {
+    if (!data) return;
+    if (data.fullName) setFullName(data.fullName);
+    if (data.headline) setHeadline(data.headline);
+    if (data.phone) setPhone(data.phone);
+    if (data.location) setCurrentLocation(data.location);
+    if (data.summary) setBio(data.summary);
+
+    const updatedLinks = {
+      linkedin: data.links?.linkedin || linkedinLink || '',
+      github: data.links?.github || githubLink || '',
+      portfolio: data.links?.portfolio || portfolioLink || ''
+    };
+    if (data.links?.linkedin) setLinkedinLink(data.links.linkedin);
+    if (data.links?.github) setGithubLink(data.links.github);
+    if (data.links?.portfolio) setPortfolioLink(data.links.portfolio);
+
+    const updatedBioData = {
+      bioText: data.summary || bio || '',
+      bio: data.summary || bio || '',
+      links: updatedLinks,
+      skills: {
+        hardSkills: Array.isArray(data.skills?.hardSkills) ? data.skills.hardSkills : (parsedBioData.skills?.hardSkills || []),
+        softSkills: Array.isArray(data.skills?.softSkills) ? data.skills.softSkills : (parsedBioData.skills?.softSkills || []),
+        languages: Array.isArray(data.skills?.languages) ? data.skills.languages : (parsedBioData.skills?.languages || [])
+      },
+      experiences: Array.isArray(data.experiences) ? data.experiences : (parsedBioData.experiences || []),
+      educations: Array.isArray(data.educations) ? data.educations : (parsedBioData.educations || []),
+      additionalInfo: data.additionalInfo || parsedBioData.additionalInfo || { projects: [], certifications: [], activities: [], references: [] }
+    };
+
+    setParsedBioData(updatedBioData);
+    setIsEditing(true);
+
+    try {
+      await api.put('/candidate/profile', {
+        headline: (data.headline || headline || '').trim(),
+        bio: JSON.stringify(updatedBioData),
+        desiredSalary: desiredSalary ? parseFloat(desiredSalary) : null,
+        currentLocation: (data.location || currentLocation || '').trim(),
+        fullName: (data.fullName || fullName || '').trim(),
+        phone: (data.phone || phone || '').trim()
+      });
+      await fetchProfileData();
+      await refreshUser();
+    } catch (err) {
+      console.warn('Auto-save extracted CV data error:', err);
     }
   };
 

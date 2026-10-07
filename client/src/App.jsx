@@ -32,6 +32,15 @@ const ProtectedEmployerRoute = ({ children }) => {
   return children;
 };
 
+const DashboardRedirect = () => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'Candidate') return <Navigate to="/candidate/dashboard" replace />;
+  if (user.role === 'Employer') return <Navigate to="/employer/dashboard" replace />;
+  return <Navigate to="/" replace />;
+};
+
 export default function App() {
   return (
     <AuthProvider>
@@ -46,6 +55,7 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/jobs/:id" element={<JobDetailPage />} />
+              <Route path="/dashboard" element={<DashboardRedirect />} />
 
               {/* Candidate Routes */}
               <Route
