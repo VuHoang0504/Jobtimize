@@ -67,7 +67,9 @@ export default function LoginPage() {
 
     try {
       const data = await login(email, password);
-      if (data.user.role === 'Employer') {
+      if (data.user.role === 'Admin') {
+        navigate('/admin/users');
+      } else if (data.user.role === 'Employer') {
         navigate('/employer/dashboard');
       } else {
         navigate('/');

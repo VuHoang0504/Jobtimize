@@ -19,7 +19,9 @@ import {
   ThumbsUp,
   FileCheck2,
   ExternalLink,
-  Bot
+  Bot,
+  ShieldCheck,
+  BarChart3
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -36,6 +38,7 @@ export default function Navbar() {
 
   const isCandidate = user?.role === 'Candidate';
   const isEmployer = user?.role === 'Employer';
+  const isAdmin = user?.role === 'Admin';
   const isLooking = user?.profile?.IsLookingForJob;
 
   const handleMouseEnterJob = () => {
@@ -331,6 +334,34 @@ export default function Navbar() {
                   </Link>
                 </>
               )}
+
+              {isAdmin && (
+                <>
+                  <Link
+                    to="/admin/dashboard"
+                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      location.pathname === '/admin/dashboard'
+                        ? 'text-emerald-700 bg-emerald-50 font-bold'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4 text-emerald-600" />
+                    Báo cáo & Thống kê
+                  </Link>
+
+                  <Link
+                    to="/admin/users"
+                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      location.pathname.startsWith('/admin/users')
+                        ? 'text-indigo-600 bg-indigo-50 font-bold'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                    Quản lý & Duyệt tin
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -378,7 +409,7 @@ export default function Navbar() {
                         <CheckCircle2 className="w-3.5 h-3.5 text-brand-blue fill-brand-light" />
                       </div>
                       <div className="text-[11px] text-gray-500 capitalize">
-                        {user.role === 'Employer' ? 'Nhà tuyển dụng' : 'Ứng viên'}
+                        {user.role === 'Admin' ? 'Quản trị viên' : user.role === 'Employer' ? 'Nhà tuyển dụng' : 'Ứng viên'}
                       </div>
                     </div>
                   </button>
@@ -389,6 +420,27 @@ export default function Navbar() {
                         <p className="text-xs text-gray-400">Đăng nhập với email</p>
                         <p className="text-xs font-semibold text-gray-800 truncate">{user.email}</p>
                       </div>
+
+                      {isAdmin && (
+                        <>
+                          <Link
+                            to="/admin/dashboard"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 font-bold"
+                          >
+                            <BarChart3 className="w-4 h-4 text-emerald-600" />
+                            Báo cáo & Doanh thu
+                          </Link>
+                          <Link
+                            to="/admin/users"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-indigo-700 hover:bg-indigo-50 font-bold"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                            Quản lý & Duyệt tin
+                          </Link>
+                        </>
+                      )}
 
                       {isCandidate && (
                         <>
@@ -601,6 +653,24 @@ export default function Navbar() {
                     className="block px-3 py-2 rounded-lg text-base font-medium text-brand-green hover:bg-gray-100"
                   >
                     Đăng tin tuyển dụng
+                  </Link>
+                </>
+              )}
+              {isAdmin && (
+                <>
+                  <Link
+                    to="/admin/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-base font-bold text-emerald-700 hover:bg-emerald-50"
+                  >
+                    Báo cáo & Thống kê doanh thu
+                  </Link>
+                  <Link
+                    to="/admin/users"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-base font-bold text-indigo-600 hover:bg-indigo-50"
+                  >
+                    Quản lý tài khoản & Duyệt tin
                   </Link>
                 </>
               )}

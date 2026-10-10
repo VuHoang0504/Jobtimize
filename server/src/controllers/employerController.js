@@ -96,11 +96,11 @@ const postJob = async (req, res) => {
     }
     const employerId = empRes.recordset[0].EmployerID;
 
-    // Insert JobPosting
+    // Insert JobPosting (Mặc định ở trạng thái Chờ Admin Phê Duyệt)
     const jobInsert = await executeQuery(
       `INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status, CreatedAt)
        OUTPUT INSERTED.JobID, INSERTED.Title, INSERTED.Status, INSERTED.CreatedAt
-       VALUES (@EmployerID, @CategoryID, @Title, @Description, @Requirements, @SalaryRange, @Location, 'Published', GETDATE())`,
+       VALUES (@EmployerID, @CategoryID, @Title, @Description, @Requirements, @SalaryRange, @Location, 'PendingApproval', GETDATE())`,
       {
         EmployerID: employerId,
         CategoryID: categoryId ? parseInt(categoryId, 10) : null,
@@ -137,7 +137,7 @@ const postJob = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Đăng tin tuyển dụng thành công!',
+      message: 'Đăng tin tuyển dụng thành công! Tin đang chờ Admin kiểm duyệt trước khi xuất bản.',
       data: newJob
     });
   } catch (error) {
@@ -157,7 +157,7 @@ const getMyJobPostings = async (req, res) => {
     const employerId = empRes.recordset[0].EmployerID;
 
     const query = `
-      SELECT jp.JobID, jp.Title, jp.SalaryRange, jp.Location, jp.Status, jp.CreatedAt,
+      SELECT jp.JobID, jp.Title, jp.SalaryRange, jp.Location, jp.Status, jp.AdminNote, jp.CreatedAt,
              jc.CategoryName,
              (SELECT COUNT(*) FROM JobApplications WHERE JobID = jp.JobID) AS TotalApplicants,
              (SELECT COUNT(*) FROM JobApplications WHERE JobID = jp.JobID AND Status = 'Interviewing') AS TotalInterviewing
