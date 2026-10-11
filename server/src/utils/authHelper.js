@@ -11,14 +11,27 @@ const comparePassword = async (plainPassword, hashedPassword) => {
   return await bcrypt.compare(plainPassword, hashedPassword);
 };
 
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || !secret.trim()) {
+    throw new Error('Lỗi cấu hình bảo mật: Biến môi trường JWT_SECRET chưa được thiết lập. Hệ thống từ chối sử dụng khóa mặc định.');
+  }
+  return secret.trim();
+};
+
+const validateJwtConfig = () => {
+  getJwtSecret();
+  return true;
+};
+
 const generateToken = (payload) => {
-  const secret = process.env.JWT_SECRET || 'Jobtimize_Secret_Key_Super_Secure_2024_Token_123!';
+  const secret = getJwtSecret();
   const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
   return jwt.sign(payload, secret, { expiresIn });
 };
 
 const verifyToken = (token) => {
-  const secret = process.env.JWT_SECRET || 'Jobtimize_Secret_Key_Super_Secure_2024_Token_123!';
+  const secret = getJwtSecret();
   return jwt.verify(token, secret);
 };
 
@@ -43,5 +56,7 @@ module.exports = {
   comparePassword,
   generateToken,
   verifyToken,
-  validatePasswordStrength
+  validatePasswordStrength,
+  getJwtSecret,
+  validateJwtConfig
 };

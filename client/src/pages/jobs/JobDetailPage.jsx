@@ -158,10 +158,18 @@ export default function JobDetailPage() {
                   <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
                     {job.Title}
                   </h1>
-                  <p className="text-sm font-semibold text-gray-600 flex items-center gap-1.5">
-                    <Building2 className="w-4 h-4 text-brand-blue" />
-                    {job.CompanyName}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-gray-600 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-brand-blue" />
+                      {job.CompanyName}
+                    </p>
+                    {job.KYCStatus === 'Approved' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-black border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Doanh nghiệp đã xác thực
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -395,8 +403,20 @@ export default function JobDetailPage() {
                 className="w-12 h-12 rounded-xl object-cover border border-gray-100"
               />
               <div>
-                <p className="font-bold text-gray-900 text-sm">{job.CompanyName}</p>
-                <p className="text-xs text-gray-500">{job.CompanySize || '50-100 nhân viên'}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-bold text-gray-900 text-sm">{job.CompanyName}</p>
+                  {job.KYCStatus === 'Approved' && (
+                    <span title="Doanh nghiệp đã xác thực KYC" className="inline-flex items-center text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-50 text-emerald-600" />
+                    </span>
+                  )}
+                </div>
+                {job.KYCStatus === 'Approved' && (
+                  <span className="inline-block px-2 py-0.2 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black border border-emerald-200 mt-0.5">
+                    ✓ Đã xác thực KYC
+                  </span>
+                )}
+                <p className="text-xs text-gray-500 mt-0.5">{job.CompanySize || '50-100 nhân viên'}</p>
               </div>
             </div>
 

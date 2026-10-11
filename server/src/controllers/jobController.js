@@ -8,7 +8,7 @@ const getJobs = async (req, res) => {
 
     let query = `
       SELECT jp.JobID, jp.Title, jp.SalaryRange, jp.Location, jp.Status, jp.CreatedAt, jp.ExpiresAt,
-             e.EmployerID, e.CompanyName, e.CompanyLogoUrl, e.CompanySize,
+             e.EmployerID, e.CompanyName, e.CompanyLogoUrl, e.CompanySize, e.KYCStatus,
              jc.CategoryID, jc.CategoryName,
              (
                SELECT st.SkillID, st.SkillName, jsr.IsMandatory
@@ -108,7 +108,7 @@ const getJobById = async (req, res) => {
     const jobQuery = `
       SELECT jp.JobID, jp.Title, jp.Description, jp.Requirements, jp.SalaryRange, jp.Location,
              jp.Status, jp.CreatedAt, jp.ExpiresAt,
-             e.EmployerID, e.CompanyName, e.CompanyLogoUrl, e.Website, e.CompanySize, e.Address, e.Description AS CompanyDescription,
+             e.EmployerID, e.CompanyName, e.CompanyLogoUrl, e.Website, e.CompanySize, e.KYCStatus, e.Address, e.Description AS CompanyDescription,
              jc.CategoryID, jc.CategoryName
       FROM JobPostings jp
       JOIN Employers e ON jp.EmployerID = e.EmployerID

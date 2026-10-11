@@ -19,7 +19,8 @@ import {
   ThumbsUp,
   FileCheck2,
   ExternalLink,
-  Bot
+  Bot,
+  CreditCard
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -329,6 +330,30 @@ export default function Navbar() {
                     <PlusCircle className="w-4 h-4 text-brand-green" />
                     Đăng tin tuyển dụng
                   </Link>
+
+                  <Link
+                    to="/employer/talents"
+                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      location.pathname === '/employer/talents'
+                        ? 'text-brand-blue bg-brand-light font-semibold'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Search className="w-4 h-4 text-brand-blue" />
+                    Kho CV ứng viên
+                  </Link>
+
+                  <Link
+                    to="/employer/pricing"
+                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      location.pathname === '/employer/pricing'
+                        ? 'text-emerald-700 bg-emerald-50 font-semibold'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4 text-emerald-600" />
+                    Bảng giá & Gói
+                  </Link>
                 </>
               )}
             </div>
@@ -436,6 +461,22 @@ export default function Navbar() {
                           >
                             <PlusCircle className="w-4 h-4 text-gray-400" />
                             Đăng tin JD mới
+                          </Link>
+                          <Link
+                            to="/employer/talents"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Search className="w-4 h-4 text-gray-400" />
+                            Săn nhân tài (Kho CV)
+                          </Link>
+                          <Link
+                            to="/employer/pricing"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <CreditCard className="w-4 h-4 text-gray-400" />
+                            Bảng giá & Gói dịch vụ
                           </Link>
                         </>
                       )}

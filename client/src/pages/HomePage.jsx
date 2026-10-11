@@ -277,7 +277,12 @@ export default function HomePage() {
                         </h3>
                         <p className="text-xs font-semibold text-gray-600 flex items-center gap-1 mt-0.5">
                           <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                          {job.CompanyName}
+                          <span>{job.CompanyName}</span>
+                          {job.KYCStatus === 'Approved' && (
+                            <span title="Doanh nghiệp đã xác thực KYC" className="inline-flex items-center text-emerald-600 ml-0.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-50 text-emerald-600" />
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
