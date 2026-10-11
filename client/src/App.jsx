@@ -13,6 +13,7 @@ import RegisterPage from './pages/auth/RegisterPage';
 import JobDetailPage from './pages/jobs/JobDetailPage';
 import CandidateDashboard from './pages/candidate/CandidateDashboard';
 import SkillGapAnalysisPage from './pages/candidate/SkillGapAnalysisPage';
+import CVBuilderPage from './pages/candidate/CVBuilderPage';
 import EmployerDashboard from './pages/employer/EmployerDashboard';
 import PostJobPage from './pages/employer/PostJobPage';
 import EmployerATSPage from './pages/employer/EmployerATSPage';
@@ -63,6 +64,14 @@ export default function App() {
                 element={
                   <ProtectedCandidateRoute>
                     <CandidateDashboard />
+                  </ProtectedCandidateRoute>
+                }
+              />
+              <Route
+                path="/candidate/cv-builder"
+                element={
+                  <ProtectedCandidateRoute>
+                    <CVBuilderPage />
                   </ProtectedCandidateRoute>
                 }
               />

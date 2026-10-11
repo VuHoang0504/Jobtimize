@@ -178,7 +178,7 @@ export default function PostJobPage() {
           <div className="flex items-center gap-2 text-brand-green">
             <PlusCircle className="w-6 h-6" />
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-              Đăng Tin Tuyển Dụng Mới (UC-E05)
+              Đăng Tin Tuyển Dụng Mới
             </h1>
           </div>
           <p className="text-sm text-gray-500 mt-1">

@@ -43,3 +43,43 @@
   background: linear-gradient(135deg, #EEF2FF 0%, #E6F8EE 100%);
   border: 1px solid rgba(99, 102, 241, 0.2);
 }
+
+/* Print CSS for Clean 1-Page A4 PDF Export (UC-C06) */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  nav, footer, .print\:hidden, button {
+    display: none !important;
+  }
+
+  #cv-printable-area {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    min-height: 297mm !important;
+    padding: 10mm 12mm !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+  }
+}

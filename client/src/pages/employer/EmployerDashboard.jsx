@@ -114,7 +114,7 @@ export default function EmployerDashboard() {
         <div className="flex items-center justify-between border-b border-gray-100 pb-4">
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-brand-blue" />
-            <h2 className="text-base font-bold text-gray-900">Quản lý Tin tuyển dụng & Hệ thống ATS (UC-E08)</h2>
+            <h2 className="text-base font-bold text-gray-900">Quản lý Tin tuyển dụng & Hệ thống ATS</h2>
           </div>
           <span className="text-xs font-bold text-gray-500">{jobs.length} tin</span>
         </div>
