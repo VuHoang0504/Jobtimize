@@ -484,7 +484,7 @@ export default function JobDetailPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                    Chọn phiên bản CV ứng tuyển (UC-C05)
+                    Chọn phiên bản CV ứng tuyển
                   </label>
                   
                   {job.candidateContext?.candidateCVs && job.candidateContext.candidateCVs.length > 0 ? (

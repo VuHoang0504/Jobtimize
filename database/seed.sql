@@ -60,40 +60,60 @@ BEGIN
 END
 GO
 
--- 4. Nạp Courses (Khóa học gợi ý bù đắp Skill Gap)
-IF NOT EXISTS (SELECT 1 FROM Courses WHERE Title = N'React - The Complete Guide (incl. Next.js, Redux)')
+-- 4. Nạp Courses (Khóa học gợi ý bù đắp Skill Gap - UC-C12)
+IF NOT EXISTS (SELECT 1 FROM Courses WHERE Title LIKE N'%React - The Complete Guide%')
 BEGIN
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'React - The Complete Guide (incl. Next.js, Redux)', 'Udemy', 'https://www.udemy.com/course/react-the-complete-guide/', SkillID 
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'React - The Complete Guide 2024 (incl. Next.js, Redux)', 'Udemy', 'https://www.udemy.com/course/react-the-complete-guide/', SkillID, 299000, 'VND', 0, N'Certificate of Completion from Udemy', N'68.5 giờ', N'Trung cấp', 4.8, 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=500&q=80'
     FROM SkillTaxonomy WHERE NormalizedName = 'react';
 
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'Next.js 14 & React Full-Stack Guide', 'Udemy', 'https://www.udemy.com/course/nextjs-react-the-complete-guide/', SkillID 
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Meta Front-End Developer Professional Certificate', 'Coursera', 'https://www.coursera.org/professional-certificates/meta-front-end-developer', SkillID, 950000, 'VND', 0, N'Meta Verified Career Certificate', N'7 tháng (6h/tuần)', N'Từ Cơ bản đến Nâng cao', 4.9, 'https://images.unsplash.com/photo-1593720213428-28a5b9e94613?w=500&q=80'
+    FROM SkillTaxonomy WHERE NormalizedName = 'react';
+
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Next.js 14 & React - The Complete Guide', 'Udemy', 'https://www.udemy.com/course/nextjs-react-the-complete-guide/', SkillID, 349000, 'VND', 0, N'Next.js Fullstack Specialist Certificate', N'32.5 giờ', N'Nâng cao', 4.9, 'https://images.unsplash.com/photo-1618401471353-b98aedd04e11?w=500&q=80'
     FROM SkillTaxonomy WHERE NormalizedName = 'nextjs';
 
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'Understanding TypeScript - 2024 Edition', 'Udemy', 'https://www.udemy.com/course/understanding-typescript/', SkillID 
-    FROM SkillTaxonomy WHERE NormalizedName = 'typescript';
-
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'NodeJS - The Complete Guide (REST APIs, GraphQL)', 'Udemy', 'https://www.udemy.com/course/nodejs-the-complete-guide/', SkillID 
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'NodeJS - The Complete Guide (MVC, REST APIs, GraphQL)', 'Udemy', 'https://www.udemy.com/course/nodejs-the-complete-guide/', SkillID, 279000, 'VND', 0, N'Node.js Certified Developer', N'40 giờ', N'Trung cấp', 4.8, 'https://images.unsplash.com/photo-1627398242454-45a1465c2479?w=500&q=80'
     FROM SkillTaxonomy WHERE NormalizedName = 'nodejs';
 
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'Docker & Kubernetes: The Practical Guide', 'Udemy', 'https://www.udemy.com/course/docker-kubernetes-the-practical-guide/', SkillID 
-    FROM SkillTaxonomy WHERE NormalizedName = 'docker';
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'IBM Back-End Development Professional Certificate', 'Coursera', 'https://www.coursera.org/professional-certificates/ibm-backend-development', SkillID, 0, 'VND', 1, N'IBM Professional Certification', N'5 tháng', N'Chuyên sâu', 4.8, 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=500&q=80'
+    FROM SkillTaxonomy WHERE NormalizedName = 'nodejs';
 
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'Microsoft SQL Server Development for Everyone', 'Coursera', 'https://www.coursera.org/learn/sql-server', SkillID 
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Understanding TypeScript - 2024 Edition', 'Udemy', 'https://www.udemy.com/course/understanding-typescript/', SkillID, 249000, 'VND', 0, N'TypeScript Mastery Certificate', N'15 giờ', N'Cơ bản đến Trung cấp', 4.8, 'https://images.unsplash.com/photo-1516116211227-bbc141e97669?w=500&q=80'
+    FROM SkillTaxonomy WHERE NormalizedName = 'typescript';
+
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Google IT Automation with Python Professional Certificate', 'Coursera', 'https://www.coursera.org/professional-certificates/google-it-automation', SkillID, 0, 'VND', 1, N'Google Official Certificate', N'6 tháng', N'Cơ bản đến Nâng cao', 4.9, 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=500&q=80'
+    FROM SkillTaxonomy WHERE NormalizedName = 'python';
+
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Microsoft SQL Server Development for Beginners & Advanced', 'Coursera', 'https://www.coursera.org/learn/sql-server', SkillID, 0, 'VND', 1, N'Microsoft Learn Verified Badge', N'28 giờ', N'Cơ bản', 4.7, 'https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=500&q=80'
     FROM SkillTaxonomy WHERE NormalizedName = 'sqlserver';
 
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'AWS Certified Solutions Architect Associate', 'Udemy', 'https://www.udemy.com/course/aws-certified-solutions-architect-associate-saa-c03/', SkillID 
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Docker & Kubernetes: The Practical Guide', 'Udemy', 'https://www.udemy.com/course/docker-kubernetes-the-practical-guide/', SkillID, 329000, 'VND', 0, N'DevOps Containerization Certificate', N'23.5 giờ', N'Trung cấp', 4.9, 'https://images.unsplash.com/photo-1605745341112-85968b19335b?w=500&q=80'
+    FROM SkillTaxonomy WHERE NormalizedName = 'docker';
+
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'AWS Certified Solutions Architect Associate 2024 (SAA-C03)', 'Udemy', 'https://www.udemy.com/course/aws-certified-solutions-architect-associate-saa-c03/', SkillID, 399000, 'VND', 0, N'AWS Solutions Architect Prep Certificate', N'27 giờ', N'Nâng cao', 4.9, 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=500&q=80'
     FROM SkillTaxonomy WHERE NormalizedName = 'aws';
 
-    INSERT INTO Courses (Title, Provider, Url, SkillID)
-    SELECT N'Machine Learning Specialization by Andrew Ng', 'Coursera', 'https://www.coursera.org/specializations/machine-learning-introduction', SkillID 
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Machine Learning Specialization by Andrew Ng & DeepLearning.AI', 'Coursera', 'https://www.coursera.org/specializations/machine-learning-introduction', SkillID, 1200000, 'VND', 0, N'DeepLearning.AI & Stanford Certificate', N'3 tháng', N'Chuyên gia', 5.0, 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=500&q=80'
     FROM SkillTaxonomy WHERE NormalizedName = 'machinelearning';
+
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Generative AI for Everyone (Prompt Engineering & LLMs)', 'Coursera', 'https://www.coursera.org/learn/generative-ai-for-everyone', SkillID, 0, 'VND', 1, N'Generative AI Official Credential', N'6 giờ', N'Mọi cấp độ', 4.9, 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&q=80'
+    FROM SkillTaxonomy WHERE NormalizedName = 'genai';
+
+    INSERT INTO Courses (Title, Provider, Url, SkillID, Price, Currency, IsFree, CertificateName, Duration, Level, Rating, ThumbnailUrl)
+    SELECT N'Google UX Design Professional Certificate', 'Coursera', 'https://www.coursera.org/professional-certificates/google-ux-design', SkillID, 0, 'VND', 1, N'Google UX Design Professional Certificate', N'6 tháng', N'Cơ bản đến Chuyên nghiệp', 4.9, 'https://images.unsplash.com/photo-1581291518655-9523c932edcf?w=500&q=80'
+    FROM SkillTaxonomy WHERE NormalizedName = 'figma';
 END
 GO
 

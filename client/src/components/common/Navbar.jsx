@@ -20,7 +20,9 @@ import {
   FileCheck2,
   ExternalLink,
   Bot,
-  CreditCard
+  CreditCard,
+  ShieldCheck,
+  BarChart3
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -37,6 +39,7 @@ export default function Navbar() {
 
   const isCandidate = user?.role === 'Candidate';
   const isEmployer = user?.role === 'Employer';
+  const isAdmin = user?.role === 'Admin';
   const isLooking = user?.profile?.IsLookingForJob;
 
   const handleMouseEnterJob = () => {
@@ -94,14 +97,14 @@ export default function Navbar() {
                 <button
                   type="button"
                   onClick={() => setJobMenuOpen(!jobMenuOpen)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors ${
                     location.pathname === '/' || jobMenuOpen
-                      ? 'text-brand-blue bg-brand-light font-semibold' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'text-black bg-gray-100' 
+                      : 'text-gray-800 hover:text-black hover:bg-gray-100'
                   }`}
                 >
                   <span>Việc làm</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${jobMenuOpen ? 'rotate-180 text-brand-blue' : 'text-gray-400'}`} />
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${jobMenuOpen ? 'rotate-180 text-black' : 'text-gray-500'}`} />
                 </button>
 
                 {/* Mega Menu Popover */}
@@ -122,11 +125,21 @@ export default function Navbar() {
                           <ul className="space-y-1">
                             <li>
                               <Link
+                                to="/candidate/cv-builder"
+                                onClick={() => setJobMenuOpen(false)}
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-black hover:bg-gray-50 transition-colors"
+                              >
+                                <FileText className="w-4 h-4 text-gray-700 shrink-0" />
+                                <span>Tạo CV Trực Tuyến</span>
+                              </Link>
+                            </li>
+                            <li>
+                              <Link
                                 to="/"
                                 onClick={() => setJobMenuOpen(false)}
-                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-black hover:bg-gray-50 transition-colors"
                               >
-                                <Search className="w-4 h-4 text-gray-500 shrink-0" />
+                                <Search className="w-4 h-4 text-gray-700 shrink-0" />
                                 <span>Tìm việc làm</span>
                               </Link>
                             </li>
@@ -134,9 +147,9 @@ export default function Navbar() {
                               <Link
                                 to="/candidate/dashboard?tab=saved"
                                 onClick={() => setJobMenuOpen(false)}
-                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-black hover:bg-gray-50 transition-colors"
                               >
-                                <Bookmark className="w-4 h-4 text-emerald-500 fill-emerald-100 shrink-0" />
+                                <Bookmark className="w-4 h-4 text-gray-700 shrink-0" />
                                 <span>Việc làm đã lưu</span>
                               </Link>
                             </li>
@@ -144,9 +157,9 @@ export default function Navbar() {
                               <Link
                                 to="/candidate/dashboard?tab=applications"
                                 onClick={() => setJobMenuOpen(false)}
-                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-black hover:bg-gray-50 transition-colors"
                               >
-                                <FileCheck2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <FileCheck2 className="w-4 h-4 text-gray-700 shrink-0" />
                                 <span>Việc làm đã ứng tuyển</span>
                               </Link>
                             </li>
@@ -154,9 +167,9 @@ export default function Navbar() {
                               <Link
                                 to="/candidate/skill-gap"
                                 onClick={() => setJobMenuOpen(false)}
-                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-black hover:bg-gray-50 transition-colors"
                               >
-                                <ThumbsUp className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <ThumbsUp className="w-4 h-4 text-gray-700 shrink-0" />
                                 <span>Việc làm phù hợp</span>
                               </Link>
                             </li>
@@ -172,9 +185,9 @@ export default function Navbar() {
                               <Link
                                 to="/?keyword=Công ty"
                                 onClick={() => setJobMenuOpen(false)}
-                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-brand-blue hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-2 py-2 rounded-xl text-sm font-semibold text-gray-800 hover:text-black hover:bg-gray-50 transition-colors"
                               >
-                                <Building2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <Building2 className="w-4 h-4 text-gray-700 shrink-0" />
                                 <span>Danh sách công ty</span>
                               </Link>
                             </li>
@@ -203,7 +216,7 @@ export default function Navbar() {
                                 key={idx}
                                 to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
                                 onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-700 font-medium hover:text-brand-blue hover:bg-blue-50/60 transition-colors"
+                                className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-800 font-medium hover:text-black hover:bg-gray-100 transition-colors"
                               >
                                 {item}
                               </Link>
@@ -225,7 +238,7 @@ export default function Navbar() {
                                 key={idx}
                                 to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
                                 onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-700 font-medium hover:text-brand-blue hover:bg-blue-50/60 transition-colors"
+                                className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-800 font-medium hover:text-black hover:bg-gray-100 transition-colors"
                               >
                                 {item}
                               </Link>
@@ -251,7 +264,7 @@ export default function Navbar() {
                               key={idx}
                               to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
                               onClick={() => setJobMenuOpen(false)}
-                              className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-700 font-medium hover:text-brand-blue hover:bg-blue-50/60 transition-colors"
+                              className="block px-2.5 py-1.5 rounded-lg text-sm text-gray-800 font-medium hover:text-black hover:bg-gray-100 transition-colors"
                             >
                               {item}
                             </Link>
@@ -264,43 +277,45 @@ export default function Navbar() {
                 )}
               </div>
 
+              {/* Public or Candidate Quick CV Builder Link */}
+              {!isEmployer && (
+                <Link
+                  to="/candidate/cv-builder"
+                  className={`px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors ${
+                    location.pathname === '/candidate/cv-builder'
+                      ? 'text-black bg-gray-100 font-bold'
+                      : 'text-gray-800 hover:text-black hover:bg-gray-100'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-gray-700" />
+                  <span>Tạo CV Online</span>
+                </Link>
+              )}
+
               {isCandidate && (
                 <>
                   <Link
-                    to="/candidate/dashboard"
-                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                      location.pathname.startsWith('/candidate/dashboard') 
-                        ? 'text-brand-blue bg-brand-light font-semibold' 
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    <User className="w-4 h-4 text-brand-blue" />
-                    Hồ sơ & CV
-                  </Link>
-
-                  <Link
                     to="/candidate/skill-gap"
-                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors ${
                       location.pathname === '/candidate/skill-gap'
-                        ? 'text-brand-purple bg-brand-purpleLight font-semibold'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'text-black bg-gray-100 font-bold'
+                        : 'text-gray-800 hover:text-black hover:bg-gray-100'
                     }`}
                   >
-                    <Sparkles className="w-4 h-4 text-brand-purple" />
-                    AI Skill Gap
+                    <Sparkles className="w-4 h-4 text-gray-700" />
+                    <span>AI Skill Gap</span>
                   </Link>
 
                   <Link
                     to="/candidate/dashboard?tab=interview"
-                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors ${
                       location.search.includes('tab=interview')
-                        ? 'text-purple-700 bg-purple-100 font-semibold'
-                        : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                        ? 'text-black bg-gray-100 font-bold'
+                        : 'text-gray-800 hover:text-black hover:bg-gray-100'
                     }`}
                   >
-                    <Bot className="w-4 h-4 text-purple-600" />
+                    <Bot className="w-4 h-4 text-gray-700" />
                     <span>Luyện phỏng vấn AI</span>
-                    <span className="px-1.5 py-0.2 rounded-full bg-purple-600 text-white text-[9px] font-extrabold">NEW</span>
                   </Link>
                 </>
               )}
@@ -309,26 +324,54 @@ export default function Navbar() {
                 <>
                   <Link
                     to="/employer/dashboard"
-                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors ${
                       location.pathname === '/employer/dashboard'
-                        ? 'text-brand-blue bg-brand-light font-semibold'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'text-black bg-gray-100 font-bold'
+                        : 'text-gray-800 hover:text-black hover:bg-gray-100'
                     }`}
                   >
-                    <Layers className="w-4 h-4 text-brand-blue" />
-                    Bảng điều khiển
+                    <Layers className="w-4 h-4 text-gray-700" />
+                    <span>Bảng điều khiển</span>
                   </Link>
 
                   <Link
                     to="/employer/post-job"
-                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors ${
                       location.pathname === '/employer/post-job'
-                        ? 'text-brand-green bg-brand-greenLight font-semibold'
+                        ? 'text-black bg-gray-100 font-bold'
+                        : 'text-gray-800 hover:text-black hover:bg-gray-100'
+                    }`}
+                  >
+                    <PlusCircle className="w-4 h-4 text-gray-700" />
+                    <span>Đăng tin tuyển dụng</span>
+                  </Link>
+                </>
+              )}
+
+              {isAdmin && (
+                <>
+                  <Link
+                    to="/admin/dashboard"
+                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      location.pathname === '/admin/dashboard'
+                        ? 'text-emerald-700 bg-emerald-50 font-bold'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                   >
-                    <PlusCircle className="w-4 h-4 text-brand-green" />
-                    Đăng tin tuyển dụng
+                    <BarChart3 className="w-4 h-4 text-emerald-600" />
+                    Báo cáo & Thống kê
+                  </Link>
+
+                  <Link
+                    to="/admin/users"
+                    className={`px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      location.pathname.startsWith('/admin/users')
+                        ? 'text-indigo-600 bg-indigo-50 font-bold'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                    Quản lý & Duyệt tin
                   </Link>
 
                   <Link
@@ -403,7 +446,7 @@ export default function Navbar() {
                         <CheckCircle2 className="w-3.5 h-3.5 text-brand-blue fill-brand-light" />
                       </div>
                       <div className="text-[11px] text-gray-500 capitalize">
-                        {user.role === 'Employer' ? 'Nhà tuyển dụng' : 'Ứng viên'}
+                        {user.role === 'Admin' ? 'Quản trị viên' : user.role === 'Employer' ? 'Nhà tuyển dụng' : 'Ứng viên'}
                       </div>
                     </div>
                   </button>
@@ -415,14 +458,43 @@ export default function Navbar() {
                         <p className="text-xs font-semibold text-gray-800 truncate">{user.email}</p>
                       </div>
 
+                      {isAdmin && (
+                        <>
+                          <Link
+                            to="/admin/dashboard"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 font-bold"
+                          >
+                            <BarChart3 className="w-4 h-4 text-emerald-600" />
+                            Báo cáo & Doanh thu
+                          </Link>
+                          <Link
+                            to="/admin/users"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-indigo-700 hover:bg-indigo-50 font-bold"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                            Quản lý & Duyệt tin
+                          </Link>
+                        </>
+                      )}
+
                       {isCandidate && (
                         <>
+                          <Link
+                            to="/candidate/cv-builder"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-brand-blue font-bold hover:bg-blue-50/60"
+                          >
+                            <FileText className="w-4 h-4 text-brand-blue" />
+                            Tạo CV Trực Tuyến (Online Builder)
+                          </Link>
                           <Link
                             to="/candidate/dashboard"
                             onClick={() => setProfileDropdownOpen(false)}
                             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
-                            <FileText className="w-4 h-4 text-gray-400" />
+                            <User className="w-4 h-4 text-gray-400" />
                             Quản lý hồ sơ & CV
                           </Link>
                           <Link
@@ -612,16 +684,24 @@ export default function Navbar() {
               {isCandidate && (
                 <>
                   <Link
+                    to="/candidate/cv-builder"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-base font-semibold text-gray-800 hover:text-black hover:bg-gray-100"
+                  >
+                    <FileText className="w-4 h-4 text-gray-700" />
+                    <span>Tạo CV Trực Tuyến</span>
+                  </Link>
+                  <Link
                     to="/candidate/dashboard"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-3 py-2 rounded-lg text-base font-medium text-gray-800 hover:bg-gray-100"
+                    className="block px-3 py-2 rounded-lg text-base font-semibold text-gray-800 hover:text-black hover:bg-gray-100"
                   >
                     Hồ sơ & CV của tôi
                   </Link>
                   <Link
                     to="/candidate/skill-gap"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-3 py-2 rounded-lg text-base font-medium text-brand-purple hover:bg-gray-100"
+                    className="block px-3 py-2 rounded-lg text-base font-semibold text-gray-800 hover:text-black hover:bg-gray-100"
                   >
                     Phân tích AI Skill Gap
                   </Link>
@@ -632,16 +712,34 @@ export default function Navbar() {
                   <Link
                     to="/employer/dashboard"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-3 py-2 rounded-lg text-base font-medium text-gray-800 hover:bg-gray-100"
+                    className="block px-3 py-2 rounded-lg text-base font-semibold text-gray-800 hover:text-black hover:bg-gray-100"
                   >
                     Quản lý ATS & Tin đăng
                   </Link>
                   <Link
                     to="/employer/post-job"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-3 py-2 rounded-lg text-base font-medium text-brand-green hover:bg-gray-100"
+                    className="block px-3 py-2 rounded-lg text-base font-semibold text-gray-800 hover:text-black hover:bg-gray-100"
                   >
                     Đăng tin tuyển dụng
+                  </Link>
+                </>
+              )}
+              {isAdmin && (
+                <>
+                  <Link
+                    to="/admin/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-base font-bold text-emerald-700 hover:bg-emerald-50"
+                  >
+                    Báo cáo & Thống kê doanh thu
+                  </Link>
+                  <Link
+                    to="/admin/users"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-base font-bold text-indigo-600 hover:bg-indigo-50"
+                  >
+                    Quản lý tài khoản & Duyệt tin
                   </Link>
                 </>
               )}

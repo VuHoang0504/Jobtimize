@@ -58,9 +58,13 @@ CREATE TABLE CVs (
     CVID INT IDENTITY(1,1) PRIMARY KEY,
     ProfileID INT FOREIGN KEY REFERENCES CandidateProfiles(ProfileID) ON DELETE CASCADE,
     Title NVARCHAR(100) NOT NULL,
-    FileUrl NVARCHAR(500) NOT NULL, -- Đường dẫn lưu file PDF/Docx hoặc nội dung JSON nếu tạo online
+    FileUrl NVARCHAR(500) NOT NULL, -- Đường dẫn lưu file PDF/Docx hoặc placeholder nếu tạo online
+    CvType NVARCHAR(20) DEFAULT 'Upload', -- 'Upload', 'OnlineBuilder'
+    CvData NVARCHAR(MAX) NULL, -- Dữ liệu JSON chi tiết của CV tạo trực tuyến
+    Template NVARCHAR(50) DEFAULT 'modern', -- 'modern', 'minimal', 'professional'
     IsPrimary BIT DEFAULT 0,
-    CreatedAt DATETIME DEFAULT GETDATE()
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    UpdatedAt DATETIME DEFAULT GETDATE()
 );
 
 -- Quản lý Danh mục Ngành nghề (UC-A09)
@@ -212,6 +216,20 @@ CREATE TABLE CandidateInvitations (
     SentAt DATETIME DEFAULT GETDATE()
 );
 
+-- Thông báo việc làm theo tiêu chí (UC-C09: Job Alerts)
+CREATE TABLE JobAlerts (
+    AlertID INT IDENTITY(1,1) PRIMARY KEY,
+    ProfileID INT FOREIGN KEY REFERENCES CandidateProfiles(ProfileID) ON DELETE CASCADE,
+    Keywords NVARCHAR(200) NOT NULL,
+    MinSalary DECIMAL(18,2) NULL,
+    Location NVARCHAR(150) NULL,
+    CategoryID INT NULL FOREIGN KEY REFERENCES JobCategories(CategoryID),
+    Frequency NVARCHAR(20) DEFAULT 'Daily', -- 'Daily', 'Weekly'
+    IsActive BIT DEFAULT 1,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    LastSentAt DATETIME NULL
+);
+
 -- ========================================================
 -- 5. HỆ THỐNG AI & TÍNH NĂNG NÂNG CAO
 -- ========================================================
@@ -220,9 +238,17 @@ CREATE TABLE CandidateInvitations (
 CREATE TABLE Courses (
     CourseID INT IDENTITY(1,1) PRIMARY KEY,
     Title NVARCHAR(200) NOT NULL,
-    Provider NVARCHAR(100) NULL, -- Coursera, Udemy, EdX,...
+    Provider NVARCHAR(100) NULL, -- Coursera, Udemy, EdX, LinkedIn Learning, Microsoft Learn...
     Url NVARCHAR(500) NOT NULL,
-    SkillID INT FOREIGN KEY REFERENCES SkillTaxonomy(SkillID) -- Kỹ năng khóa học này bổ sung
+    SkillID INT FOREIGN KEY REFERENCES SkillTaxonomy(SkillID), -- Kỹ năng khóa học này bổ sung
+    Price DECIMAL(18,2) DEFAULT 0,
+    Currency NVARCHAR(10) DEFAULT 'VND',
+    IsFree BIT DEFAULT 0,
+    CertificateName NVARCHAR(200) NULL,
+    Duration NVARCHAR(50) NULL,
+    Level NVARCHAR(50) NULL, -- 'Cơ bản', 'Trung cấp', 'Nâng cao', 'Chuyên gia'
+    Rating FLOAT DEFAULT 4.8,
+    ThumbnailUrl NVARCHAR(500) NULL
 );
 
 -- Lộ trình học tập cá nhân hóa của Ứng viên (UC-C12, UC-AI01)

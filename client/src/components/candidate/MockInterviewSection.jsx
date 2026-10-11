@@ -252,7 +252,7 @@ export default function MockInterviewSection() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">Luyện Phỏng Vấn Thử Cùng AI (UC-C15)</h2>
+                  <h2 className="text-lg font-bold text-gray-900">Luyện Phỏng Vấn Thử Cùng AI</h2>
                   <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-extrabold uppercase tracking-wide">
                     Gemini AI
                   </span>

@@ -291,16 +291,17 @@ export default function EmployerDashboard() {
           <div className="flex items-center gap-2.5">
             <Layers className="w-5 h-5 text-brand-blue" />
             <div>
-              <h2 className="text-base font-bold text-gray-900">Quản lý Tin tuyển dụng (UC-E06) & ATS</h2>
+              <h2 className="text-base font-bold text-gray-900">Quản lý Tin tuyển dụng & Hệ thống ATS</h2>
               <p className="text-xs text-gray-500">Chỉnh sửa nội dung, tạm dừng (đóng tin), mở lại hoặc xóa tin tuyển dụng</p>
             </div>
           </div>
 
           {/* Status Filter Tabs */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {[
               { id: 'ALL', label: 'Tất cả (' + jobs.length + ')' },
               { id: 'Published', label: 'Đang mở (' + jobs.filter(j => j.Status === 'Published').length + ')' },
+              { id: 'PendingApproval', label: 'Chờ duyệt (' + jobs.filter(j => j.Status === 'PendingApproval').length + ')' },
               { id: 'Closed', label: 'Đã đóng (' + jobs.filter(j => j.Status === 'Closed').length + ')' }
             ].map((tab) => (
               <button
@@ -337,17 +338,39 @@ export default function EmployerDashboard() {
                 className="p-5 rounded-2xl border border-gray-200 hover:border-brand-blue/40 bg-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 transition-all"
               >
                 <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center gap-2.5 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-base font-bold text-gray-900">{job.Title}</h3>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      job.Status === 'Published'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-gray-200 text-gray-700'
-                    }`}>
-                      {job.Status === 'Published' ? 'Đang tuyển (Published)' : 'Đã đóng (Closed)'}
-                    </span>
+                    {job.Status === 'Published' && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                        ✓ Đã xuất bản
+                      </span>
+                    )}
+                    {job.Status === 'PendingApproval' && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800">
+                        ⏳ Chờ Admin duyệt
+                      </span>
+                    )}
+                    {job.Status === 'RequiresRevision' && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800">
+                        ✏ Cần chỉnh sửa
+                      </span>
+                    )}
+                    {job.Status === 'Rejected' && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">
+                        ✕ Bị từ chối
+                      </span>
+                    )}
+                    {job.Status === 'Closed' && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-gray-100 text-gray-700">
+                        Đã đóng
+                      </span>
+                    )}
                   </div>
-
+                  {job.AdminNote && ['RequiresRevision', 'Rejected'].includes(job.Status) && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium">
+                      <strong>Phản hồi từ Admin:</strong> {job.AdminNote}
+                    </div>
+                  )}
                   <p className="text-xs text-gray-500 font-semibold">
                     Lương: <span className="text-emerald-600">{job.SalaryRange || 'Thỏa thuận'}</span> • Khu vực: {job.Location} • Ngành nghề: {job.CategoryName || 'IT'}
                   </p>

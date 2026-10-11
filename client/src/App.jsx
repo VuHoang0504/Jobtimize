@@ -13,13 +13,23 @@ import RegisterPage from './pages/auth/RegisterPage';
 import JobDetailPage from './pages/jobs/JobDetailPage';
 import CandidateDashboard from './pages/candidate/CandidateDashboard';
 import SkillGapAnalysisPage from './pages/candidate/SkillGapAnalysisPage';
+import CVBuilderPage from './pages/candidate/CVBuilderPage';
 import EmployerDashboard from './pages/employer/EmployerDashboard';
 import PostJobPage from './pages/employer/PostJobPage';
 import EmployerATSPage from './pages/employer/EmployerATSPage';
 import EmployerPricingPage from './pages/employer/EmployerPricingPage';
 import CandidateSearchPage from './pages/employer/CandidateSearchPage';
+import AdminUserManagementPage from './pages/admin/AdminUserManagementPage';
+import AdminAnalyticsDashboard from './pages/admin/AdminAnalyticsDashboard';
 
 // Route Guards
+const ProtectedAdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user || user.role !== 'Admin') return <Navigate to="/login" replace />;
+  return children;
+};
+
 const ProtectedCandidateRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return null;
@@ -38,6 +48,7 @@ const DashboardRedirect = () => {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'Admin') return <Navigate to="/admin/dashboard" replace />;
   if (user.role === 'Candidate') return <Navigate to="/candidate/dashboard" replace />;
   if (user.role === 'Employer') return <Navigate to="/employer/dashboard" replace />;
   return <Navigate to="/" replace />;
@@ -65,6 +76,14 @@ export default function App() {
                 element={
                   <ProtectedCandidateRoute>
                     <CandidateDashboard />
+                  </ProtectedCandidateRoute>
+                }
+              />
+              <Route
+                path="/candidate/cv-builder"
+                element={
+                  <ProtectedCandidateRoute>
+                    <CVBuilderPage />
                   </ProtectedCandidateRoute>
                 }
               />
@@ -126,6 +145,24 @@ export default function App() {
               <Route
                 path="/employer/ats"
                 element={<Navigate to="/employer/dashboard" replace />}
+              />
+
+              {/* Admin Routes */}
+              <Route
+                path="/admin/users"
+                element={
+                  <ProtectedAdminRoute>
+                    <AdminUserManagementPage />
+                  </ProtectedAdminRoute>
+                }
+              />
+              <Route
+                path="/admin/dashboard"
+                element={
+                  <ProtectedAdminRoute>
+                    <AdminAnalyticsDashboard />
+                  </ProtectedAdminRoute>
+                }
               />
 
               {/* Fallback */}

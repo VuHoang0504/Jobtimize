@@ -38,10 +38,20 @@ import {
   GraduationCap,
   Layers,
   FolderGit2,
-  Users
+  Users,
+  Bell,
+  Plus,
+  SlidersHorizontal,
+  ArrowUpRight,
+  Check,
+  Play,
+  Pause,
+  Clock,
+  Printer
 } from 'lucide-react';
 import MockInterviewSection from '../../components/candidate/MockInterviewSection';
 import AICVParserModal from '../../components/candidate/AICVParserModal';
+import JobAlertModal from '../../components/candidate/JobAlertModal';
 
 export default function CandidateDashboard() {
   const { user, refreshUser } = useAuth();
@@ -64,7 +74,15 @@ export default function CandidateDashboard() {
   const [applications, setApplications] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
   const [skillGapData, setSkillGapData] = useState(null);
+  const [jobAlerts, setJobAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Job Alerts Modal & Matching Jobs Drawer state
+  const [isJobAlertModalOpen, setIsJobAlertModalOpen] = useState(false);
+  const [selectedAlertForEdit, setSelectedAlertForEdit] = useState(null);
+  const [matchingJobsDrawerAlert, setMatchingJobsDrawerAlert] = useState(null);
+  const [matchingJobsList, setMatchingJobsList] = useState([]);
+  const [loadingMatchingJobs, setLoadingMatchingJobs] = useState(false);
 
   // AI CV Parser modal state
   const [isCvParserOpen, setIsCvParserOpen] = useState(false);
@@ -101,6 +119,7 @@ export default function CandidateDashboard() {
   // Avatar upload state
   const fileInputRef = useRef(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarError, setAvatarError] = useState('');
 
@@ -204,10 +223,59 @@ export default function CandidateDashboard() {
     }
   };
 
+  const fetchJobAlerts = async () => {
+    try {
+      const res = await api.get('/candidate/job-alerts');
+      if (res.data.success) setJobAlerts(res.data.data);
+    } catch (err) {
+      console.error('Fetch job alerts error:', err);
+    }
+  };
+
+  const handleToggleJobAlert = async (alertId, currentActive) => {
+    try {
+      await api.patch(`/candidate/job-alerts/${alertId}/toggle`, { isActive: !currentActive });
+      await fetchJobAlerts();
+    } catch (err) {
+      console.error('Toggle job alert error:', err);
+    }
+  };
+
+  const handleDeleteJobAlert = async (alertId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo việc làm này?')) return;
+    try {
+      await api.delete(`/candidate/job-alerts/${alertId}`);
+      await fetchJobAlerts();
+    } catch (err) {
+      console.error('Delete job alert error:', err);
+    }
+  };
+
+  const handleViewMatchingJobs = async (alert) => {
+    setMatchingJobsDrawerAlert(alert);
+    setLoadingMatchingJobs(true);
+    try {
+      const res = await api.get(`/candidate/job-alerts/${alert.AlertID}/matching-jobs`);
+      if (res.data.success) {
+        setMatchingJobsList(res.data.data.jobs || []);
+      }
+    } catch (err) {
+      console.error('Fetch matching jobs error:', err);
+    } finally {
+      setLoadingMatchingJobs(false);
+    }
+  };
+
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
-      await Promise.all([fetchProfileData(), fetchApplications(), fetchSavedJobs(), fetchSkillGap()]);
+      await Promise.all([
+        fetchProfileData(), 
+        fetchApplications(), 
+        fetchSavedJobs(), 
+        fetchSkillGap(),
+        fetchJobAlerts()
+      ]);
       setLoading(false);
     };
     loadAll();
@@ -379,9 +447,32 @@ export default function CandidateDashboard() {
       setAvatarError(err.response?.data?.message || 'Lỗi khi tải ảnh đại diện lên');
     } finally {
       setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
+  // Handle avatar update via image URL
+  const handleAvatarUrlSave = async (e) => {
+    e.preventDefault();
+    if (!customAvatarUrl.trim()) return;
+
+    try {
+      setAvatarUploading(true);
+      setAvatarError('');
+      setAvatarSuccess('');
+      const res = await api.post('/auth/avatar', { avatarUrl: customAvatarUrl.trim() });
+      if (res.data.success) {
+        setAvatarSuccess('Cập nhật liên kết ảnh đại diện thành công!');
+        setCustomAvatarUrl('');
+        await refreshUser();
+        await fetchProfileData();
+      }
+    } catch (err) {
+      setAvatarError(err.response?.data?.message || 'Cập nhật avatar thất bại');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   // Handle Change Password
   const handleChangePassword = async (e) => {
@@ -580,6 +671,23 @@ export default function CandidateDashboard() {
             </button>
 
             <button
+              onClick={() => setActiveTab('alerts')}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+                activeTab === 'alerts'
+                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Bell className="w-4 h-4" />
+                <span>Thông báo việc làm</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'alerts' ? 'bg-white/20 text-white' : 'bg-blue-100 text-brand-blue'}`}>
+                {jobAlerts.length}
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('skillgap')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
                 activeTab === 'skillgap'
@@ -593,19 +701,14 @@ export default function CandidateDashboard() {
 
             <button
               onClick={() => setActiveTab('interview')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
                 activeTab === 'interview'
                   ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-md shadow-purple-500/20'
                   : 'text-purple-700 bg-purple-50/50 hover:bg-purple-100/80'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Bot className="w-4 h-4" />
-                <span>Luyện phỏng vấn AI</span>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${activeTab === 'interview' ? 'bg-white/20 text-white' : 'bg-purple-200 text-purple-800'}`}>
-                UC-C15
-              </span>
+              <Bot className="w-4 h-4" />
+              <span>Luyện phỏng vấn AI</span>
             </button>
 
             <button
@@ -1004,24 +1107,38 @@ export default function CandidateDashboard() {
 
               {/* CV Management Card (UC-C05, UC-C06) */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4 flex-wrap gap-2">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4 flex-wrap gap-3">
                   <div className="flex items-center gap-2">
                     <FileText className="w-5 h-5 text-brand-green" />
-                    <h2 className="text-base font-bold text-gray-900">Quản lý nhiều phiên bản CV (UC-C05)</h2>
+                    <div>
+                      <h2 className="text-base font-bold text-gray-900">Quản lý & Thiết kế CV</h2>
+                      <p className="text-[11px] text-gray-400">Tạo CV trực tuyến với 3 mẫu chuẩn hoặc tải lên file PDF/DOCX</p>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsCvParserOpen(true)}
-                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>⚡ AI Phân tích CV & Điền hồ sơ</span>
-                  </button>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link
+                      to="/candidate/cv-builder"
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-blue to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-brand-blue/20 flex items-center gap-1.5"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Tạo CV Trực Tuyến (Online Builder)</span>
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsCvParserOpen(true)}
+                      className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                      <span>⚡ AI Phân tích CV</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Upload Form */}
                 <form onSubmit={handleUploadCV} className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-3">
-                  <p className="text-xs font-bold text-gray-700 uppercase">Tải lên file CV mới (PDF, DOCX)</p>
+                  <p className="text-xs font-bold text-gray-700 uppercase">Hoặc Tải lên file CV có sẵn (PDF, DOCX)</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
                       type="text"
@@ -1055,41 +1172,76 @@ export default function CandidateDashboard() {
                     profile.cvs.map((cv) => (
                       <div
                         key={cv.CVID}
-                        className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border transition-all gap-4 ${
                           cv.IsPrimary
                             ? 'border-brand-blue/50 bg-blue-50/40 ring-1 ring-brand-blue/30'
                             : 'border-gray-200 bg-white hover:border-gray-300'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-brand-light flex items-center justify-center text-brand-blue">
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                            cv.CvType === 'OnlineBuilder'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-brand-light text-brand-blue'
+                          }`}>
                             <FileText className="w-5 h-5" />
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-bold text-gray-900">{cv.Title}</p>
                               {cv.IsPrimary && (
                                 <span className="px-2 py-0.5 text-[10px] font-extrabold bg-brand-blue text-white rounded-full">
                                   CV Mặc Định
                                 </span>
                               )}
+                              {cv.CvType === 'OnlineBuilder' ? (
+                                <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 rounded-full border border-purple-200">
+                                  Online Mẫu {cv.Template?.toUpperCase() || 'MODERN'}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 rounded-full">
+                                  File tải lên
+                                </span>
+                              )}
                             </div>
                             <p className="text-[11px] text-gray-400 mt-0.5">
-                              Tải lên ngày: {new Date(cv.CreatedAt).toLocaleDateString('vi-VN')}
+                              {cv.CvType === 'OnlineBuilder' ? 'Chỉnh sửa gần nhất: ' : 'Tải lên ngày: '}
+                              {new Date(cv.UpdatedAt || cv.CreatedAt).toLocaleDateString('vi-VN')}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={cv.FileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-blue hover:bg-gray-50 text-xs font-semibold"
-                            title="Xem file CV"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {cv.CvType === 'OnlineBuilder' ? (
+                            <>
+                              <Link
+                                to={`/candidate/cv-builder?id=${cv.CVID}`}
+                                className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-colors flex items-center gap-1.5"
+                                title="Chỉnh sửa trực quan"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>Sửa CV</span>
+                              </Link>
+                              <Link
+                                to={`/candidate/cv-builder?id=${cv.CVID}`}
+                                className="px-3 py-1.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                                title="Xem trước & Xuất PDF"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-gray-500" />
+                                <span>Xuất PDF</span>
+                              </Link>
+                            </>
+                          ) : (
+                            <a
+                              href={cv.FileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-blue hover:bg-gray-50 text-xs font-semibold"
+                              title="Xem file CV"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
 
                           {!cv.IsPrimary && (
                             <button
@@ -1111,8 +1263,14 @@ export default function CandidateDashboard() {
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-6 text-gray-400 text-xs">
-                      Chưa có file CV nào. Hãy tải lên CV đầu tiên để bắt đầu ứng tuyển!
+                    <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 text-gray-500 text-xs space-y-2">
+                      <p className="font-semibold text-gray-600">Chưa có bản CV nào trên hệ thống.</p>
+                      <Link
+                        to="/candidate/cv-builder"
+                        className="inline-flex items-center gap-1.5 text-brand-blue font-bold hover:underline"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Tạo CV trực tuyến ngay bây giờ
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -1128,7 +1286,7 @@ export default function CandidateDashboard() {
               <div className="flex items-center justify-between border-b border-gray-100 pb-4">
                 <div className="flex items-center gap-2">
                   <Send className="w-5 h-5 text-brand-blue" />
-                  <h2 className="text-base font-bold text-gray-900">Danh sách việc làm đã ứng tuyển (UC-C14)</h2>
+                  <h2 className="text-base font-bold text-gray-900">Danh sách việc làm đã ứng tuyển</h2>
                 </div>
                 <span className="text-xs font-bold text-gray-500">{applications.length} đơn nộp</span>
               </div>
@@ -1236,15 +1394,165 @@ export default function CandidateDashboard() {
             </div>
           )}
 
+          {/* TAB: Job Alerts */}
+          {activeTab === 'alerts' && (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 text-brand-blue flex items-center justify-center">
+                    <Bell className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">Thông báo việc làm theo tiêu chí (Job Alerts)</h2>
+                    <p className="text-[11px] text-gray-500">Tự động quét và thông báo các vị trí tuyển dụng khớp với kỳ vọng của bạn</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAlertForEdit(null);
+                    setIsJobAlertModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-brand-blue hover:bg-brand-dark text-white text-xs font-bold shadow-md shadow-brand-blue/20 transition-all flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tạo thông báo mới</span>
+                </button>
+              </div>
+
+              {/* Alert List */}
+              {jobAlerts.length === 0 ? (
+                <div className="text-center py-12 space-y-3 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 p-8">
+                  <Bell className="w-10 h-10 text-gray-300 mx-auto" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-gray-700">Chưa có thông báo việc làm nào được thiết lập</p>
+                    <p className="text-xs text-gray-400">
+                      Tạo tiêu chí để nhận thông báo hàng ngày hoặc hàng tuần khi có việc làm mới phù hợp.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAlertForEdit(null);
+                      setIsJobAlertModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-blue text-white text-xs font-bold shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Thiết lập ngay
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {jobAlerts.map((alert) => (
+                    <div
+                      key={alert.AlertID}
+                      className={`p-5 rounded-2xl border transition-all space-y-4 flex flex-col justify-between ${
+                        alert.IsActive
+                          ? 'border-gray-200/90 bg-white hover:border-brand-blue/40 shadow-xs'
+                          : 'border-gray-200 bg-gray-50/60 opacity-75'
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h3 className="text-sm font-bold text-gray-900">{alert.Keywords}</h3>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              {alert.CategoryName || 'Tất cả ngành nghề'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleJobAlert(alert.AlertID, alert.IsActive)}
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors flex items-center gap-1 cursor-pointer ${
+                              alert.IsActive
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-gray-200 text-gray-600 border-gray-300'
+                            }`}
+                          >
+                            {alert.IsActive ? <Check className="w-3 h-3 text-emerald-600" /> : <Pause className="w-3 h-3" />}
+                            <span>{alert.IsActive ? 'Đang bật' : 'Tạm dừng'}</span>
+                          </button>
+                        </div>
+
+                        {/* Criteria tags */}
+                        <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+                          {alert.Location && (
+                            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 font-medium text-[11px]">
+                              <MapPin className="w-3 h-3 text-red-500" /> {alert.Location}
+                            </span>
+                          )}
+                          {alert.MinSalary && (
+                            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold text-[11px]">
+                              <DollarSign className="w-3 h-3 text-emerald-600" /> &gt;= {new Intl.NumberFormat('vi-VN').format(alert.MinSalary)} đ
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-medium text-[11px]">
+                            <Clock className="w-3 h-3 text-purple-600" /> {alert.Frequency === 'Daily' ? 'Hàng ngày' : 'Hàng tuần'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleViewMatchingJobs(alert)}
+                          className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-brand-blue font-bold text-xs flex items-center gap-1.5 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Xem việc phù hợp ({alert.MatchCount || 0})</span>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAlertForEdit(alert);
+                              setIsJobAlertModalOpen(true);
+                            }}
+                            className="p-2 rounded-xl text-gray-500 hover:text-brand-blue hover:bg-gray-100"
+                            title="Sửa tiêu chí"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteJobAlert(alert.AlertID)}
+                            className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"
+                            title="Xóa thông báo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 4: Skill Gap & Learning Paths */}
           {activeTab === 'skillgap' && skillGapData && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-purple/30 shadow-card space-y-8">
               
-              <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-brand-purple animate-pulse" />
-                  <h2 className="text-base font-black text-gray-900">AI Phân tích Kỹ năng & Đề xuất Khóa học (UC-C11, UC-C12)</h2>
+                  <div>
+                    <h2 className="text-base font-black text-gray-900">AI Phân tích Kỹ năng & Gợi ý Khóa học</h2>
+                    <p className="text-[11px] text-gray-500">Lộ trình học tập trực tiếp từ các đối tác đào tạo hàng đầu kèm chứng chỉ</p>
+                  </div>
                 </div>
+
+                <Link
+                  to="/candidate/skill-gap"
+                  className="px-4 py-2 rounded-xl bg-purple-50 text-brand-purple hover:bg-purple-100 font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0"
+                >
+                  <span>Xem báo cáo chi tiết đầy đủ</span>
+                  <ArrowUpRight className="w-4 h-4" />
+                </Link>
               </div>
 
               {/* Acquired Skills vs Market Demand */}
@@ -1253,10 +1561,10 @@ export default function CandidateDashboard() {
                 {/* Your Acquired Skills */}
                 <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
                   <h3 className="text-xs font-bold text-emerald-800 uppercase flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Kỹ năng đã phát hiện trong hồ sơ ({skillGapData.acquiredSkills.length})
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Kỹ năng đã phát hiện trong hồ sơ ({skillGapData.acquiredSkills?.length || 0})
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {skillGapData.acquiredSkills.map((skill) => (
+                    {skillGapData.acquiredSkills?.map((skill) => (
                       <span key={skill.SkillID} className="px-3 py-1 bg-white text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 shadow-2xs">
                         ✓ {skill.SkillName}
                       </span>
@@ -1270,7 +1578,7 @@ export default function CandidateDashboard() {
                     <Sparkles className="w-4 h-4 text-brand-purple" /> Kỹ năng công nghệ Hot nhất thị trường
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {skillGapData.marketSkillTrends.map((trend) => (
+                    {skillGapData.marketSkillTrends?.map((trend) => (
                       <span key={trend.SkillID} className="px-3 py-1 bg-white text-gray-800 text-xs font-semibold rounded-xl border border-purple-200 shadow-2xs">
                         {trend.SkillName} ({trend.DemandCount} việc làm)
                       </span>
@@ -1280,34 +1588,60 @@ export default function CandidateDashboard() {
 
               </div>
 
-              {/* Course Recommendations */}
+              {/* Rich Course Recommendations Connected to Database */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-brand-purple" /> Khóa học được AI đề xuất cho bạn để nâng cao thu nhập
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-brand-purple" /> Khóa học CSDL đề xuất bù đắp kỹ năng thiếu
+                  </h3>
+                  <span className="text-xs text-gray-500 font-semibold">
+                    {skillGapData.recommendedCourses?.length || 0} khóa học phù hợp
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {skillGapData.recommendedCourses.map((course) => (
-                    <a
+                  {skillGapData.recommendedCourses?.map((course) => (
+                    <div
                       key={course.CourseID}
-                      href={course.Url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group p-5 rounded-2xl border border-gray-200/80 hover:border-brand-purple/50 bg-white hover:bg-brand-purpleLight/20 shadow-xs transition-all space-y-2 flex flex-col justify-between"
+                      className="group p-5 rounded-2xl border border-gray-200/80 hover:border-brand-purple/50 bg-white hover:bg-brand-purpleLight/10 shadow-xs transition-all space-y-3 flex flex-col justify-between"
                     >
-                      <div>
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between text-[11px] font-bold text-brand-purple">
-                          <span>Nền tảng: {course.Provider}</span>
-                          <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                          <span className="px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200">
+                            Nền tảng: {course.Provider}
+                          </span>
+                          <span className="text-xs font-extrabold text-emerald-600">
+                            {course.IsFree ? 'Miễn phí' : (course.Price ? `${new Intl.NumberFormat('vi-VN').format(course.Price)} đ` : 'Liên hệ')}
+                          </span>
                         </div>
+
                         <h4 className="text-sm font-bold text-gray-900 group-hover:text-brand-purple mt-1 line-clamp-2">
                           {course.Title}
                         </h4>
+
+                        {course.CertificateName && (
+                          <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+                            <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span className="truncate">{course.CertificateName}</span>
+                          </div>
+                        )}
+
+                        <div className="pt-1 text-[11px] text-gray-500 flex items-center justify-between">
+                          <span>Bù đắp: <b className="text-brand-blue">{course.SkillName}</b></span>
+                          {course.Duration && <span>{course.Duration}</span>}
+                        </div>
                       </div>
-                      <div className="pt-2 border-t border-gray-100 text-xs font-semibold text-gray-500">
-                        Bù đắp kỹ năng: <span className="text-brand-blue font-bold">{course.SkillName}</span>
-                      </div>
-                    </a>
+
+                      <a
+                        href={course.Url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full py-2 px-3 rounded-xl bg-gray-900 group-hover:bg-brand-purple text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                      >
+                        <span>Truy cập & Đăng ký học</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1585,6 +1919,98 @@ export default function CandidateDashboard() {
         </div>
 
       </div>
+
+      {/* Job Alert Modal (UC-C09) */}
+      <JobAlertModal
+        isOpen={isJobAlertModalOpen}
+        onClose={() => {
+          setIsJobAlertModalOpen(false);
+          setSelectedAlertForEdit(null);
+        }}
+        initialAlert={selectedAlertForEdit}
+        onSaved={fetchJobAlerts}
+      />
+
+      {/* Matching Jobs Modal (UC-C09) */}
+      {matchingJobsDrawerAlert && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-brand-blue to-indigo-600 p-6 text-white flex items-start justify-between">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-bold">
+                  Khớp tiêu chí thông báo
+                </span>
+                <h3 className="text-lg font-black tracking-tight mt-1">
+                  Việc làm phù hợp với: "{matchingJobsDrawerAlert.Keywords}"
+                </h3>
+                <p className="text-xs text-blue-100">
+                  {matchingJobsList.length} vị trí tuyển dụng đang mở phù hợp
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMatchingJobsDrawerAlert(null)}
+                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="p-6 overflow-y-auto space-y-3.5 flex-1">
+              {loadingMatchingJobs ? (
+                <div className="py-12 text-center text-gray-400 space-y-2">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-brand-blue" />
+                  <p className="text-xs">Đang tìm kiếm các tin tuyển dụng khớp tiêu chí...</p>
+                </div>
+              ) : matchingJobsList.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 space-y-2">
+                  <Bell className="w-10 h-10 text-gray-300 mx-auto" />
+                  <p className="text-sm font-bold text-gray-700">Chưa có tin tuyển dụng nào khớp trực tiếp</p>
+                  <p className="text-xs text-gray-400">Hệ thống sẽ tự động cập nhật ngay khi có nhà tuyển dụng đăng tin mới.</p>
+                </div>
+              ) : (
+                matchingJobsList.map((job) => (
+                  <div
+                    key={job.JobID}
+                    className="p-4 rounded-2xl border border-gray-200 hover:border-brand-blue/40 bg-white shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <img
+                        src={job.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=100&q=80'}
+                        alt={job.CompanyName}
+                        className="w-11 h-11 rounded-xl object-cover border border-gray-100 shrink-0"
+                      />
+                      <div>
+                        <Link
+                          to={`/jobs/${job.JobID}`}
+                          onClick={() => setMatchingJobsDrawerAlert(null)}
+                          className="text-sm font-bold text-gray-900 hover:text-brand-blue line-clamp-1"
+                        >
+                          {job.Title}
+                        </Link>
+                        <p className="text-xs font-semibold text-gray-600 mt-0.5">{job.CompanyName}</p>
+                        <p className="text-xs text-emerald-600 font-bold mt-1">
+                          {job.SalaryRange || 'Thỏa thuận'} • {job.Location || 'Toàn quốc'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Link
+                      to={`/jobs/${job.JobID}`}
+                      onClick={() => setMatchingJobsDrawerAlert(null)}
+                      className="px-4 py-2 bg-brand-blue hover:bg-brand-dark text-white text-xs font-bold rounded-xl shrink-0 text-center shadow-xs"
+                    >
+                      Ứng tuyển ngay
+                    </Link>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI CV Parser Modal */}
       <AICVParserModal
