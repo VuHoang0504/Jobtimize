@@ -328,31 +328,34 @@ const googleLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu Google credential token' });
     }
 
-    // Verify Google ID Token
-    const allowedAudiences = [
-      process.env.GOOGLE_CLIENT_ID,
-      '131834316524-ramequhjdc5icd9b9j65vauh3l7klfdg.apps.googleusercontent.com'
-    ].filter(id => id && !id.startsWith('your_'));
+    // Verify Google ID Token - Chỉ chấp nhận Client ID đã cấu hình rõ ràng qua biến môi trường
+    const configuredClientId = process.env.GOOGLE_CLIENT_ID;
+    if (!configuredClientId || typeof configuredClientId !== 'string' || !configuredClientId.trim() || configuredClientId.startsWith('your_')) {
+      return res.status(500).json({
+        success: false,
+        message: 'Google OAuth chưa được cấu hình Client ID hợp lệ trên server (thiếu biến môi trường GOOGLE_CLIENT_ID).'
+      });
+    }
 
+    const client = new OAuth2Client(configuredClientId.trim());
     let payload = null;
-    const client = new OAuth2Client(allowedAudiences[0]);
     
     try {
       const ticket = await client.verifyIdToken({
-        idToken: credential,
-        audience: allowedAudiences.length > 0 ? allowedAudiences : undefined
+        idToken: credential.trim(),
+        audience: configuredClientId.trim()
       });
       payload = ticket.getPayload();
     } catch (verifyError) {
-      console.warn('Google verifyIdToken note:', verifyError.message);
-      // Fallback: decode JWT payload directly from credential token
-      const decoded = jwt.decode(credential);
-      if (decoded && (decoded.email || decoded.sub)) {
-        payload = decoded;
-      } else {
-        console.error('Google token verification failed completely:', verifyError);
-        return res.status(401).json({ success: false, message: 'Token Google không hợp lệ hoặc đã hết hạn: ' + verifyError.message });
-      }
+      console.error('Google ID Token verification failed:', verifyError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Xác thực Google thất bại: Token không hợp lệ, sai chữ ký, sai audience hoặc đã hết hạn.'
+      });
+    }
+
+    if (!payload || !payload.email) {
+      return res.status(401).json({ success: false, message: 'Token Google không hợp lệ hoặc không chứa email.' });
     }
 
     const { sub: googleId, email, name: fullName, picture: avatarUrl } = payload;

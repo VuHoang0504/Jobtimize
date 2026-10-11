@@ -16,6 +16,8 @@ import SkillGapAnalysisPage from './pages/candidate/SkillGapAnalysisPage';
 import EmployerDashboard from './pages/employer/EmployerDashboard';
 import PostJobPage from './pages/employer/PostJobPage';
 import EmployerATSPage from './pages/employer/EmployerATSPage';
+import EmployerPricingPage from './pages/employer/EmployerPricingPage';
+import CandidateSearchPage from './pages/employer/CandidateSearchPage';
 
 // Route Guards
 const ProtectedCandidateRoute = ({ children }) => {
@@ -99,6 +101,31 @@ export default function App() {
                     <EmployerATSPage />
                   </ProtectedEmployerRoute>
                 }
+              />
+              <Route
+                path="/employer/pricing"
+                element={
+                  <ProtectedEmployerRoute>
+                    <EmployerPricingPage />
+                  </ProtectedEmployerRoute>
+                }
+              />
+              <Route
+                path="/employer/talents"
+                element={
+                  <ProtectedEmployerRoute>
+                    <CandidateSearchPage />
+                  </ProtectedEmployerRoute>
+                }
+              />
+
+              <Route
+                path="/employer/candidates"
+                element={<Navigate to="/employer/talents" replace />}
+              />
+              <Route
+                path="/employer/ats"
+                element={<Navigate to="/employer/dashboard" replace />}
               />
 
               {/* Fallback */}

@@ -111,6 +111,75 @@ const sendOtpEmail = async (toEmail, otpCode, fullName = 'Bạn', purpose = 'reg
   }
 };
 
+const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+}[character]));
+
+const sendInterviewEmail = async ({ toEmail, candidateName, companyName, jobTitle, interviewDate, interviewType, locationOrLink, notes }) => {
+  const transporter = createTransporter();
+  if (!transporter) {
+    return { success: false, error: 'Chưa cấu hình EMAIL_USER/EMAIL_PASS hoặc SMTP_USER/SMTP_PASS.' };
+  }
+
+  const dateText = new Date(interviewDate).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const isOnline = interviewType === 'Online';
+  const subject = `[Jobtimize] Lịch phỏng vấn ${jobTitle}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
+      <h2>Xin chào ${escapeHtml(candidateName)},</h2>
+      <p>${escapeHtml(companyName)} đã mời bạn tham gia phỏng vấn vị trí <strong>${escapeHtml(jobTitle)}</strong>.</p>
+      <p><strong>Thời gian:</strong> ${escapeHtml(dateText)} (giờ Việt Nam)</p>
+      <p><strong>Hình thức:</strong> ${isOnline ? 'Trực tuyến' : 'Trực tiếp'}</p>
+      <p><strong>${isOnline ? 'Đường dẫn' : 'Địa điểm'}:</strong> ${escapeHtml(locationOrLink)}</p>
+      ${notes ? `<p><strong>Ghi chú:</strong><br>${escapeHtml(notes).replace(/\n/g, '<br>')}</p>` : ''}
+      <p>Trân trọng,<br>${escapeHtml(companyName)} qua Jobtimize</p>
+    </div>`;
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Jobtimize" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      to: toEmail,
+      subject,
+      html
+    });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error(`[EMAIL SERVICE] Lỗi gửi lịch phỏng vấn tới ${toEmail}:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+const sendInvitationEmail = async ({ toEmail, candidateName, companyName, jobTitle, message }) => {
+  const transporter = createTransporter();
+  if (!transporter) {
+    return { success: false, error: 'Chưa cấu hình EMAIL_USER/EMAIL_PASS hoặc SMTP_USER/SMTP_PASS.' };
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Jobtimize" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      to: toEmail,
+      subject: `[Jobtimize] ${companyName} mời bạn ứng tuyển vị trí ${jobTitle}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
+        <h2>Xin chào ${escapeHtml(candidateName)},</h2>
+        <p>${escapeHtml(companyName)} quan tâm đến hồ sơ của bạn và mời bạn ứng tuyển vị trí <strong>${escapeHtml(jobTitle)}</strong>.</p>
+        ${message ? `<p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>` : ''}
+        <p>Đăng nhập Jobtimize để xem lời mời và ứng tuyển.</p>
+      </div>`
+    });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error(`[EMAIL SERVICE] Lỗi gửi lời mời ứng tuyển tới ${toEmail}:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
-  sendOtpEmail
+  sendOtpEmail,
+  sendInterviewEmail,
+  sendInvitationEmail
 };

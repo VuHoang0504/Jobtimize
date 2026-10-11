@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 import MatchScoreBadge from '../../components/common/MatchScoreBadge';
+import InterviewModal from '../../components/employer/InterviewModal';
 import { 
   Users, 
   ArrowLeft, 
@@ -16,7 +17,8 @@ import {
   MapPin, 
   DollarSign,
   Filter,
-  Send
+  Send,
+  Video
 } from 'lucide-react';
 
 export default function EmployerATSPage() {
@@ -32,10 +34,6 @@ export default function EmployerATSPage() {
   // Interview Modal state
   const [interviewModalOpen, setInterviewModalOpen] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
-  const [interviewDate, setInterviewDate] = useState('');
-  const [locationOrLink, setLocationOrLink] = useState('https://meet.google.com/xyz-jobtimize');
-  const [interviewNotes, setInterviewNotes] = useState('');
-  const [scheduling, setScheduling] = useState(false);
 
   const fetchATS = async () => {
     try {
@@ -66,29 +64,6 @@ export default function EmployerATSPage() {
     }
   };
 
-  // Handle Schedule Interview
-  const handleScheduleInterview = async (e) => {
-    e.preventDefault();
-    if (!selectedApplicant || !interviewDate || !locationOrLink) return;
-
-    try {
-      setScheduling(true);
-      await api.post('/employer/interviews', {
-        applicationId: selectedApplicant.ApplicationID,
-        interviewDate,
-        locationOrLink,
-        notes: interviewNotes
-      });
-      setInterviewModalOpen(false);
-      setSelectedApplicant(null);
-      await fetchATS();
-    } catch (err) {
-      alert('Lỗi lên lịch phỏng vấn: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setScheduling(false);
-    }
-  };
-
   const filteredApplicants = statusFilter === 'ALL'
     ? applicants
     : applicants.filter(a => a.Status === statusFilter);
@@ -97,7 +72,7 @@ export default function EmployerATSPage() {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center animate-pulse space-y-4">
         <div className="h-8 bg-gray-200 rounded w-1/3 mx-auto"></div>
-        <div className="h-64 bg-gray-200 rounded-2xl max-w-4xl mx-auto"></div>
+        <div className="h-64 bg-gray-200 rounded-3xl max-w-4xl mx-auto"></div>
       </div>
     );
   }
@@ -218,7 +193,7 @@ export default function EmployerATSPage() {
                     <span className="text-xs text-gray-400 italic">Dùng CV Profile</span>
                   )}
 
-                  {/* Schedule Interview */}
+                  {/* Schedule Interview (UC-E10) */}
                   <button
                     onClick={() => {
                       setSelectedApplicant(applicant);
@@ -247,6 +222,27 @@ export default function EmployerATSPage() {
 
               </div>
 
+              {/* Scheduled Interview Callout if already scheduled */}
+              {applicant.interview && (
+                <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 text-xs text-purple-900 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-200/60 text-purple-700 flex items-center justify-center shrink-0">
+                    {applicant.interview.InterviewType === 'Online' ? <Video className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
+                  </div>
+                  <div className="space-y-0.5 flex-1">
+                    <p className="font-bold flex items-center gap-2">
+                      <span>Lịch phỏng vấn ({applicant.interview.InterviewType || 'Online'}):</span>
+                      <span className="text-purple-700">{new Date(applicant.interview.InterviewDate).toLocaleString('vi-VN')}</span>
+                    </p>
+                    <p className="text-[11px] text-purple-800 truncate">
+                      <strong>{applicant.interview.InterviewType === 'Online' ? 'Đường dẫn họp:' : 'Địa điểm:'}</strong> {applicant.interview.LocationOrLink}
+                    </p>
+                    {applicant.interview.Notes && (
+                      <p className="text-[11px] text-purple-700/80 italic">Ghi chú: {applicant.interview.Notes}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Bio summary if any */}
               {applicant.Bio && (
                 <div className="p-3 rounded-2xl bg-gray-50 border border-gray-100 text-xs text-gray-600 leading-relaxed">
@@ -261,86 +257,17 @@ export default function EmployerATSPage() {
 
       {/* Schedule Interview Modal (UC-E10) */}
       {interviewModalOpen && selectedApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-gray-100">
-            
-            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-brand-purple" />
-                <div>
-                  <h3 className="text-base font-bold text-gray-900">Lên lịch Phỏng vấn</h3>
-                  <p className="text-xs text-gray-500">Ứng viên: {selectedApplicant.FullName}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setInterviewModalOpen(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleScheduleInterview} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                  Thời gian phỏng vấn *
-                </label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={interviewDate}
-                  onChange={(e) => setInterviewDate(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-gray-200 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                  Địa điểm hoặc Đường dẫn họp trực tuyến (Google Meet / Zoom) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={locationOrLink}
-                  onChange={(e) => setLocationOrLink(e.target.value)}
-                  placeholder="https://meet.google.com/abc-xyz hoặc Văn phòng Tầng 5..."
-                  className="w-full p-3 rounded-xl border border-gray-200 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                  Ghi chú cho ứng viên
-                </label>
-                <textarea
-                  rows={3}
-                  value={interviewNotes}
-                  onChange={(e) => setInterviewNotes(e.target.value)}
-                  placeholder="Vui lòng chuẩn bị laptop và mang theo portfolio..."
-                  className="w-full p-3 rounded-xl border border-gray-200 text-xs"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setInterviewModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={scheduling}
-                  className="px-5 py-2 rounded-xl bg-brand-purple text-white font-bold text-xs shadow-md shadow-brand-purple/20 disabled:opacity-50"
-                >
-                  {scheduling ? 'Đang gửi lịch...' : 'Xác nhận lên lịch'}
-                </button>
-              </div>
-            </form>
-
-          </div>
-        </div>
+        <InterviewModal
+          isOpen={interviewModalOpen}
+          onClose={() => {
+            setInterviewModalOpen(false);
+            setSelectedApplicant(null);
+          }}
+          applicant={selectedApplicant}
+          onScheduled={() => {
+            fetchATS();
+          }}
+        />
       )}
 
     </div>

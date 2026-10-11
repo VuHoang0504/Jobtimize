@@ -100,9 +100,15 @@ CREATE TABLE KYCDocuments (
     DocumentID INT IDENTITY(1,1) PRIMARY KEY,
     EmployerID INT FOREIGN KEY REFERENCES Employers(EmployerID) ON DELETE CASCADE,
     BusinessLicenseUrl NVARCHAR(500) NOT NULL,
+    TaxCertificateUrl NVARCHAR(500) NULL,
+    TaxCode NVARCHAR(50) NULL,
     SubmittedAt DATETIME DEFAULT GETDATE(),
     RejectionReason NVARCHAR(MAX) NULL
 );
+IF COL_LENGTH('KYCDocuments', 'TaxCertificateUrl') IS NULL
+    ALTER TABLE KYCDocuments ADD TaxCertificateUrl NVARCHAR(500) NULL;
+IF COL_LENGTH('KYCDocuments', 'TaxCode') IS NULL
+    ALTER TABLE KYCDocuments ADD TaxCode NVARCHAR(50) NULL;
 
 -- Tin tuyển dụng JD (UC-E05, UC-E06, UC-A06)
 CREATE TABLE JobPostings (
@@ -155,9 +161,12 @@ CREATE TABLE Interviews (
     InterviewID INT IDENTITY(1,1) PRIMARY KEY,
     ApplicationID INT FOREIGN KEY REFERENCES JobApplications(ApplicationID) ON DELETE CASCADE,
     InterviewDate DATETIME NOT NULL,
+    InterviewType NVARCHAR(20) NOT NULL DEFAULT 'Online',
     LocationOrLink NVARCHAR(500) NOT NULL,
     Notes NVARCHAR(MAX) NULL
 );
+IF COL_LENGTH('Interviews', 'InterviewType') IS NULL
+    ALTER TABLE Interviews ADD InterviewType NVARCHAR(20) NOT NULL CONSTRAINT DF_Interviews_InterviewType DEFAULT 'Online';
 
 -- Gói dịch vụ bán hàng (UC-A11, UC-E07)
 CREATE TABLE SubscriptionPackages (
@@ -178,6 +187,18 @@ CREATE TABLE EmployerSubscriptions (
     EndDate DATETIME NOT NULL,
     RemainingPosts INT NOT NULL,
     RemainingSearches INT NOT NULL
+);
+
+CREATE TABLE PaymentTransactions (
+    PaymentID INT IDENTITY(1,1) PRIMARY KEY,
+    TransactionRef NVARCHAR(100) NOT NULL UNIQUE,
+    EmployerID INT NOT NULL FOREIGN KEY REFERENCES Employers(EmployerID) ON DELETE CASCADE,
+    PackageID INT NOT NULL FOREIGN KEY REFERENCES SubscriptionPackages(PackageID),
+    Amount DECIMAL(18,2) NOT NULL,
+    Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
+    GatewayTransactionNo NVARCHAR(100) NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+    PaidAt DATETIME NULL
 );
 
 -- Gửi lời mời ứng tuyển trực tiếp (UC-E12)

@@ -4,7 +4,18 @@ const morgan = require('morgan');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-const { getPool } = require('./config/db');
+const { validateJwtConfig } = require('./utils/authHelper');
+
+// Fail-fast startup validation: Ensure JWT_SECRET is configured before launching server
+try {
+  validateJwtConfig();
+} catch (err) {
+  console.error('❌ LỖI KHỞI ĐỘNG SERVER:', err.message);
+  process.exit(1);
+}
+
+const { getPool, executeQuery } = require('./config/db');
+const { authenticate } = require('./middleware/authMiddleware');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
@@ -13,6 +24,7 @@ const candidateRoutes = require('./routes/candidateRoutes');
 const employerRoutes = require('./routes/employerRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,7 +35,47 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Static folder for uploaded files
+// Protected Route: Prevent unauthorized public access to legal KYC documents (UC-E04)
+app.get('/uploads/kyc/:filename', authenticate, async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(__dirname, '../uploads/kyc', safeFilename);
+
+    if (!require('fs').existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'Tệp tài liệu không tồn tại' });
+    }
+
+    // Admin has audit access to all KYC documents
+    if (req.user && req.user.role === 'Admin') {
+      return res.sendFile(filePath);
+    }
+
+    // Employer can only view documents belonging to their own company
+    if (req.user && req.user.role === 'Employer') {
+      const empRes = await executeQuery('SELECT EmployerID FROM Employers WHERE UserID = @UserID', { UserID: req.user.userId });
+      if (empRes.recordset && empRes.recordset.length > 0) {
+        const empId = empRes.recordset[0].EmployerID;
+        const docRes = await executeQuery(
+          `SELECT DocumentID FROM KYCDocuments 
+           WHERE EmployerID = @EmployerID 
+             AND (BusinessLicenseUrl LIKE '%' + @Filename OR TaxCertificateUrl LIKE '%' + @Filename)`,
+          { EmployerID: empId, Filename: safeFilename }
+        );
+        if (docRes.recordset && docRes.recordset.length > 0) {
+          return res.sendFile(filePath);
+        }
+      }
+    }
+
+    return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập vào tài liệu pháp lý này' });
+  } catch (error) {
+    console.error('KYC file access error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Static folder for public uploaded files (logos, avatars, etc.)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Root & Health Check API
@@ -55,6 +107,7 @@ app.use('/api/candidate', candidateRoutes);
 app.use('/api/employer', employerRoutes);
 app.use('/api/metadata', categoryRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
