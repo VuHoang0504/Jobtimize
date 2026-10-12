@@ -74,15 +74,20 @@ const register = async (req, res) => {
 
     // Send OTP via Gmail/SMTP
     const emailResult = await sendOtpEmail(email, otp, fullName);
+    const isSimulated = Boolean(emailResult.simulated || !emailResult.success);
 
     return res.status(200).json({
       success: true,
       requireOtp: true,
-      message: `Mã OTP xác thực 6 chữ số đã được gửi đến email ${email}.`,
+      simulated: isSimulated,
+      message: isSimulated
+        ? `[Chế độ thử nghiệm] Mã OTP của bạn là: ${otp}`
+        : `Mã OTP xác thực 6 chữ số đã được gửi đến email ${email}.`,
       data: {
         email,
         fullName,
-        roleName
+        roleName,
+        otp: isSimulated ? otp : undefined
       }
     });
   } catch (error) {
@@ -237,10 +242,18 @@ const resendOtp = async (req, res) => {
     saveOtp(email, newOtp, record.registrationData, 10);
 
     const emailResult = await sendOtpEmail(email, newOtp, record.registrationData.fullName || 'Bạn');
+    const isSimulated = Boolean(emailResult.simulated || !emailResult.success);
 
     return res.json({
       success: true,
-      message: `Đã gửi lại mã OTP xác thực tới ${email}.`
+      simulated: isSimulated,
+      message: isSimulated
+        ? `[Chế độ thử nghiệm] Mã OTP mới của bạn là: ${newOtp}`
+        : `Đã gửi lại mã OTP xác thực tới ${email}.`,
+      data: {
+        email,
+        otp: isSimulated ? newOtp : undefined
+      }
     });
   } catch (error) {
     console.error('Resend OTP error:', error);
@@ -548,11 +561,19 @@ const forgotPassword = async (req, res) => {
     saveOtp(email, otp, { email, userId: user.UserID, fullName: user.FullName, type: 'reset_password' }, 10);
 
     // Send email via Gmail
-    await sendOtpEmail(email, otp, user.FullName, 'reset_password');
+    const emailResult = await sendOtpEmail(email, otp, user.FullName, 'reset_password');
+    const isSimulated = Boolean(emailResult.simulated || !emailResult.success);
 
     return res.status(200).json({
       success: true,
-      message: `Mã OTP xác nhận đặt lại mật khẩu đã được gửi đến email ${email}.`
+      simulated: isSimulated,
+      message: isSimulated
+        ? `[Chế độ thử nghiệm] Mã OTP đặt lại mật khẩu của bạn là: ${otp}`
+        : `Mã OTP xác nhận đặt lại mật khẩu đã được gửi đến email ${email}.`,
+      data: {
+        email,
+        otp: isSimulated ? otp : undefined
+      }
     });
   } catch (error) {
     console.error('forgotPassword error:', error);

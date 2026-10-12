@@ -1,12 +1,34 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+const dotenv = require('dotenv');
+dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
+
+const isEmailConfigured = (user, pass) => {
+  if (!user || !pass) return false;
+  const dummyKeywords = [
+    'your_email',
+    'your_16_char',
+    'example.com',
+    'your_password',
+    'your_google',
+    'placeholder'
+  ];
+  const userLower = user.toLowerCase();
+  const passLower = pass.toLowerCase();
+  for (const kw of dummyKeywords) {
+    if (userLower.includes(kw) || passLower.includes(kw)) {
+      return false;
+    }
+  }
+  return true;
+};
 
 const createTransporter = () => {
+  dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
   const user = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim();
   const pass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').replace(/\s+/g, '');
 
-  if (!user || !pass) {
+  if (!isEmailConfigured(user, pass)) {
     return null;
   }
 

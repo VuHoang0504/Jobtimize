@@ -30,6 +30,8 @@ export default function LoginPage() {
   const [forgotSuccessMsg, setForgotSuccessMsg] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
+  const [forgotDevOtp, setForgotDevOtp] = useState('');
+  const [verifiedForgotOtp, setVerifiedForgotOtp] = useState('');
 
   const otpInputRefs = useRef([]);
 
@@ -52,6 +54,8 @@ export default function LoginPage() {
     setConfirmNewPassword('');
     setForgotError('');
     setForgotSuccessMsg('');
+    setForgotDevOtp('');
+    setVerifiedForgotOtp('');
     setShowForgotModal(true);
   };
 
@@ -118,10 +122,12 @@ export default function LoginPage() {
     setForgotLoading(true);
 
     try {
-      await forgotPassword(forgotEmail);
+      const res = await forgotPassword(forgotEmail);
       setForgotStep(2);
       setCountdown(60);
       setOtpDigits(['', '', '', '', '', '']);
+      const receivedOtp = res.data?.otp || res.otp || '';
+      setForgotDevOtp(receivedOtp);
       setTimeout(() => {
         otpInputRefs.current[0]?.focus();
       }, 300);
@@ -180,6 +186,7 @@ export default function LoginPage() {
 
     try {
       await verifyResetOtp(forgotEmail, code);
+      setVerifiedForgotOtp(code);
       setForgotStep(3);
     } catch (err) {
       setForgotError(err.response?.data?.message || 'Mã OTP không đúng hoặc đã hết hạn.');
@@ -195,9 +202,13 @@ export default function LoginPage() {
     setForgotSuccessMsg('');
 
     try {
-      await forgotPassword(forgotEmail);
+      const res = await forgotPassword(forgotEmail);
       setCountdown(60);
-      setForgotSuccessMsg('Đã gửi lại mã OTP mới vào hòm thư Gmail của bạn!');
+      setForgotSuccessMsg(res.message || 'Đã gửi lại mã OTP mới vào hòm thư Gmail của bạn!');
+      const receivedOtp = res.data?.otp || res.otp || '';
+      if (receivedOtp) {
+        setForgotDevOtp(receivedOtp);
+      }
     } catch (err) {
       setForgotError(err.response?.data?.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại sau.');
     } finally {
@@ -223,7 +234,7 @@ export default function LoginPage() {
     setForgotLoading(true);
 
     try {
-      const code = otpDigits.join('');
+      const code = verifiedForgotOtp || otpDigits.join('');
       await resetPassword(forgotEmail, code, newPassword);
       setForgotStep(4);
     } catch (err) {
@@ -459,18 +470,42 @@ export default function LoginPage() {
                   <p className="text-sm font-bold text-brand-blue mt-0.5">{forgotEmail}</p>
                 </div>
 
-                {forgotSuccessMsg && (
-                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                    <span>{forgotSuccessMsg}</span>
-                  </div>
-                )}
+            {forgotDevOtp && (
+              <div className="mb-4 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-2 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5 text-amber-900">
+                    <span>💡</span> Chế độ thử nghiệm (Chưa cấu hình SMTP)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const digits = forgotDevOtp.split('');
+                      setOtpDigits(digits);
+                      handleVerifyForgotOtp(forgotDevOtp);
+                    }}
+                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] shadow-sm cursor-pointer transition-colors"
+                  >
+                    Điền mã & Tiếp tục
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  Mã OTP của bạn là: <strong className="text-base font-mono text-amber-950 tracking-widest">{forgotDevOtp}</strong>
+                </p>
+              </div>
+            )}
 
-                {forgotError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium text-center">
-                    {forgotError}
-                  </div>
-                )}
+            {forgotSuccessMsg && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>{forgotSuccessMsg}</span>
+              </div>
+            )}
+
+            {forgotError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium text-center">
+                {forgotError}
+              </div>
+            )}
 
                 <div className="flex justify-center gap-2 sm:gap-3 my-6" onPaste={handleOtpPaste}>
                   {otpDigits.map((digit, idx) => (

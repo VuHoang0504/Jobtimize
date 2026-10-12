@@ -29,6 +29,7 @@ export default function RegisterPage() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState('');
   const [countdown, setCountdown] = useState(60);
+  const [devOtp, setDevOtp] = useState('');
 
   const inputRefs = useRef([]);
 
@@ -76,6 +77,8 @@ export default function RegisterPage() {
         setOtpDigits(['', '', '', '', '', '']);
         setOtpError('');
         setResendSuccess('');
+        const receivedOtp = res.data?.otp || res.otp || '';
+        setDevOtp(receivedOtp);
         setTimeout(() => {
           inputRefs.current[0]?.focus();
         }, 300);
@@ -164,7 +167,11 @@ export default function RegisterPage() {
     try {
       const res = await resendOtp(email);
       setCountdown(60);
-      setResendSuccess('Đã gửi lại mã OTP mới vào hòm thư Gmail của bạn!');
+      setResendSuccess(res.message || 'Đã gửi lại mã OTP mới vào hòm thư Gmail của bạn!');
+      const receivedOtp = res.data?.otp || res.otp || '';
+      if (receivedOtp) {
+        setDevOtp(receivedOtp);
+      }
     } catch (err) {
       setOtpError(err.response?.data?.message || 'Không thể gửi lại mã. Vui lòng thử lại sau.');
     } finally {
@@ -494,6 +501,30 @@ export default function RegisterPage() {
               </p>
               <p className="text-sm font-bold text-brand-blue mt-0.5">{email}</p>
             </div>
+
+            {devOtp && (
+              <div className="mb-4 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-2 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5 text-amber-900">
+                    <span>💡</span> Chế độ thử nghiệm (Chưa cấu hình SMTP)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const digits = devOtp.split('');
+                      setOtpDigits(digits);
+                      handleVerifyOtp(devOtp);
+                    }}
+                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] shadow-sm cursor-pointer transition-colors"
+                  >
+                    Điền mã & Kích hoạt
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  Mã OTP của bạn là: <strong className="text-base font-mono text-amber-950 tracking-widest">{devOtp}</strong>
+                </p>
+              </div>
+            )}
 
             {resendSuccess && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700 flex items-center gap-2">
