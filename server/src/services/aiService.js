@@ -3,21 +3,28 @@ const fs = require('fs');
 const path = require('path');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env'), override: true });
 
-// Initialize Gemini Client
-const apiKey = process.env.GEMINI_API_KEY || '';
-const genAI = (apiKey && apiKey.trim().length > 10) ? new GoogleGenerativeAI(apiKey.trim()) : null;
+// Helper to get active Gemini Client dynamically
+const getActiveGenAI = (customApiKey = null) => {
+  require('dotenv').config({ path: path.resolve(__dirname, '../../.env'), override: true });
+  const key = (customApiKey && customApiKey.trim().length > 10) ? customApiKey.trim() : (process.env.GEMINI_API_KEY || '').trim();
+  if (key && key.length > 10) {
+    return new GoogleGenerativeAI(key);
+  }
+  return null;
+};
 
-// Preferred model list to try in order (Top latest & smartest Gemini models)
+// Preferred model list to try in order (Top latest & smartest active Gemini models)
 const CANDIDATE_MODELS = [
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3.8-flash',
+  'gemini-flash-latest',
+  'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-2.0-flash-thinking-exp-01-21',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-pro'
+  'gemini-1.5-flash'
 ];
 
 /**
@@ -96,9 +103,7 @@ const extractTextFromFile = async (filePath) => {
  * Call Gemini with multi-model fallback (supports text prompts, multimodal content arrays, custom API key, and preferred model selection)
  */
 const callGeminiWithFallback = async (promptOrParts, customApiKey = null, preferredModel = null) => {
-  const activeGenAI = (customApiKey && customApiKey.trim().length > 10)
-    ? new GoogleGenerativeAI(customApiKey.trim())
-    : genAI;
+  const activeGenAI = getActiveGenAI(customApiKey);
 
   if (!activeGenAI) {
     throw new Error('Chưa cấu hình GEMINI_API_KEY hợp lệ. Vui lòng cung cấp API key trong cài đặt hoặc file .env');
