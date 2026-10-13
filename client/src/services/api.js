@@ -15,6 +15,7 @@ const api = axios.create({
   baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 
