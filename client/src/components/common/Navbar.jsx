@@ -383,7 +383,7 @@ export default function Navbar() {
                     }`}
                   >
                     <Search className="w-4 h-4 text-brand-blue" />
-                    Kho CV ứng viên
+                    Tìm kiếm ứng viên
                   </Link>
 
                   <Link
@@ -540,7 +540,7 @@ export default function Navbar() {
                             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
                             <Search className="w-4 h-4 text-gray-400" />
-                            Săn nhân tài (Kho CV)
+                            Tìm kiếm ứng viên
                           </Link>
                           <Link
                             to="/employer/pricing"

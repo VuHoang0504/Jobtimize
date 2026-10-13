@@ -99,7 +99,7 @@ export default function CandidateSearchPage() {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-brand-blue text-xs font-bold border border-blue-200">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Săn Hồ Sơ Thụ Động (UC-E11 & UC-E12)</span>
+            <span>Tìm Kiếm Ứng Viên Tiềm Năng (UC-E11 & UC-E12)</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
             Kho CV Ứng Viên Đang Bật Tìm Việc
