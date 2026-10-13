@@ -1,7 +1,18 @@
 import axios from 'axios';
 
+// Chuẩn hóa baseURL từ biến môi trường VITE_API_URL
+// Nếu không cấu hình (chạy local dev), dùng '/api' để proxy qua Vite server
+const getBaseURL = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    const trimmed = envUrl.trim().replace(/\/+$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  }
+  return '/api';
+};
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },

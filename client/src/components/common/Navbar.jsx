@@ -81,7 +81,7 @@ export default function Navbar() {
                   Job<span className="text-brand-blue">timize</span>
                 </span>
                 <span className="text-[10px] font-semibold tracking-wider text-brand-green uppercase mt-0.5">
-                  IT Recruitment
+                  Recruitment
                 </span>
               </div>
             </Link>

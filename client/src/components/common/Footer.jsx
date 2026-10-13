@@ -55,7 +55,7 @@ export default function Footer() {
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">
-          <p>© 2024 Jobtimize IT Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
+          <p>© 2024 Jobtimize Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
           <p className="flex items-center gap-1 mt-2 sm:mt-0">
             Xây dựng với <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> dành cho cộng đồng IT Việt Nam
           </p>
