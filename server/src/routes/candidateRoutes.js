@@ -32,6 +32,7 @@ router.get('/job-alerts/:alertId/matching-jobs', candidateController.getMatching
 
 // Skill Gap & Course Database Integration (UC-C12)
 router.get('/skill-gap', candidateController.getSkillGapAnalytics);
+router.post('/skill-gap', candidateController.getSkillGapAnalytics);
 router.get('/courses', candidateController.getAllCourses);
 
 module.exports = router;

@@ -753,80 +753,381 @@ const getAllCourses = async (req, res) => {
   }
 };
 
-// Get Skill Gap & Learning Paths (UC-C11, UC-C12, UC-AI01)
+// ==========================================
+// TARGET-ORIENTED AI SKILL GAP ANALYTICS (UC-C11, UC-C12, UC-AI01)
+// ==========================================
+
+const STANDARD_ROLES = [
+  {
+    id: 'backend-node',
+    title: 'Senior Backend Developer (Node.js)',
+    category: 'Backend Development',
+    mustHaveSkills: ['Node.js', 'Express.js', 'PostgreSQL', 'Docker'],
+    niceToHaveSkills: ['Redis', 'TypeScript', 'MongoDB', 'AWS Cloud', 'SQL Server']
+  },
+  {
+    id: 'frontend-react',
+    title: 'Senior Frontend Developer (React.js)',
+    category: 'Frontend Development',
+    mustHaveSkills: ['React.js', 'TypeScript', 'Next.js', 'Tailwind CSS'],
+    niceToHaveSkills: ['Node.js', 'UI/UX (Figma)']
+  },
+  {
+    id: 'fullstack-web',
+    title: 'Fullstack Software Engineer (Web)',
+    category: 'Fullstack Development',
+    mustHaveSkills: ['React.js', 'Node.js', 'TypeScript', 'PostgreSQL', 'Docker'],
+    niceToHaveSkills: ['Next.js', 'Redis', 'Tailwind CSS', 'AWS Cloud', 'MongoDB']
+  },
+  {
+    id: 'backend-dotnet',
+    title: '.NET Backend Developer (C# / .NET Core)',
+    category: 'Backend Development',
+    mustHaveSkills: ['C# / .NET Core', 'SQL Server', 'Docker'],
+    niceToHaveSkills: ['Azure Cloud', 'Redis', 'React.js', 'TypeScript']
+  },
+  {
+    id: 'backend-java',
+    title: 'Java Backend Developer (Spring Boot)',
+    category: 'Backend Development',
+    mustHaveSkills: ['Java / Spring Boot', 'PostgreSQL', 'Docker'],
+    niceToHaveSkills: ['Redis', 'Kubernetes', 'AWS Cloud', 'SQL Server']
+  },
+  {
+    id: 'devops-cloud',
+    title: 'Cloud & DevOps Engineer (AWS / K8s)',
+    category: 'DevOps & Cloud',
+    mustHaveSkills: ['Docker', 'Kubernetes', 'AWS Cloud'],
+    niceToHaveSkills: ['Azure Cloud', 'Python', 'Node.js', 'PostgreSQL']
+  },
+  {
+    id: 'ai-data',
+    title: 'AI & Machine Learning Engineer (Python)',
+    category: 'AI & Data Science',
+    mustHaveSkills: ['Python', 'Machine Learning', 'Generative AI / LLM'],
+    niceToHaveSkills: ['PostgreSQL', 'Docker', 'AWS Cloud', 'MongoDB']
+  },
+  {
+    id: 'ui-ux',
+    title: 'Product UI/UX Designer',
+    category: 'Product Design',
+    mustHaveSkills: ['UI/UX (Figma)'],
+    niceToHaveSkills: ['Tailwind CSS', 'React.js']
+  }
+];
+
+const checkCandidateHasSkill = (candidateText, skill) => {
+  const sName = (skill.SkillName || '').toLowerCase();
+  const sNorm = (skill.NormalizedName || '').toLowerCase();
+  
+  const terms = new Set([sName, sNorm].filter(Boolean));
+  if (sName.includes('react')) { terms.add('react'); terms.add('reactjs'); terms.add('react.js'); }
+  if (sName.includes('node')) { terms.add('node'); terms.add('nodejs'); terms.add('node.js'); }
+  if (sName.includes('next')) { terms.add('next'); terms.add('nextjs'); terms.add('next.js'); }
+  if (sName.includes('typescript')) { terms.add('typescript'); terms.add('ts'); }
+  if (sName.includes('c#') || sName.includes('.net')) { terms.add('c#'); terms.add('.net'); terms.add('dotnet'); terms.add('asp.net'); terms.add('csharp'); }
+  if (sName.includes('java ') || sName.includes('spring')) { terms.add('spring'); terms.add('spring boot'); terms.add('java'); }
+  if (sName.includes('python')) { terms.add('python'); terms.add('django'); terms.add('fastapi'); }
+  if (sName.includes('docker')) { terms.add('docker'); terms.add('container'); }
+  if (sName.includes('kubernetes')) { terms.add('kubernetes'); terms.add('k8s'); }
+  if (sName.includes('aws')) { terms.add('aws'); terms.add('amazon web services'); }
+  if (sName.includes('azure')) { terms.add('azure'); }
+  if (sName.includes('sql server')) { terms.add('sql server'); terms.add('mssql'); }
+  if (sName.includes('postgresql')) { terms.add('postgresql'); terms.add('postgres'); }
+  if (sName.includes('mongodb')) { terms.add('mongodb'); terms.add('mongo'); }
+  if (sName.includes('redis')) { terms.add('redis'); }
+  if (sName.includes('figma')) { terms.add('figma'); terms.add('ui/ux'); terms.add('ui design'); }
+  if (sName.includes('tailwind')) { terms.add('tailwind'); terms.add('tailwindcss'); }
+
+  for (const term of terms) {
+    if (term && candidateText.includes(term.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+};
+
+// Get Skill Gap & Learning Paths with Target Role / Job / JD
 const getSkillGapAnalytics = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const candRes = await executeQuery('SELECT ProfileID, Headline, Bio FROM CandidateProfiles WHERE UserID = @UserID', { UserID: userId });
+    const mode = req.query.mode || req.body?.mode || 'role'; // 'role' | 'job' | 'jd'
+    const targetRoleParam = req.query.targetRole || req.body?.targetRole;
+    const jobIdParam = req.query.jobId || req.body?.jobId;
+    const customJd = req.query.customJd || req.body?.customJd;
+
+    // 1. Fetch Candidate Profile & CVs
+    const candRes = await executeQuery(
+      'SELECT ProfileID, Headline, Bio, CurrentLocation FROM CandidateProfiles WHERE UserID = @UserID',
+      { UserID: userId }
+    );
     if (!candRes.recordset || candRes.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ' });
+      return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ ứng viên' });
     }
     const candidate = candRes.recordset[0];
 
-    // Fetch all courses in DB with all rich fields
-    const coursesRes = await executeQuery(`
-      SELECT c.CourseID, c.Title, c.Provider, c.Url, c.SkillID, 
-             c.Price, c.Currency, c.IsFree, c.CertificateName, c.Duration, c.Level, c.Rating, c.ThumbnailUrl,
-             st.SkillName, st.NormalizedName, jc.CategoryName
-      FROM Courses c
-      JOIN SkillTaxonomy st ON c.SkillID = st.SkillID
-      LEFT JOIN JobCategories jc ON st.CategoryID = jc.CategoryID
-    `);
+    // Extract text from CVs
+    const cvRes = await executeQuery(
+      'SELECT CVID, Title, CvData, IsPrimary FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC, CVID DESC',
+      { ProfileID: candidate.ProfileID }
+    );
+    const cvList = cvRes.recordset;
+    const cvText = cvList.map(c => `${c.Title} ${c.CvData || ''}`).join(' ');
+    const candidateFullText = `${candidate.Headline || ''} ${candidate.Bio || ''} ${cvText}`.toLowerCase();
 
-    // Fetch top market skill trends
-    const skillsRes = await executeQuery(`
-      SELECT st.SkillID, st.SkillName, st.NormalizedName, jc.CategoryName,
-             COUNT(jsr.JobID) AS DemandCount
-      FROM SkillTaxonomy st
-      LEFT JOIN JobSkillRequirements jsr ON st.SkillID = jsr.SkillID
-      LEFT JOIN JobCategories jc ON st.CategoryID = jc.CategoryID
-      GROUP BY st.SkillID, st.SkillName, st.NormalizedName, jc.CategoryName
-      ORDER BY DemandCount DESC
-    `);
+    // 2. Fetch Skill Taxonomy, Courses & Available Published Jobs
+    const [skillsRes, coursesRes, jobsRes] = await Promise.all([
+      executeQuery(`
+        SELECT st.SkillID, st.SkillName, st.NormalizedName, st.CategoryID, jc.CategoryName
+        FROM SkillTaxonomy st
+        LEFT JOIN JobCategories jc ON st.CategoryID = jc.CategoryID
+      `),
+      executeQuery(`
+        SELECT c.CourseID, c.Title, c.Provider, c.Url, c.SkillID, 
+               c.Price, c.Currency, c.IsFree, c.CertificateName, c.Duration, c.Level, c.Rating, c.ThumbnailUrl,
+               st.SkillName, st.NormalizedName, jc.CategoryName
+        FROM Courses c
+        JOIN SkillTaxonomy st ON c.SkillID = st.SkillID
+        LEFT JOIN JobCategories jc ON st.CategoryID = jc.CategoryID
+      `),
+      executeQuery(`
+        SELECT jp.JobID, jp.Title, jp.CategoryID, jp.SalaryRange, jp.Location,
+               e.CompanyName, e.CompanyLogoUrl, jc.CategoryName
+        FROM JobPostings jp
+        JOIN Employers e ON jp.EmployerID = e.EmployerID
+        LEFT JOIN JobCategories jc ON jp.CategoryID = jc.CategoryID
+        WHERE jp.Status = 'Published'
+        ORDER BY jp.CreatedAt DESC
+      `)
+    ]);
 
-    // Extract text from bio / CVs to detect acquired skills
-    const cvRes = await executeQuery('SELECT Title, CvData FROM CVs WHERE ProfileID = @ProfileID', { ProfileID: candidate.ProfileID });
-    const cvText = cvRes.recordset.map(c => `${c.Title} ${c.CvData || ''}`).join(' ');
-    const candidateText = `${candidate.Headline || ''} ${candidate.Bio || ''} ${cvText}`.toLowerCase();
+    const allSkills = skillsRes.recordset;
+    const allCourses = coursesRes.recordset;
+    const availableJobs = jobsRes.recordset;
 
-    const topSkills = skillsRes.recordset;
-    const acquiredSkills = [];
-    const missingSkills = [];
-    const recommendedCourses = [];
+    // Candidate's owned skills detected from CV
+    const candidateOwnedSkills = allSkills.filter(skill => checkCandidateHasSkill(candidateFullText, skill));
 
-    for (const skill of topSkills) {
-      const sName = (skill.SkillName || '').toLowerCase();
-      const sNorm = (skill.NormalizedName || '').toLowerCase();
-      const hasSkill = candidateText.includes(sName) || (sNorm && candidateText.includes(sNorm));
+    // 3. Determine Target Skills ($Skills_{Target}$) based on Mode
+    let targetTitle = 'Senior Backend Developer (Node.js)';
+    let targetTypeLabel = 'Vị trí mục tiêu';
+    let targetDetails = null;
+    let targetSkillsMap = new Map(); // SkillID -> { skill, isMandatory }
 
-      if (hasSkill) {
-        acquiredSkills.push(skill);
-      } else {
-        missingSkills.push(skill);
-        // Find matching courses in CSDL for missing skill
-        const matchingCourses = coursesRes.recordset.filter(c => c.SkillID === skill.SkillID);
-        matchingCourses.forEach(course => {
-          if (recommendedCourses.length < 12 && !recommendedCourses.some(rc => rc.CourseID === course.CourseID)) {
-            recommendedCourses.push(course);
+    if (mode === 'job' && jobIdParam) {
+      // MODE 2: SPECIFIC JOB POSTING FROM DATABASE
+      const jobDetailRes = await executeQuery(
+        `SELECT jp.JobID, jp.Title, jp.Description, jp.Requirements, jp.SalaryRange, jp.Location,
+                e.CompanyName, e.CompanyLogoUrl, jc.CategoryName
+         FROM JobPostings jp
+         JOIN Employers e ON jp.EmployerID = e.EmployerID
+         LEFT JOIN JobCategories jc ON jp.CategoryID = jc.CategoryID
+         WHERE jp.JobID = @JobID`,
+        { JobID: parseInt(jobIdParam, 10) }
+      );
+
+      if (jobDetailRes.recordset && jobDetailRes.recordset.length > 0) {
+        const job = jobDetailRes.recordset[0];
+        targetTitle = `${job.Title} — ${job.CompanyName}`;
+        targetTypeLabel = 'Tin tuyển dụng cụ thể (1-1 Match)';
+        targetDetails = job;
+
+        // Query job skill requirements
+        const reqRes = await executeQuery(
+          `SELECT jsr.SkillID, jsr.IsMandatory
+           FROM JobSkillRequirements jsr
+           WHERE jsr.JobID = @JobID`,
+          { JobID: job.JobID }
+        );
+
+        const jobReqs = reqRes.recordset;
+        for (const req of jobReqs) {
+          const matchedSkill = allSkills.find(s => s.SkillID === req.SkillID);
+          if (matchedSkill) {
+            targetSkillsMap.set(matchedSkill.SkillID, {
+              skill: matchedSkill,
+              isMandatory: Boolean(req.IsMandatory)
+            });
           }
-        });
+        }
+
+        // Parse any additional skills mentioned in Job Description/Requirements
+        const jobFullText = `${job.Description} ${job.Requirements}`.toLowerCase();
+        for (const skill of allSkills) {
+          if (!targetSkillsMap.has(skill.SkillID) && checkCandidateHasSkill(jobFullText, skill)) {
+            targetSkillsMap.set(skill.SkillID, {
+              skill,
+              isMandatory: false // Nice to have if extracted from text
+            });
+          }
+        }
+      }
+    } else if (mode === 'jd' && customJd && customJd.trim()) {
+      // MODE 3: PASTED CUSTOM JOB DESCRIPTION (JD)
+      targetTitle = 'Mô tả công việc tùy chỉnh (Dán JD)';
+      targetTypeLabel = 'Tin tuyển dụng tự dán (Custom JD)';
+      const jdLower = customJd.toLowerCase();
+
+      // Scan all skills against pasted JD
+      for (const skill of allSkills) {
+        if (checkCandidateHasSkill(jdLower, skill)) {
+          // Identify if it's in mandatory section
+          const sName = (skill.SkillName || '').toLowerCase();
+          const isMustHave = jdLower.includes('yêu cầu') || jdLower.includes('bắt buộc') || jdLower.includes('must') || jdLower.includes('require');
+          const isNiceToHave = jdLower.includes('ưu tiên') || jdLower.includes('điểm cộng') || jdLower.includes('nice to have') || jdLower.includes('plus');
+
+          targetSkillsMap.set(skill.SkillID, {
+            skill,
+            isMandatory: !isNiceToHave
+          });
+        }
+      }
+
+      // If no skills matched from JD, fallback to relevant software skills
+      if (targetSkillsMap.size === 0) {
+        const fallbackSkills = allSkills.filter(s => s.CategoryID === 1).slice(0, 5);
+        for (const s of fallbackSkills) {
+          targetSkillsMap.set(s.SkillID, { skill: s, isMandatory: true });
+        }
+      }
+    } else {
+      // MODE 1 (DEFAULT): TARGET ROLE (Vị trí mục tiêu)
+      let activeRole = null;
+      if (targetRoleParam) {
+        activeRole = STANDARD_ROLES.find(r => r.id === targetRoleParam || r.title.toLowerCase() === targetRoleParam.toLowerCase());
+      }
+      if (!activeRole) {
+        // Match from candidate headline or default to backend-node
+        const headline = (candidate.Headline || '').toLowerCase();
+        if (headline.includes('front')) activeRole = STANDARD_ROLES.find(r => r.id === 'frontend-react');
+        else if (headline.includes('full')) activeRole = STANDARD_ROLES.find(r => r.id === 'fullstack-web');
+        else if (headline.includes('devops') || headline.includes('cloud')) activeRole = STANDARD_ROLES.find(r => r.id === 'devops-cloud');
+        else if (headline.includes('ai') || headline.includes('data') || headline.includes('machine')) activeRole = STANDARD_ROLES.find(r => r.id === 'ai-data');
+        else if (headline.includes('ui') || headline.includes('ux') || headline.includes('design')) activeRole = STANDARD_ROLES.find(r => r.id === 'ui-ux');
+        else activeRole = STANDARD_ROLES[0]; // Senior Backend Developer (Node.js)
+      }
+
+      targetTitle = activeRole.title;
+      targetTypeLabel = `Vị trí tiêu chuẩn (${activeRole.category})`;
+      targetDetails = { roleId: activeRole.id, category: activeRole.category };
+
+      // Map Must-Have skills
+      for (const name of activeRole.mustHaveSkills) {
+        const found = allSkills.find(s => s.SkillName.toLowerCase() === name.toLowerCase());
+        if (found) {
+          targetSkillsMap.set(found.SkillID, { skill: found, isMandatory: true });
+        }
+      }
+
+      // Map Nice-To-Have skills
+      for (const name of activeRole.niceToHaveSkills) {
+        const found = allSkills.find(s => s.SkillName.toLowerCase() === name.toLowerCase());
+        if (found && !targetSkillsMap.has(found.SkillID)) {
+          targetSkillsMap.set(found.SkillID, { skill: found, isMandatory: false });
+        }
       }
     }
+
+    // 4. Compare $Skills_{Target}$ vs $Skills_{CV}$
+    const targetSkillsList = Array.from(targetSkillsMap.values());
+    const requiredSkills = [];
+    const acquiredSkills = [];
+    const mustHaveMissing = [];
+    const niceToHaveMissing = [];
+
+    for (const item of targetSkillsList) {
+      const { skill, isMandatory } = item;
+      const isOwned = checkCandidateHasSkill(candidateFullText, skill);
+
+      const skillPayload = {
+        ...skill,
+        isMandatory
+      };
+
+      requiredSkills.push(skillPayload);
+
+      if (isOwned) {
+        acquiredSkills.push(skillPayload);
+      } else {
+        if (isMandatory) {
+          mustHaveMissing.push(skillPayload);
+        } else {
+          niceToHaveMissing.push(skillPayload);
+        }
+      }
+    }
+
+    // Combined missing skills for backwards compatibility
+    const missingSkills = [...mustHaveMissing, ...niceToHaveMissing];
+
+    // Compute Match Score (0 - 100%)
+    let matchScore = 0;
+    if (requiredSkills.length > 0) {
+      const mustHaveTotal = requiredSkills.filter(s => s.isMandatory).length;
+      const niceToHaveTotal = requiredSkills.filter(s => !s.isMandatory).length;
+      
+      const acquiredMustHave = acquiredSkills.filter(s => s.isMandatory).length;
+      const acquiredNiceToHave = acquiredSkills.filter(s => !s.isMandatory).length;
+
+      if (mustHaveTotal > 0 && niceToHaveTotal > 0) {
+        matchScore = Math.round((acquiredMustHave / mustHaveTotal) * 75 + (acquiredNiceToHave / niceToHaveTotal) * 25);
+      } else if (mustHaveTotal > 0) {
+        matchScore = Math.round((acquiredMustHave / mustHaveTotal) * 100);
+      } else {
+        matchScore = Math.round((acquiredSkills.length / requiredSkills.length) * 100);
+      }
+    }
+
+    // 5. Query Targeted Course Recommendations (ONLY FOR TARGET GAP SKILLS)
+    const missingSkillIds = new Set(missingSkills.map(s => s.SkillID));
+    const mustHaveSkillIds = new Set(mustHaveMissing.map(s => s.SkillID));
+
+    const targetedCourses = allCourses
+      .filter(c => missingSkillIds.has(c.SkillID))
+      .map(course => ({
+        ...course,
+        isMustHave: mustHaveSkillIds.has(course.SkillID)
+      }))
+      // Sort Must-Have courses first, then by rating
+      .sort((a, b) => {
+        if (a.isMustHave && !b.isMustHave) return -1;
+        if (!a.isMustHave && b.isMustHave) return 1;
+        return (b.Rating || 0) - (a.Rating || 0);
+      });
 
     return res.json({
       success: true,
       data: {
+        mode,
+        targetTitle,
+        targetTypeLabel,
+        targetDetails,
+        matchScore,
+        requiredSkills,
+        requiredSkillsCount: requiredSkills.length,
         acquiredSkills,
+        acquiredSkillsCount: acquiredSkills.length,
+        mustHaveMissing,
+        mustHaveCount: mustHaveMissing.length,
+        niceToHaveMissing,
+        niceToHaveCount: niceToHaveMissing.length,
         missingSkills,
         missingSkillsCount: missingSkills.length,
-        recommendedCourses,
-        allCourses: coursesRes.recordset,
-        marketSkillTrends: topSkills.slice(0, 8)
+        recommendedCourses: targetedCourses,
+        allCourses,
+        availableRoles: STANDARD_ROLES,
+        availableJobs: availableJobs.slice(0, 10),
+        candidateProfile: {
+          headline: candidate.Headline,
+          bio: candidate.Bio,
+          cvCount: cvList.length,
+          primaryCvTitle: cvList.find(c => c.IsPrimary)?.Title || cvList[0]?.Title || 'Hồ sơ cá nhân'
+        }
       }
     });
   } catch (error) {
     console.error('getSkillGapAnalytics error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Lỗi phân tích lỗ hổng kỹ năng: ' + error.message });
   }
 };
 
