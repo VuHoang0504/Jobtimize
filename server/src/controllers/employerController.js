@@ -950,8 +950,13 @@ const createCheckout = async (req, res) => {
     const amount = Number(pack.Price);
     const transferMemo = `JOBTIMIZE ${transactionRef}`;
 
-    // MoMo QR / VietQR Gateway Generation
-    const qrCodeUrl = `https://img.vietqr.io/image/970422-0901234567-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(transferMemo)}&accountName=${encodeURIComponent('CONG TY CP JOBTIMIZE')}`;
+    const bankBin = process.env.BANK_BIN || '970422';
+    const bankAccount = process.env.BANK_ACCOUNT_NO || '0387887153';
+    const bankName = process.env.BANK_NAME || 'MBBank (Ngân hàng Quân Đội)';
+    const accountHolder = process.env.BANK_ACCOUNT_NAME || 'MAI XUAN QUY';
+
+    // VietQR Gateway Generation with dynamic amount and transfer memo
+    const qrCodeUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(transferMemo)}&accountName=${encodeURIComponent(accountHolder)}`;
 
     // VNPay Sandbox Simulation Gateway URL
     const vnpSandboxUrl = `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=${amount * 100}&vnp_Command=pay&vnp_CreateDate=${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}&vnp_CurrCode=VND&vnp_Locale=vn&vnp_OrderInfo=${encodeURIComponent(`Thanh toan ${pack.PackageName} Jobtimize`)}&vnp_OrderType=other&vnp_ReturnUrl=${encodeURIComponent('http://localhost:3000/employer/pricing?txn=' + transactionRef)}&vnp_TmnCode=JOBTIMIZE&vnp_TxnRef=${transactionRef}&vnp_Version=2.1.0`;
@@ -965,11 +970,12 @@ const createCheckout = async (req, res) => {
         amount,
         paymentMethod,
         qrCodeUrl,
+        fallbackQrUrl: '/qr-bank.png',
         vnpSandboxUrl,
         bankInfo: {
-          bankName: 'MBBank (Ngân hàng Quân Đội) / Ví Điện Tử MoMo',
-          accountNumber: '0901234567',
-          accountHolder: 'CÔNG TY CP CÔNG NGHỆ JOBTIMIZE VIỆT NAM',
+          bankName,
+          accountNumber: bankAccount,
+          accountHolder,
           memo: transferMemo
         }
       }
@@ -1020,10 +1026,30 @@ const confirmPayment = async (req, res) => {
 
     // SECURITY ENFORCEMENT (UC-E07): Client request alone CANNOT mark transaction as 'Success'
     // or activate packages/quotas. Real gateway signature verification or Admin verification is required.
+
+    // Gửi email tiếp nhận đơn hàng cho nhà tuyển dụng (Cơ chế bán tự động)
+    const empUserRes = await executeQuery(
+      `SELECT e.CompanyName, u.Email, u.FullName
+       FROM Employers e
+       JOIN Users u ON e.UserID = u.UserID
+       WHERE e.EmployerID = @EmployerID`,
+      { EmployerID: emp.EmployerID }
+    );
+    if (empUserRes.recordset && empUserRes.recordset.length > 0) {
+      const empUser = empUserRes.recordset[0];
+      await emailService.sendPaymentPendingEmail({
+        toEmail: empUser.Email,
+        companyName: empUser.CompanyName || empUser.FullName || 'Quý Doanh Nghiệp',
+        packageName: txn.PackageName,
+        amount: txn.Amount,
+        transactionRef: txn.TransactionRef
+      });
+    }
+
     return res.status(200).json({
       success: true,
       pendingVerification: true,
-      message: 'Yêu cầu xác nhận thanh toán đã được tiếp nhận. Do hệ thống chưa kết nối chữ ký webhook cổng thanh toán tự động, giao dịch đang ở trạng thái "Chờ xác nhận" (Pending) và sẽ được Ban quản trị đối soát kích hoạt.',
+      message: 'Yêu cầu thanh toán của bạn đã được gửi thành công! Hệ thống đang đối soát và sẽ kích hoạt gói trong ít phút.',
       data: {
         transactionRef: txn.TransactionRef,
         status: txn.Status, // Keeps 'Pending'
