@@ -135,19 +135,19 @@ export default function SkillGapAnalysisPage() {
     matchScore >= 75
       ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
       : matchScore >= 45
-      ? 'text-amber-600 bg-amber-50 border-amber-200'
-      : 'text-rose-600 bg-rose-50 border-rose-200';
+        ? 'text-amber-600 bg-amber-50 border-amber-200'
+        : 'text-rose-600 bg-rose-50 border-rose-200';
 
   const progressBg =
     matchScore >= 75
       ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
       : matchScore >= 45
-      ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-      : 'bg-gradient-to-r from-rose-500 to-pink-500';
+        ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+        : 'bg-gradient-to-r from-rose-500 to-pink-500';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      
+
       {/* 1. Header Banner */}
       <div className="text-center space-y-3 max-w-3xl mx-auto">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-purpleLight text-brand-purple text-xs font-bold border border-brand-purple/20 shadow-xs">
@@ -158,14 +158,14 @@ export default function SkillGapAnalysisPage() {
           Phân Tích Lỗ Hổng Kỹ Năng Theo Vị Trí Mục Tiêu
         </h1>
         <p className="text-sm text-gray-600 leading-relaxed">
-          So khớp thông minh giữa năng lực hiện tại trên CV của bạn và tiêu chuẩn cụ thể của vị trí ứng tuyển. 
+          So khớp thông minh giữa năng lực hiện tại trên CV của bạn và tiêu chuẩn cụ thể của vị trí ứng tuyển.
           Loại bỏ hoàn toàn các kỹ năng gây nhiễu, tập trung chính xác vào kỹ năng bắt buộc và lộ trình đào tạo cần thiết.
         </p>
       </div>
 
       {/* 2. CONTEXT BAR (Xác định Điểm B: Vị trí mục tiêu) */}
       <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-purple/20 shadow-xl shadow-purple-500/5 space-y-6">
-        
+
         {/* Context Bar Header & Active Status */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
           <div className="space-y-1">
@@ -175,7 +175,7 @@ export default function SkillGapAnalysisPage() {
               </span>
               <div>
                 <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">
-                  Mục Tiêu Ứng Tuyển (Điểm B)
+                  Mục Tiêu Ứng Tuyển
                 </h2>
                 <p className="text-xs text-gray-500">
                   Chọn vị trí chuẩn hoặc dán JD cụ thể để AI so sánh chính xác 1-1
@@ -206,24 +206,22 @@ export default function SkillGapAnalysisPage() {
           <button
             type="button"
             onClick={() => setMode('role')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              mode === 'role'
-                ? 'bg-brand-purple text-white shadow-md shadow-brand-purple/25'
-                : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${mode === 'role'
+              ? 'bg-brand-purple text-white shadow-md shadow-brand-purple/25'
+              : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+              }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Cách 1: Chọn Vị trí chuẩn thị trường</span>
+            <span>Chọn Vị trí chuẩn thị trường</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMode('job')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              mode === 'job'
-                ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/25'
-                : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${mode === 'job'
+              ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/25'
+              : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+              }`}
           >
             <Briefcase className="w-3.5 h-3.5" />
             <span>Chọn Việc làm trên Jobtimize</span>
@@ -232,20 +230,19 @@ export default function SkillGapAnalysisPage() {
           <button
             type="button"
             onClick={() => setMode('jd')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              mode === 'jd'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
-                : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${mode === 'jd'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+              : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+              }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Cách 2: Dán trực tiếp JD (1-1 Match)</span>
+            <span>Vị trị cụ thể</span>
           </button>
         </div>
 
         {/* Input Form based on Mode */}
         <form onSubmit={handleApplyTarget} className="space-y-4">
-          
+
           {mode === 'role' && (
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
               <div className="sm:col-span-9 relative">
@@ -347,7 +344,7 @@ export default function SkillGapAnalysisPage() {
 
       {/* 3. BỐN THẺ THỐNG KÊ (STATS CARDS) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
+
         {/* Thẻ 1: Kỹ năng hiện có */}
         <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-card space-y-2">
           <div className="flex items-center justify-between">
@@ -402,7 +399,7 @@ export default function SkillGapAnalysisPage() {
 
       {/* 4. SO KHỚP KỸ NĂNG: ĐÃ CÓ VS PHÂN NHÓM LỖ HỔNG (MUST-HAVE & NICE-TO-HAVE) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* CỘT TRÁI (5 Cột): KỸ NĂNG BẠN ĐÃ SỞ HỮU */}
         <div className="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-7 border border-emerald-100 shadow-card space-y-5 flex flex-col justify-between">
           <div className="space-y-4">
@@ -452,7 +449,7 @@ export default function SkillGapAnalysisPage() {
 
         {/* CỘT PHẢI (7 Cột): PHÂN NHÓM LỖ HỔNG (MUST-HAVE & NICE-TO-HAVE) */}
         <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-7 border border-gray-200/80 shadow-card space-y-6">
-          
+
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <div className="flex items-center gap-2 text-gray-900">
               <Zap className="w-5 h-5 text-amber-500" />
@@ -491,11 +488,10 @@ export default function SkillGapAnalysisPage() {
                     key={skill.SkillID}
                     type="button"
                     onClick={() => setFocusedSkill(isSelected ? null : skill)}
-                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 border transition-all ${
-                      isSelected
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
-                        : 'bg-white text-rose-900 border-rose-200 hover:border-rose-400 hover:shadow-xs'
-                    }`}
+                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 border transition-all ${isSelected
+                      ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
+                      : 'bg-white text-rose-900 border-rose-200 hover:border-rose-400 hover:shadow-xs'
+                      }`}
                   >
                     <AlertTriangle className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-rose-600'}`} />
                     <span>{skill.SkillName}</span>
@@ -541,11 +537,10 @@ export default function SkillGapAnalysisPage() {
                     key={skill.SkillID}
                     type="button"
                     onClick={() => setFocusedSkill(isSelected ? null : skill)}
-                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 border transition-all ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400'
-                        : 'bg-white text-indigo-900 border-indigo-200 hover:border-indigo-400 hover:shadow-xs'
-                    }`}
+                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 border transition-all ${isSelected
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400'
+                      : 'bg-white text-indigo-900 border-indigo-200 hover:border-indigo-400 hover:shadow-xs'
+                      }`}
                   >
                     <Tag className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-indigo-600'}`} />
                     <span>{skill.SkillName}</span>
@@ -587,7 +582,7 @@ export default function SkillGapAnalysisPage() {
 
       {/* 5. KHỐI KHO KHÓA HỌC & LỘ TRÌNH ĐÀO TẠO THỰC TẾ (MAPPING TRỰC TIẾP TỪ LỖ HỔNG) */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
-        
+
         {/* Controls & Filter Bar */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-gray-100 pb-6">
           <div className="space-y-1">
@@ -604,21 +599,19 @@ export default function SkillGapAnalysisPage() {
           <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-2xl shrink-0">
             <button
               onClick={() => { setActiveView('recommended'); setFocusedSkill(null); }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeView === 'recommended'
-                  ? 'bg-brand-purple text-white shadow-md shadow-brand-purple/20'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeView === 'recommended'
+                ? 'bg-brand-purple text-white shadow-md shadow-brand-purple/20'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
             >
               Gợi ý cho mục tiêu này ({data?.recommendedCourses?.length || 0})
             </button>
             <button
               onClick={() => { setActiveView('all'); setFocusedSkill(null); }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeView === 'all'
-                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeView === 'all'
+                ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
             >
               Tất cả khóa học CSDL ({allCourses.length})
             </button>
@@ -632,9 +625,8 @@ export default function SkillGapAnalysisPage() {
             <button
               type="button"
               onClick={() => setFocusedSkill(null)}
-              className={`px-3 py-1.5 rounded-xl font-bold shrink-0 transition-all ${
-                !focusedSkill ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-3 py-1.5 rounded-xl font-bold shrink-0 transition-all ${!focusedSkill ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               Tất cả ({data?.recommendedCourses?.length || 0})
             </button>
@@ -643,11 +635,10 @@ export default function SkillGapAnalysisPage() {
                 key={sk.SkillID}
                 type="button"
                 onClick={() => setFocusedSkill(focusedSkill?.SkillID === sk.SkillID ? null : sk)}
-                className={`px-3 py-1.5 rounded-xl font-bold shrink-0 transition-all flex items-center gap-1.5 ${
-                  focusedSkill?.SkillID === sk.SkillID
-                    ? sk.isMandatory ? 'bg-rose-600 text-white' : 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`px-3 py-1.5 rounded-xl font-bold shrink-0 transition-all flex items-center gap-1.5 ${focusedSkill?.SkillID === sk.SkillID
+                  ? sk.isMandatory ? 'bg-rose-600 text-white' : 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
               >
                 {sk.isMandatory ? <Flame className="w-3 h-3 text-rose-500 shrink-0" /> : <Star className="w-3 h-3 text-indigo-500 shrink-0" />}
                 <span>{sk.SkillName}</span>
@@ -689,11 +680,10 @@ export default function SkillGapAnalysisPage() {
             <button
               type="button"
               onClick={() => setFilterFreeOnly(!filterFreeOnly)}
-              className={`w-full py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
-                filterFreeOnly
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-              }`}
+              className={`w-full py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${filterFreeOnly
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                }`}
             >
               <CheckCircle2 className={`w-3.5 h-3.5 ${filterFreeOnly ? 'text-emerald-600' : 'text-gray-400'}`} />
               <span>Chỉ xem Khóa học miễn phí</span>
@@ -716,7 +706,7 @@ export default function SkillGapAnalysisPage() {
                     alt={course.Title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  
+
                   {/* Badges */}
                   <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
                     <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold">
