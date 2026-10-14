@@ -121,7 +121,7 @@ export default function EmployerPricingPage() {
       setError('');
       const res = await api.post('/employer/payment/confirm', {
         transactionRef: checkoutData.transactionRef,
-        gatewayTransactionNo: paymentMethod === 'VNPay' ? 'VNPAY_SANDBOX_' + Date.now() : 'MOMO_QR_' + Date.now()
+        gatewayTransactionNo: paymentMethod === 'VNPay' ? 'VNPAY_SANDBOX_' + Date.now() : 'MB_VIETQR_' + Date.now()
       });
 
       if (res.data.success) {
@@ -129,7 +129,7 @@ export default function EmployerPricingPage() {
         await fetchData();
         setTimeout(() => {
           setCheckoutModalOpen(false);
-        }, 1500);
+        }, 3500);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Không thể xác nhận thanh toán.');
@@ -387,12 +387,12 @@ export default function EmployerPricingPage() {
                 onClick={() => handleSwitchMethod('MoMo')}
                 className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                   paymentMethod === 'MoMo'
-                    ? 'bg-pink-50 border-pink-400 text-pink-700 shadow-xs'
+                    ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-xs ring-1 ring-emerald-300'
                     : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <QrCode className="w-4 h-4 text-pink-600" />
-                <span>Ví MoMo / VietQR</span>
+                <QrCode className="w-4 h-4 text-emerald-600" />
+                <span>Chuyển khoản MBBank (VietQR)</span>
               </button>
 
               <button
@@ -400,7 +400,7 @@ export default function EmployerPricingPage() {
                 onClick={() => handleSwitchMethod('VNPay')}
                 className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                   paymentMethod === 'VNPay'
-                    ? 'bg-blue-50 border-blue-400 text-blue-700 shadow-xs'
+                    ? 'bg-blue-50 border-blue-400 text-blue-700 shadow-xs ring-1 ring-blue-300'
                     : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
                 }`}
               >
@@ -412,36 +412,37 @@ export default function EmployerPricingPage() {
             {checkingOut ? (
               <div className="py-12 text-center text-xs text-gray-500">Đang khởi tạo mã giao dịch...</div>
             ) : paymentMethod === 'MoMo' ? (
-              /* MoMo QR / VietQR Layout */
+              /* MBBank VietQR Layout */
               <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center space-y-3">
-                  <p className="text-xs font-bold text-gray-700">Quét mã QR bằng ứng dụng Ngân hàng hoặc MoMo</p>
+                <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 text-center space-y-3">
+                  <p className="text-xs font-bold text-emerald-950">Quét mã VietQR bằng bất kỳ ứng dụng Ngân hàng nào</p>
                   
-                  {checkoutData?.qrCodeUrl && (
+                  {checkoutData && (
                     <div className="inline-block p-3 bg-white rounded-2xl border border-gray-200 shadow-md">
                       <img
-                        src={checkoutData.qrCodeUrl}
-                        alt="QR MoMo / VietQR"
-                        className="w-48 h-48 object-contain mx-auto"
+                        src={checkoutData.qrCodeUrl || '/qr-bank.png'}
+                        onError={(e) => { e.currentTarget.src = '/qr-bank.png'; }}
+                        alt="QR MBBank MAI XUAN QUY"
+                        className="w-52 h-52 object-contain mx-auto"
                       />
                     </div>
                   )}
 
-                  <p className="text-[11px] text-gray-500">Mã QR đã bao gồm số tiền và nội dung chuyển khoản tự động.</p>
+                  <p className="text-[11px] text-gray-500">Mã QR đã tự động điền sẵn số tài khoản MBBank, số tiền và nội dung chuyển khoản.</p>
                 </div>
 
                 <div className="space-y-2 text-xs bg-gray-50 p-4 rounded-2xl border border-gray-100">
                   <div className="flex items-center justify-between py-1 border-b border-gray-200/60">
-                    <span className="text-gray-500">Ngân hàng / Đơn vị:</span>
-                    <span className="font-bold text-gray-800">MBBank / MoMo Business</span>
+                    <span className="text-gray-500">Ngân hàng thụ hưởng:</span>
+                    <span className="font-bold text-gray-800">{checkoutData?.bankInfo?.bankName || 'MBBank (Ngân hàng Quân Đội)'}</span>
                   </div>
 
                   <div className="flex items-center justify-between py-1 border-b border-gray-200/60">
                     <span className="text-gray-500">Số tài khoản:</span>
                     <div className="flex items-center gap-2 font-mono font-bold text-gray-900">
-                      <span>0901234567</span>
+                      <span>{checkoutData?.bankInfo?.accountNumber || '0387887153'}</span>
                       <button
-                        onClick={() => copyToClipboard('0901234567', 'stk')}
+                        onClick={() => copyToClipboard(checkoutData?.bankInfo?.accountNumber || '0387887153', 'stk')}
                         className="text-brand-blue hover:underline text-[11px]"
                       >
                         {copiedField === 'stk' ? '✓ Đã chép' : 'Chép'}
@@ -451,11 +452,11 @@ export default function EmployerPricingPage() {
 
                   <div className="flex items-center justify-between py-1 border-b border-gray-200/60">
                     <span className="text-gray-500">Chủ tài khoản:</span>
-                    <span className="font-bold text-gray-800">CÔNG TY CP JOBTIMIZE VIỆT NAM</span>
+                    <span className="font-bold text-gray-800">{checkoutData?.bankInfo?.accountHolder || 'MAI XUAN QUY'}</span>
                   </div>
 
                   <div className="flex items-center justify-between py-1 border-b border-gray-200/60">
-                    <span className="text-gray-500">Số tiền:</span>
+                    <span className="text-gray-500">Số tiền thanh toán:</span>
                     <span className="font-black text-emerald-600 text-sm">
                       {checkoutData ? Number(checkoutData.amount).toLocaleString() + ' đ' : ''}
                     </span>

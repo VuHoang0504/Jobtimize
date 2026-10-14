@@ -1,4 +1,5 @@
 const { executeQuery } = require('../config/db');
+const emailService = require('../services/emailService');
 
 // 1. Review Employer KYC (Admin Only - UC-E04 / UC-A05)
 const reviewEmployerKYC = async (req, res) => {
@@ -62,6 +63,31 @@ const getPendingKYCList = async (req, res) => {
     });
   } catch (error) {
     console.error('getPendingKYCList error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 2b. Get list of pending payment transactions for Admin to verify (UC-E07)
+const getPendingPayments = async (req, res) => {
+  try {
+    const result = await executeQuery(
+      `SELECT pt.PaymentID, pt.TransactionRef, pt.EmployerID, pt.PackageID, pt.Amount, pt.Status, pt.PaymentMethod, pt.CreatedAt,
+              sp.PackageName, sp.DurationDays, sp.PostLimit, sp.SearchLimit,
+              e.CompanyName, u.Email AS EmployerEmail, u.FullName AS ContactPerson, u.Phone
+       FROM PaymentTransactions pt
+       JOIN SubscriptionPackages sp ON pt.PackageID = sp.PackageID
+       JOIN Employers e ON pt.EmployerID = e.EmployerID
+       JOIN Users u ON e.UserID = u.UserID
+       WHERE pt.Status = 'Pending'
+       ORDER BY pt.CreatedAt DESC`
+    );
+
+    return res.json({
+      success: true,
+      data: result.recordset || []
+    });
+  } catch (error) {
+    console.error('getPendingPayments error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -164,6 +190,27 @@ const verifyPaymentTransaction = async (req, res) => {
           SearchLimit: txn.SearchLimit
         }
       );
+    }
+
+    // Gửi email thông báo kích hoạt thành công cho doanh nghiệp
+    const empUserRes = await executeQuery(
+      `SELECT e.CompanyName, u.Email, u.FullName
+       FROM Employers e
+       JOIN Users u ON e.UserID = u.UserID
+       WHERE e.EmployerID = @EmployerID`,
+      { EmployerID: txn.EmployerID }
+    );
+    if (empUserRes.recordset && empUserRes.recordset.length > 0) {
+      const empUser = empUserRes.recordset[0];
+      await emailService.sendPaymentSuccessEmail({
+        toEmail: empUser.Email,
+        companyName: empUser.CompanyName || empUser.FullName || 'Quý Doanh Nghiệp',
+        packageName: txn.PackageName,
+        durationDays: txn.DurationDays,
+        postLimit: txn.PostLimit,
+        searchLimit: txn.SearchLimit,
+        transactionRef: txn.TransactionRef
+      });
     }
 
     return res.json({
@@ -1828,6 +1875,7 @@ module.exports = {
   // KYC & Payment routes
   reviewEmployerKYC,
   getPendingKYCList,
+  getPendingPayments,
   verifyPaymentTransaction,
 
   // Admin portal routes

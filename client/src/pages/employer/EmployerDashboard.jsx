@@ -225,7 +225,7 @@ export default function EmployerDashboard() {
             <Search className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-gray-900 group-hover:text-brand-blue">Săn nhân tài (Kho CV)</h4>
+            <h4 className="text-xs font-bold text-gray-900 group-hover:text-brand-blue">Tìm kiếm ứng viên</h4>
             <p className="text-[11px] text-gray-500">Tra cứu CV đang bật tìm việc (UC-E11)</p>
           </div>
         </Link>

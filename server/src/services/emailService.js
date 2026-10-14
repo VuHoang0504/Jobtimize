@@ -200,8 +200,83 @@ const sendInvitationEmail = async ({ toEmail, candidateName, companyName, jobTit
   }
 };
 
+const sendPaymentPendingEmail = async ({ toEmail, companyName, packageName, amount, transactionRef }) => {
+  const transporter = createTransporter();
+  const subject = `[Jobtimize] Đã ghi nhận yêu cầu thanh toán đơn hàng #${transactionRef}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937;padding:20px;border:1px solid #e5e7eb;border-radius:12px">
+      <h2 style="color:#0284c7">Xin chào ${escapeHtml(companyName)},</h2>
+      <p>Jobtimize đã ghi nhận yêu cầu thanh toán của bạn cho đơn hàng <strong>#${escapeHtml(transactionRef)}</strong>.</p>
+      <div style="background-color:#f0f9ff;padding:15px;border-radius:8px;margin:16px 0">
+        <p style="margin:4px 0"><strong>Gói dịch vụ:</strong> ${escapeHtml(packageName)}</p>
+        <p style="margin:4px 0"><strong>Số tiền thanh toán:</strong> ${Number(amount).toLocaleString('vi-VN')} đ</p>
+        <p style="margin:4px 0"><strong>Mã giao dịch:</strong> <code style="color:#7c3aed">${escapeHtml(transactionRef)}</code></p>
+        <p style="margin:4px 0"><strong>Trạng thái:</strong> <span style="color:#d97706;font-weight:bold">Đang chờ đối soát (Pending)</span></p>
+      </div>
+      <p>Hệ thống đang đối soát biến động số dư và sẽ kích hoạt gói nâng cấp quyền lợi đăng tin tuyển dụng cho bạn trong ít phút.</p>
+      <p style="color:#6b7280;font-size:12px;margin-top:24px">Trân trọng,<br>Đội ngũ Hỗ trợ Jobtimize Việt Nam</p>
+    </div>`;
+
+  if (!transporter) {
+    console.log(`[EMAIL SERVICE] Ghi nhận tiếp nhận thanh toán #${transactionRef} cho ${toEmail} (Chế độ mô phỏng)`);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Jobtimize Thanh Toán" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      to: toEmail,
+      subject,
+      html
+    });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error(`[EMAIL SERVICE] Lỗi gửi email tiếp nhận đơn tới ${toEmail}:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+const sendPaymentSuccessEmail = async ({ toEmail, companyName, packageName, durationDays, postLimit, searchLimit, transactionRef }) => {
+  const transporter = createTransporter();
+  const subject = `[Jobtimize] Tài khoản của bạn đã được kích hoạt thành công #${transactionRef}!`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937;padding:20px;border:1px solid #e5e7eb;border-radius:12px">
+      <h2 style="color:#16a34a">Chúc mừng ${escapeHtml(companyName)}!</h2>
+      <p>Đơn hàng <strong>#${escapeHtml(transactionRef)}</strong> đã được Ban quản trị đối soát và kích hoạt thành công.</p>
+      <div style="background-color:#f0fdf4;padding:15px;border-radius:8px;margin:16px 0;border:1px solid #bbf7d0">
+        <p style="margin:4px 0"><strong>Gói dịch vụ đã nâng cấp:</strong> ${escapeHtml(packageName)}</p>
+        <p style="margin:4px 0"><strong>Thời hạn gói:</strong> ${durationDays} ngày</p>
+        <p style="margin:4px 0"><strong>Số tin tuyển dụng cộng thêm:</strong> +${postLimit} tin</p>
+        <p style="margin:4px 0"><strong>Lượt tìm kiếm CV ứng viên:</strong> +${searchLimit} lượt</p>
+        <p style="margin:4px 0"><strong>Trạng thái:</strong> <span style="color:#16a34a;font-weight:bold">Đã kích hoạt (Active)</span></p>
+      </div>
+      <p>Bạn có thể truy cập ngay vào Bảng điều khiển Nhà tuyển dụng để đăng thêm tin và tìm kiếm các ứng viên tài năng.</p>
+      <p style="color:#6b7280;font-size:12px;margin-top:24px">Trân trọng,<br>Đội ngũ Jobtimize Việt Nam</p>
+    </div>`;
+
+  if (!transporter) {
+    console.log(`[EMAIL SERVICE] Thông báo kích hoạt thành công #${transactionRef} cho ${toEmail} (Chế độ mô phỏng)`);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Jobtimize Thanh Toán" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      to: toEmail,
+      subject,
+      html
+    });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error(`[EMAIL SERVICE] Lỗi gửi email kích hoạt thành công tới ${toEmail}:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   sendOtpEmail,
   sendInterviewEmail,
-  sendInvitationEmail
+  sendInvitationEmail,
+  sendPaymentPendingEmail,
+  sendPaymentSuccessEmail
 };

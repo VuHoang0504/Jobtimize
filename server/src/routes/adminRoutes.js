@@ -48,6 +48,7 @@ router.patch('/users/:userId/status', adminController.updateUserStatus);
 router.patch('/users/:userId/reset-password', adminController.resetUserPassword);
 
 // 9. Xác minh thanh toán (Payment Verification - UC-E07)
+router.get('/payments/pending', adminController.getPendingPayments);
 router.post('/payments/:transactionRef/verify', adminController.verifyPaymentTransaction);
 
 module.exports = router;
