@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import InviteCandidateModal from '../../components/employer/InviteCandidateModal';
-import { 
-  Search, 
-  MapPin, 
-  DollarSign, 
-  FileText, 
-  Send, 
-  ExternalLink, 
-  Filter, 
-  Sparkles, 
-  CheckCircle2, 
-  UserCheck, 
-  Tag, 
-  History, 
+import {
+  Search,
+  MapPin,
+  DollarSign,
+  FileText,
+  Send,
+  ExternalLink,
+  Filter,
+  Sparkles,
+  CheckCircle2,
+  UserCheck,
+  Tag,
+  History,
   Layers,
   ArrowRight,
   Briefcase
@@ -93,14 +93,11 @@ export default function CandidateSearchPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      
+
       {/* Header Banner */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-brand-blue text-xs font-bold border border-blue-200">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Tìm Kiếm Ứng Viên Tiềm Năng (UC-E11 & UC-E12)</span>
-          </div>
+
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
             Kho CV Ứng Viên Đang Bật Tìm Việc
           </h1>
@@ -113,21 +110,19 @@ export default function CandidateSearchPage() {
         <div className="flex items-center gap-2 p-1.5 bg-gray-100 rounded-2xl border border-gray-200 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('search')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'search'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'search'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+              }`}
           >
             Kho CV ({candidates.length})
           </button>
           <button
             onClick={() => setActiveTab('invitations')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'invitations'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'invitations'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+              }`}
           >
             <History className="w-3.5 h-3.5 text-brand-purple" />
             <span>Lời mời đã gửi ({invitations.length})</span>
@@ -140,7 +135,7 @@ export default function CandidateSearchPage() {
           {/* Filter Bar */}
           <div className="bg-white rounded-3xl p-6 border border-gray-200/80 shadow-card space-y-4">
             <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              
+
               {/* Keyword */}
               <div className="relative">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -208,11 +203,10 @@ export default function CandidateSearchPage() {
                         setSkill(sk);
                         setTimeout(() => fetchCandidates(), 0);
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        skill === sk
-                          ? 'bg-brand-blue text-white shadow-2xs'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${skill === sk
+                        ? 'bg-brand-blue text-white shadow-2xs'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       {sk}
                     </button>

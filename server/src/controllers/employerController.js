@@ -1278,35 +1278,50 @@ const inviteCandidate = async (req, res) => {
       }
     }
 
-    // Check if already invited for this job
+        // Check if already invited for this job (Cho phep gui lai nhieu lan loi moi theo yeu cau cua NTD)
     const existingInv = await executeQuery(
       'SELECT InvitationID FROM CandidateInvitations WHERE ProfileID = @ProfileID AND JobID = @JobID',
       { ProfileID: profileId, JobID: jobId }
     );
-    if (existingInv.recordset && existingInv.recordset.length > 0) {
-      return res.status(400).json({ success: false, message: 'Bạn đã gửi lời mời ứng tuyển vị trí này tới ứng viên rồi!' });
-    }
+    const isReinvite = existingInv.recordset && existingInv.recordset.length > 0;
 
-    // Insert CandidateInvitations
-    await executeQuery(
-      `INSERT INTO CandidateInvitations (EmployerID, ProfileID, JobID, Message, Status, SentAt)
-       VALUES (@EmployerID, @ProfileID, @JobID, @Message, 'Sent', GETDATE())`,
-      {
-        EmployerID: emp.EmployerID,
-        ProfileID: profileId,
-        JobID: jobId,
-        Message: message ? message.trim() : `Chúng tôi nhận thấy hồ sơ của bạn rất phù hợp với vị trí ${jobTitle} và trân trọng mời bạn ứng tuyển!`
-      }
-    );
+    const defaultMsg = `Chúng tôi nhận thấy hồ sơ của bạn rất phù hợp với vị trí ${jobTitle} và trân trọng mời bạn ứng tuyển!`;
+    const finalMsg = message && message.trim() ? message.trim() : defaultMsg;
 
-    // Deduct remaining searches safely if active subscription exists
-    if (activeSubRes.recordset && activeSubRes.recordset.length > 0) {
+    if (isReinvite) {
+      // Cap nhat lai thoi gian va loi nhan moi cho loi moi hien co
       await executeQuery(
-        `UPDATE EmployerSubscriptions
-         SET RemainingSearches = RemainingSearches - 1
-         WHERE SubID = @SubID AND RemainingSearches > 0`,
-        { SubID: activeSubRes.recordset[0].SubID }
+        `UPDATE CandidateInvitations
+         SET Message = @Message, Status = 'Sent', SentAt = GETDATE()
+         WHERE ProfileID = @ProfileID AND JobID = @JobID`,
+        {
+          ProfileID: profileId,
+          JobID: jobId,
+          Message: finalMsg
+        }
       );
+    } else {
+      // Tao moi loi moi vao bang CandidateInvitations
+      await executeQuery(
+        `INSERT INTO CandidateInvitations (EmployerID, ProfileID, JobID, Message, Status, SentAt)
+         VALUES (@EmployerID, @ProfileID, @JobID, @Message, 'Sent', GETDATE())`,
+        {
+          EmployerID: emp.EmployerID,
+          ProfileID: profileId,
+          JobID: jobId,
+          Message: finalMsg
+        }
+      );
+
+      // Tru luot tim kiem trong goi dich vu neu la lan gui dau tien
+      if (activeSubRes.recordset && activeSubRes.recordset.length > 0) {
+        await executeQuery(
+          `UPDATE EmployerSubscriptions
+           SET RemainingSearches = RemainingSearches - 1
+           WHERE SubID = @SubID AND RemainingSearches > 0`,
+          { SubID: activeSubRes.recordset[0].SubID }
+        );
+      }
     }
 
     // Send invitation email
@@ -1322,9 +1337,12 @@ const inviteCandidate = async (req, res) => {
       ? 'Hệ thống đã tự động gửi email thông báo trực tiếp đến hòm thư của ứng viên.'
       : 'Lời mời đã được ghi nhận vào hệ thống của ứng viên.';
 
-    return res.status(201).json({
+        return res.status(200).json({
       success: true,
-      message: `Đã gửi lời mời ứng tuyển thành công tới ${candidate.FullName}! ${emailNote}`,
+      isReinvite,
+      message: isReinvite
+        ? `Đã gửi lại lời mời ứng tuyển thành công tới ${candidate.FullName}! ${emailNote}`
+        : `Đã gửi lời mời ứng tuyển thành công tới ${candidate.FullName}! ${emailNote}`,
       emailSent: emailRes.success
     });
   } catch (error) {

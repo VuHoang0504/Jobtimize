@@ -9,9 +9,11 @@ export default function Footer() {
           
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white">
-                <Briefcase className="w-4 h-4" />
-              </div>
+              <img 
+                src="/logo-icon.png" 
+                alt="Jobtimize" 
+                className="w-8 h-8 object-contain drop-shadow-sm" 
+              />
               <span className="text-xl font-bold text-gray-900">
                 Job<span className="text-brand-blue">timize</span>
               </span>
