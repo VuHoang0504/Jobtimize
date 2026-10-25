@@ -862,15 +862,53 @@ const getEmployerSubscription = async (req, res) => {
        FROM EmployerSubscriptions es
        JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
        WHERE es.EmployerID = @EmployerID
-       ORDER BY es.EndDate DESC`,
+       ORDER BY es.SubID DESC`,
       { EmployerID: emp.EmployerID }
     );
 
     const subscription = subRes.recordset[0] || null;
 
+    // Tính toán cấp bậc gói cao nhất đã mở khóa (Tier Inheritance)
+    // Người mua gói giá cao hơn có thể sử dụng gói đó và tất cả các gói có giá thấp hơn
+    let maxUnlockedPrice = 0;
+    let unlockedPackageIds = [1]; // Gói Starter (0 VND) luôn mở khóa
+
+    const maxPaidRes = await executeQuery(
+      `SELECT COALESCE(MAX(sp.Price), 0) AS MaxPaidPrice
+       FROM PaymentTransactions pt
+       JOIN SubscriptionPackages sp ON pt.PackageID = sp.PackageID
+       WHERE pt.EmployerID = @EmployerID AND pt.Status = 'Success'`,
+      { EmployerID: emp.EmployerID }
+    );
+
+    const maxPaid = Number(maxPaidRes.recordset[0]?.MaxPaidPrice || 0);
+    const currentPrice = subscription && !subscription.IsExpired ? Number(subscription.Price || 0) : 0;
+    maxUnlockedPrice = Math.max(maxPaid, currentPrice);
+
+    const unlockedRes = await executeQuery(
+      `SELECT PackageID FROM SubscriptionPackages WHERE Price <= @MaxPrice OR PackageID = 1`,
+      { MaxPrice: maxUnlockedPrice }
+    );
+
+    if (unlockedRes.recordset) {
+      unlockedPackageIds = unlockedRes.recordset.map(p => p.PackageID);
+    }
+
+    const responseData = subscription
+      ? {
+          ...subscription,
+          maxUnlockedPrice,
+          unlockedPackageIds
+        }
+      : null;
+
     return res.json({
       success: true,
-      data: subscription
+      data: responseData,
+      tierInfo: {
+        maxUnlockedPrice,
+        unlockedPackageIds
+      }
     });
   } catch (error) {
     console.error('getEmployerSubscription error:', error);
@@ -1026,6 +1064,26 @@ const confirmPayment = async (req, res) => {
 
     // SECURITY ENFORCEMENT (UC-E07): Client request alone CANNOT mark transaction as 'Success'
     // or activate packages/quotas. Real gateway signature verification or Admin verification is required.
+
+    const receiptUrl = req.file ? `/uploads/receipts/${req.file.filename}` : (req.body.receiptUrl || null);
+    const receiptNote = req.body.note || req.body.receiptNote || null;
+
+    if (receiptUrl || receiptNote || gatewayTransactionNo) {
+      await executeQuery(
+        `UPDATE PaymentTransactions 
+         SET ReceiptUrl = COALESCE(@ReceiptUrl, ReceiptUrl),
+             ReceiptNote = COALESCE(@ReceiptNote, ReceiptNote),
+             GatewayTransactionNo = COALESCE(@GatewayTransactionNo, GatewayTransactionNo)
+         WHERE TransactionRef = @TransactionRef AND EmployerID = @EmployerID`,
+        {
+          ReceiptUrl: receiptUrl,
+          ReceiptNote: receiptNote,
+          GatewayTransactionNo: gatewayTransactionNo || null,
+          TransactionRef: transactionRef,
+          EmployerID: emp.EmployerID
+        }
+      );
+    }
 
     // Gửi email tiếp nhận đơn hàng cho nhà tuyển dụng (Cơ chế bán tự động)
     const empUserRes = await executeQuery(
@@ -1366,6 +1424,103 @@ const getCandidateInvitations = async (req, res) => {
   }
 };
 
+
+// Switch active package between unlocked / purchased packages
+const switchSubscriptionPackage = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { packageId } = req.body;
+
+    if (!packageId) {
+      return res.status(400).json({ success: false, message: 'Vui lòng chọn gói muốn chuyển đổi.' });
+    }
+
+    const emp = await getEmployerId(userId);
+    if (!emp) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ nhà tuyển dụng' });
+    }
+
+    // Get current active subscription
+    const subRes = await executeQuery(
+      `SELECT TOP 1 es.SubID, es.PackageID, es.EndDate
+       FROM EmployerSubscriptions es
+       WHERE es.EmployerID = @EmployerID
+       ORDER BY es.SubID DESC`,
+      { EmployerID: emp.EmployerID }
+    );
+
+    if (!subRes.recordset || subRes.recordset.length === 0) {
+      return res.status(400).json({ success: false, message: 'Bạn chưa có gói đăng ký nào đang hoạt động.' });
+    }
+
+    const currentSub = subRes.recordset[0];
+    if (new Date(currentSub.EndDate) < new Date()) {
+      return res.status(400).json({ success: false, message: 'Gói đăng ký của bạn đã hết hạn. Vui lòng gia hạn gói để tiếp tục sử dụng.' });
+    }
+
+    // Target package details
+    const targetPackRes = await executeQuery(
+      `SELECT PackageID, PackageName, Price FROM SubscriptionPackages WHERE PackageID = @PackageID`,
+      { PackageID: Number(packageId) }
+    );
+
+    if (!targetPackRes.recordset || targetPackRes.recordset.length === 0) {
+      return res.status(404).json({ success: false, message: 'Gói dịch vụ không tồn tại.' });
+    }
+
+    const targetPack = targetPackRes.recordset[0];
+
+    // Check maximum unlocked tier
+    const maxPaidRes = await executeQuery(
+      `SELECT COALESCE(MAX(sp.Price), 0) AS MaxPaidPrice
+       FROM PaymentTransactions pt
+       JOIN SubscriptionPackages sp ON pt.PackageID = sp.PackageID
+       WHERE pt.EmployerID = @EmployerID AND pt.Status = 'Success'`,
+      { EmployerID: emp.EmployerID }
+    );
+
+    const currentPackRes = await executeQuery(
+      `SELECT Price FROM SubscriptionPackages WHERE PackageID = @PackageID`,
+      { PackageID: currentSub.PackageID }
+    );
+
+    const maxUnlockedPrice = Math.max(
+      Number(maxPaidRes.recordset[0]?.MaxPaidPrice || 0),
+      Number(currentPackRes.recordset[0]?.Price || 0)
+    );
+
+    if (Number(targetPack.Price) > maxUnlockedPrice && targetPack.PackageID !== 1) {
+      return res.status(403).json({
+        success: false,
+        message: `Bạn chưa sở hữu ${targetPack.PackageName}. Vui lòng mua hoặc nâng cấp gói để sử dụng.`
+      });
+    }
+
+    // Update active package in EmployerSubscriptions
+    await executeQuery(
+      `UPDATE EmployerSubscriptions
+       SET PackageID = @PackageID
+       WHERE SubID = @SubID`,
+      {
+        PackageID: targetPack.PackageID,
+        SubID: currentSub.SubID
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: `Đã chuyển sang sử dụng ${targetPack.PackageName} thành công!`,
+      data: {
+        packageId: targetPack.PackageID,
+        packageName: targetPack.PackageName
+      }
+    });
+  } catch (error) {
+    console.error('switchSubscriptionPackage error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   // Profile
   getEmployerProfile,
@@ -1392,6 +1547,7 @@ module.exports = {
   // Subscription & Payments (UC-E07)
   getSubscriptionPackages,
   getEmployerSubscription,
+  switchSubscriptionPackage,
   createCheckout,
   confirmPayment,
   getPaymentHistory,

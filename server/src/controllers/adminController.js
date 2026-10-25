@@ -154,11 +154,13 @@ const verifyPaymentTransaction = async (req, res) => {
       if (isStillActive) {
         await executeQuery(
           `UPDATE EmployerSubscriptions
-           SET EndDate = DATEADD(day, @DurationDays, EndDate),
+           SET PackageID = @PackageID,
+               EndDate = DATEADD(day, @DurationDays, EndDate),
                RemainingPosts = RemainingPosts + @PostLimit,
                RemainingSearches = RemainingSearches + @SearchLimit
            WHERE SubID = @SubID`,
           {
+            PackageID: txn.PackageID,
             DurationDays: txn.DurationDays,
             PostLimit: txn.PostLimit,
             SearchLimit: txn.SearchLimit,
@@ -170,6 +172,7 @@ const verifyPaymentTransaction = async (req, res) => {
           `INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches)
            VALUES (@EmployerID, @PackageID, GETDATE(), DATEADD(day, @DurationDays, GETDATE()), @PostLimit, @SearchLimit)`,
           {
+            PackageID: txn.PackageID,
             EmployerID: txn.EmployerID,
             PackageID: txn.PackageID,
             DurationDays: txn.DurationDays,
@@ -456,7 +459,8 @@ const getCandidateDetail = async (req, res) => {
            FROM CVs 
            WHERE ProfileID = @ProfileID 
            ORDER BY IsPrimary DESC, CreatedAt DESC`,
-          { ProfileID: candidate.ProfileID }
+          {
+            PackageID: txn.PackageID, ProfileID: candidate.ProfileID }
         ),
         executeQuery(
           `SELECT ja.ApplicationID, ja.JobID, ja.MatchScore, ja.Status, ja.AppliedAt,
@@ -467,7 +471,8 @@ const getCandidateDetail = async (req, res) => {
            JOIN Employers e ON jp.EmployerID = e.EmployerID
            WHERE ja.ProfileID = @ProfileID
            ORDER BY ja.AppliedAt DESC`,
-          { ProfileID: candidate.ProfileID }
+          {
+            PackageID: txn.PackageID, ProfileID: candidate.ProfileID }
         )
       ]);
 
@@ -1052,17 +1057,20 @@ const resolveReport = async (req, res) => {
       if (report.TargetType === 'JobPosting') {
         await executeQuery(
           `UPDATE JobPostings SET Status = 'Rejected', AdminNote = @AdminNote WHERE JobID = @JobID`,
-          { JobID: report.TargetID, AdminNote: adminNote || 'Bị từ chối do vi phạm chính sách cộng đồng.' }
+          {
+            PackageID: txn.PackageID, JobID: report.TargetID, AdminNote: adminNote || 'Bị từ chối do vi phạm chính sách cộng đồng.' }
         );
       } else if (report.TargetType === 'Employer') {
         await executeQuery(
           `UPDATE Users SET Status = 'Locked' WHERE UserID = (SELECT UserID FROM Employers WHERE EmployerID = @EmployerID)`,
-          { EmployerID: report.TargetID }
+          {
+            PackageID: txn.PackageID, EmployerID: report.TargetID }
         );
       } else if (report.TargetType === 'Candidate') {
         await executeQuery(
           `UPDATE Users SET Status = 'Locked' WHERE UserID = @UserID`,
-          { UserID: report.TargetID }
+          {
+            PackageID: txn.PackageID, UserID: report.TargetID }
         );
       }
     }
