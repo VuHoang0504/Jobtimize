@@ -73,15 +73,17 @@ export default function Navbar() {
           {/* Logo */}
           <div className="flex items-center gap-6 lg:gap-8">
             <Link to="/" className="flex items-center gap-2.5 group shrink-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-blue via-brand-dark to-brand-green flex items-center justify-center text-white shadow-md shadow-brand-blue/20 group-hover:scale-105 transition-transform">
-                <Briefcase className="w-5 h-5" />
-              </div>
+              <img 
+                src="/logo-icon.png" 
+                alt="Jobtimize" 
+                className="w-10 h-10 object-contain group-hover:scale-105 transition-transform drop-shadow-sm" 
+              />
               <div className="flex flex-col">
                 <span className="text-xl font-black tracking-tight text-gray-900 leading-none">
                   Job<span className="text-brand-blue">timize</span>
                 </span>
                 <span className="text-[10px] font-semibold tracking-wider text-brand-green uppercase mt-0.5">
-                  IT Recruitment
+                  Recruitment
                 </span>
               </div>
             </Link>

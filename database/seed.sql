@@ -127,11 +127,11 @@ BEGIN
 END
 GO
 
--- 6. Nạp Tài khoản Admin mặc định (Password: Admin@123 -> $2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.)
+-- 6. Nạp Tài khoản Admin mặc định (Password: Admin@123 -> $2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a)
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'admin@jobtimize.vn')
 BEGIN
     INSERT INTO Users (Email, PasswordHash, FullName, Phone, Status, IsEmailVerified)
-    VALUES ('admin@jobtimize.vn', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'Hệ Thống Jobtimize Admin', '0901234567', 'Active', 1);
+    VALUES ('admin@jobtimize.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Hệ Thống Jobtimize Admin', '0901234567', 'Active', 1);
 
     DECLARE @AdminUserID INT = SCOPE_IDENTITY();
     DECLARE @AdminRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Admin');
@@ -152,7 +152,7 @@ DECLARE @CatQA INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = 
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'hr@fpt-software.com')
 BEGIN
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('hr@fpt-software.com', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'FPT Software Recruitment', 'Active', 1);
+    VALUES ('hr@fpt-software.com', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'FPT Software Recruitment', 'Active', 1);
     DECLARE @FptUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@FptUserID, @EmpRoleID);
 
@@ -176,7 +176,7 @@ BEGIN
     DECLARE @CatDesign INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Thiết kế UI/UX & Sản phẩm');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('career@vng.com.vn', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'VNG Corporation HR', 'Active', 1);
+    VALUES ('career@vng.com.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'VNG Corporation HR', 'Active', 1);
     DECLARE @VngUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@VngUserID, @EmpRoleID);
 
@@ -200,7 +200,7 @@ BEGIN
     DECLARE @CatQA INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Kiểm thử phần mềm (QA/QC)');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('career-dn@kms-technology.com', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'KMS Technology Da Nang', 'Active', 1);
+    VALUES ('career-dn@kms-technology.com', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'KMS Technology Da Nang', 'Active', 1);
     DECLARE @KmsUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@KmsUserID, @EmpRoleID);
 
@@ -223,7 +223,7 @@ BEGIN
     DECLARE @CatAI INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Trí tuệ nhân tạo / Dữ liệu (AI & Data)');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('career@vinai.io', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'VinAI Research Recruitment', 'Active', 1);
+    VALUES ('career@vinai.io', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'VinAI Research Recruitment', 'Active', 1);
     DECLARE @VinAIUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@VinAIUserID, @EmpRoleID);
 
@@ -243,7 +243,7 @@ BEGIN
     DECLARE @CatCloud INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Điện toán đám mây / DevOps');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('tuyendung@onemount.com', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'One Mount Talent Acquisition', 'Active', 1);
+    VALUES ('tuyendung@onemount.com', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'One Mount Talent Acquisition', 'Active', 1);
     DECLARE @OMUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@OMUserID, @EmpRoleID);
 
@@ -263,7 +263,7 @@ BEGIN
     DECLARE @CatIT INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Công nghệ thông tin / Phần mềm');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('talent@ghtk.vn', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'Giao Hàng Tiết Kiệm Tech', 'Active', 1);
+    VALUES ('talent@ghtk.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Giao Hàng Tiết Kiệm Tech', 'Active', 1);
     DECLARE @GhtkUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@GhtkUserID, @EmpRoleID);
 
@@ -283,7 +283,7 @@ BEGIN
     DECLARE @CatCloud INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Điện toán đám mây / DevOps');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('recruitment@shopee.vn', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'Shopee Vietnam Recruitment', 'Active', 1);
+    VALUES ('recruitment@shopee.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Shopee Vietnam Recruitment', 'Active', 1);
     DECLARE @ShopeeUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@ShopeeUserID, @EmpRoleID);
 
@@ -303,7 +303,7 @@ BEGIN
     DECLARE @CatIT INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Công nghệ thông tin / Phần mềm');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('talent@chotot.vn', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'Chợ Tốt Talent Team', 'Active', 1);
+    VALUES ('talent@chotot.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Chợ Tốt Talent Team', 'Active', 1);
     DECLARE @CtUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@CtUserID, @EmpRoleID);
 
@@ -323,7 +323,7 @@ BEGIN
     DECLARE @CatIT INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Công nghệ thông tin / Phần mềm');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('career@bap.jp', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'BAP IT Co., Ltd Da Nang', 'Active', 1);
+    VALUES ('career@bap.jp', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'BAP IT Co., Ltd Da Nang', 'Active', 1);
     DECLARE @BapUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@BapUserID, @EmpRoleID);
 
@@ -342,7 +342,7 @@ BEGIN
     DECLARE @CatIT INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Công nghệ thông tin / Phần mềm');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-    VALUES ('hr@enclave.vn', '$2a$10$RX1j2ErxvRPEDgtfQEJmmOc38iGGT8ktN.gTbekg6IkIngDVtlts.', N'Enclave Da Nang HR', 'Active', 1);
+    VALUES ('hr@enclave.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Enclave Da Nang HR', 'Active', 1);
     DECLARE @EncUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@EncUserID, @EmpRoleID);
 

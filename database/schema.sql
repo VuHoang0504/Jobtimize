@@ -200,6 +200,7 @@ CREATE TABLE PaymentTransactions (
     PackageID INT NOT NULL FOREIGN KEY REFERENCES SubscriptionPackages(PackageID),
     Amount DECIMAL(18,2) NOT NULL,
     Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
+    PaymentMethod NVARCHAR(50) NULL,
     GatewayTransactionNo NVARCHAR(100) NULL,
     CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
     PaidAt DATETIME NULL

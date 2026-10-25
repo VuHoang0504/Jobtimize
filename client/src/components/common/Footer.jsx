@@ -9,9 +9,11 @@ export default function Footer() {
           
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white">
-                <Briefcase className="w-4 h-4" />
-              </div>
+              <img 
+                src="/logo-icon.png" 
+                alt="Jobtimize" 
+                className="w-8 h-8 object-contain drop-shadow-sm" 
+              />
               <span className="text-xl font-bold text-gray-900">
                 Job<span className="text-brand-blue">timize</span>
               </span>
@@ -55,7 +57,7 @@ export default function Footer() {
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">
-          <p>© 2024 Jobtimize IT Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
+          <p>© 2024 Jobtimize Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
           <p className="flex items-center gap-1 mt-2 sm:mt-0">
             Xây dựng với <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> dành cho cộng đồng IT Việt Nam
           </p>

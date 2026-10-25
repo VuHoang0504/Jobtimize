@@ -1,0 +1,2 @@
+USE JobtimizeDB;
+UPDATE Users SET PasswordHash = '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', Status = 'Active' WHERE Email IN ('admin@jobtimize.vn', 'candidate.demo@jobtimize.vn', 'employer.demo@company.com', 'hr@fpt-software.com', 'recruitment@viettel.vn', 'career@vng.com.vn', 'recruitment@momo.vn', 'career-dn@kms-technology.com', 'recruitment-dn@fpt.com', 'career@vinai.io', 'tuyendung@onemount.com', 'talent@ghtk.vn', 'recruitment@shopee.vn', 'talent@chotot.vn', 'career@bap.jp', 'hr@enclave.vn');
