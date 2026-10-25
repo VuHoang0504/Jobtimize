@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { getCompanyLogo, handleCompanyLogoError, handleUserAvatarError } from '../../utils/logoHelper';
 import { 
   Users, 
   Building2, 
@@ -994,8 +995,9 @@ export default function AdminUserManagementPage() {
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
                             <img
-                              src={emp.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=120&q=80'}
+                              src={getCompanyLogo(emp.CompanyLogoUrl, emp.CompanyName)}
                               alt={emp.CompanyName}
+                              onError={(e) => handleCompanyLogoError(e, emp.CompanyName)}
                               className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0 shadow-sm"
                             />
                             <div>
@@ -1277,8 +1279,9 @@ export default function AdminUserManagementPage() {
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2.5">
                             <img
-                              src={job.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=120&q=80'}
+                              src={getCompanyLogo(job.CompanyLogoUrl, job.CompanyName)}
                               alt={job.CompanyName}
+                              onError={(e) => handleCompanyLogoError(e, job.CompanyName)}
                               className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0"
                             />
                             <div>
@@ -2724,8 +2727,9 @@ export default function AdminUserManagementPage() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
                 <img
-                  src={jobDetailModal.job?.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=120&q=80'}
+                  src={getCompanyLogo(jobDetailModal.job?.CompanyLogoUrl, jobDetailModal.job?.CompanyName)}
                   alt={jobDetailModal.job?.CompanyName}
+                  onError={(e) => handleCompanyLogoError(e, jobDetailModal.job?.CompanyName)}
                   className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-200 shadow-sm"
                 />
                 <div>
@@ -3000,8 +3004,9 @@ export default function AdminUserManagementPage() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
                 <img
-                  src={empDetailModal.employer?.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=120&q=80'}
+                  src={getCompanyLogo(empDetailModal.employer?.CompanyLogoUrl, empDetailModal.employer?.CompanyName)}
                   alt={empDetailModal.employer?.CompanyName}
+                  onError={(e) => handleCompanyLogoError(e, empDetailModal.employer?.CompanyName)}
                   className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-200 shadow-sm"
                 />
                 <div>

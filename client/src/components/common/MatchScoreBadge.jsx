@@ -1,37 +1,35 @@
 import React from 'react';
-import { Sparkles } from 'lucide-react';
 
 export default function MatchScoreBadge({ score, size = 'md', showLabel = true }) {
   if (score === undefined || score === null) return null;
 
-  const numericScore = typeof score === 'number' ? score : parseFloat(score);
+  const numericScore = typeof score === 'number' ? Math.round(score) : Math.round(parseFloat(score) || 0);
 
-  let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-  let iconColor = 'text-emerald-600';
-  let glowStyle = 'shadow-sm shadow-emerald-500/10';
+  let badgeColor = 'bg-slate-100 text-slate-600 border-gray-200';
+  let dotColor = 'bg-slate-400';
 
-  if (numericScore >= 80) {
-    badgeColor = 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-transparent shadow-md shadow-emerald-500/20';
-    iconColor = 'text-white';
-  } else if (numericScore >= 60) {
-    badgeColor = 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md shadow-blue-500/20';
-    iconColor = 'text-white';
-  } else {
+  if (numericScore >= 75) {
+    badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    dotColor = 'bg-emerald-500';
+  } else if (numericScore >= 40) {
+    badgeColor = 'bg-blue-50 text-blue-700 border-blue-200';
+    dotColor = 'bg-blue-500';
+  } else if (numericScore > 0) {
     badgeColor = 'bg-amber-50 text-amber-800 border-amber-200';
-    iconColor = 'text-amber-600';
+    dotColor = 'bg-amber-500';
   }
 
   const sizeClasses = {
-    sm: 'text-xs px-2 py-0.5 gap-1',
-    md: 'text-xs px-3 py-1 gap-1.5 font-bold',
-    lg: 'text-sm px-4 py-1.5 gap-2 font-extrabold',
+    sm: 'text-xs px-2 py-0.5 gap-1 font-medium',
+    md: 'text-xs px-2.5 py-1 gap-1.5 font-semibold',
+    lg: 'text-xs px-3 py-1 gap-1.5 font-bold',
   };
 
   return (
-    <div className={`inline-flex items-center rounded-full border ${badgeColor} ${sizeClasses[size]} ${glowStyle} transition-all`}>
-      <Sparkles className={`w-3.5 h-3.5 ${iconColor} animate-pulse`} />
+    <div className={`inline-flex items-center rounded-full border ${badgeColor} ${sizeClasses[size]} transition-all`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
       <span>{numericScore}%</span>
-      {showLabel && <span className="opacity-90 font-medium">Match</span>}
+      {showLabel && <span>Phù hợp</span>}
     </div>
   );
 }

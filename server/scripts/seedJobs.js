@@ -7,7 +7,7 @@ const sampleEmployers = [
     email: 'hr@fpt-software.com',
     fullName: 'FPT Software Recruitment',
     companyName: 'FPT Software',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=120&q=80',
+    companyLogoUrl: '/logos/fpt-software.svg',
     website: 'https://fpt-software.com',
     companySize: '10,000+ nhân viên',
     address: 'Tòa nhà FPT, Phố Duy Tân, Cầu Giấy, Hà Nội',
@@ -49,7 +49,7 @@ const sampleEmployers = [
     email: 'recruitment@viettel.vn',
     fullName: 'Viettel Solutions Talent Acquisition',
     companyName: 'Viettel Solutions',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=120&q=80',
+    companyLogoUrl: '/logos/viettel.svg',
     website: 'https://viettelsolutions.vn',
     companySize: '5,000+ nhân viên',
     address: 'Số 1 Trần Hữu Dực, Nam Từ Liêm, Hà Nội',
@@ -90,7 +90,7 @@ const sampleEmployers = [
     email: 'career@vinai.io',
     fullName: 'VinAI Research Recruitment',
     companyName: 'VinAI (Vingroup)',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=120&q=80',
+    companyLogoUrl: '/logos/vinai.svg',
     website: 'https://vinai.io',
     companySize: '500+ kỹ sư nghiên cứu',
     address: 'Tòa nhà Symphony, Chu Huy Mân, Long Biên, Hà Nội',
@@ -116,7 +116,7 @@ const sampleEmployers = [
     email: 'tuyendung@onemount.com',
     fullName: 'One Mount Talent Acquisition',
     companyName: 'One Mount Group',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=120&q=80',
+    companyLogoUrl: '/logos/onemount.svg',
     website: 'https://onemount.com',
     companySize: '2,000+ nhân viên',
     address: 'Times City, 458 Minh Khai, Hai Bà Trưng, Hà Nội',
@@ -143,7 +143,7 @@ const sampleEmployers = [
     email: 'talent@ghtk.vn',
     fullName: 'Giao Hàng Tiết Kiệm Tech',
     companyName: 'Giao Hàng Tiết Kiệm (GHTK)',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=120&q=80',
+    companyLogoUrl: '/logos/ghtk.svg',
     website: 'https://giaohangtietkiem.vn',
     companySize: '30,000+ nhân viên',
     address: 'Tòa nhà GHTK, Phạm Hùng, Nam Từ Liêm, Hà Nội',
@@ -171,7 +171,7 @@ const sampleEmployers = [
     email: 'career@vng.com.vn',
     fullName: 'VNG Corporation HR',
     companyName: 'VNG Corporation',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=120&q=80',
+    companyLogoUrl: '/logos/vng.svg',
     website: 'https://vng.com.vn',
     companySize: '3,000+ nhân viên',
     address: 'VNG Campus, Đường số 13, Khu Chế Xuất Tân Thuận, Quận 7, TP. Hồ Chí Minh',
@@ -226,7 +226,7 @@ const sampleEmployers = [
     email: 'recruitment@shopee.vn',
     fullName: 'Shopee Vietnam Recruitment',
     companyName: 'Shopee (Sea Group)',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1556742049-0a67e5572293?w=120&q=80',
+    companyLogoUrl: '/logos/shopee.svg',
     website: 'https://careers.shopee.vn',
     companySize: '5,000+ nhân viên',
     address: 'Saigon Centre Tower 2, 67 Lê Lợi, Quận 1, TP. Hồ Chí Minh',
@@ -252,7 +252,7 @@ const sampleEmployers = [
     email: 'recruitment@momo.vn',
     fullName: 'MoMo Talent Acquisition',
     companyName: 'MoMo (M-Service)',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=120&q=80',
+    companyLogoUrl: '/logos/momo.svg',
     website: 'https://momo.vn',
     companySize: '2,000+ nhân viên',
     address: 'Tòa nhà Phú Mỹ Hưng, Hoàng Văn Thái, Quận 7, TP. Hồ Chí Minh',
@@ -279,7 +279,7 @@ const sampleEmployers = [
     email: 'talent@chotot.vn',
     fullName: 'Chợ Tốt Talent Team',
     companyName: 'Chợ Tốt (Carousell Group)',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=120&q=80',
+    companyLogoUrl: '/logos/chotot.svg',
     website: 'https://chotot.com',
     companySize: '500+ nhân viên',
     address: 'Tòa nhà Mê Linh Point, 2 Ngô Đức Kế, Bến Nghé, Quận 1, TP. Hồ Chí Minh',
@@ -307,7 +307,7 @@ const sampleEmployers = [
     email: 'career-dn@kms-technology.com',
     fullName: 'KMS Technology Da Nang',
     companyName: 'KMS Technology Đà Nẵng',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=120&q=80',
+    companyLogoUrl: '/logos/kms.svg',
     website: 'https://kms-technology.com',
     companySize: '1,500+ nhân viên',
     address: 'Tòa nhà Indochina Riverside, 74 Bạch Đằng, Hải Châu, Đà Nẵng',
@@ -333,7 +333,7 @@ const sampleEmployers = [
     email: 'career@bap.jp',
     fullName: 'BAP IT Co., Ltd Da Nang',
     companyName: 'BAP IT Co., Ltd',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1570126128802-99f57d6067b5?w=120&q=80',
+    companyLogoUrl: '/logos/bap.svg',
     website: 'https://bap-software.net',
     companySize: '600+ nhân viên',
     address: 'Tòa nhà BAP, 180 Nguyễn Tri Phương, Thanh Khê, Đà Nẵng',
@@ -359,7 +359,7 @@ const sampleEmployers = [
     email: 'hr@enclave.vn',
     fullName: 'Enclave Da Nang HR',
     companyName: 'Enclave Da Nang',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=120&q=80',
+    companyLogoUrl: '/logos/enclave.svg',
     website: 'https://enclave.vn',
     companySize: '400+ nhân viên',
     address: '453-455 Hoàng Diệu, Hải Châu, Đà Nẵng',
@@ -385,7 +385,7 @@ const sampleEmployers = [
     email: 'recruitment-dn@fpt.com',
     fullName: 'FPT Software Da Nang Campus',
     companyName: 'FPT Software Đà Nẵng',
-    companyLogoUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=120&q=80',
+    companyLogoUrl: '/logos/fpt-danang.svg',
     website: 'https://fpt-software.com',
     companySize: '5,000+ nhân viên tại Đà Nẵng',
     address: 'Khu công viên phần mềm FPT Complex, Ngũ Hành Sơn, Đà Nẵng',
@@ -424,15 +424,20 @@ async function seedJobs() {
 
       if (userRes.recordset.length > 0) {
         userId = userRes.recordset[0].UserID;
+        await executeQuery('UPDATE Users SET AvatarUrl = @AvatarUrl WHERE UserID = @UserID', {
+          AvatarUrl: empData.companyLogoUrl,
+          UserID: userId
+        });
       } else {
         const insertUserRes = await executeQuery(`
-          INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified, CreatedAt)
-          VALUES (@Email, @PasswordHash, @FullName, 'Active', 1, GETDATE());
+          INSERT INTO Users (Email, PasswordHash, FullName, AvatarUrl, Status, IsEmailVerified, CreatedAt)
+          VALUES (@Email, @PasswordHash, @FullName, @AvatarUrl, 'Active', 1, GETDATE());
           SELECT SCOPE_IDENTITY() AS UserID;
         `, {
           Email: empData.email,
           PasswordHash: defaultPasswordHash,
-          FullName: empData.fullName
+          FullName: empData.fullName,
+          AvatarUrl: empData.companyLogoUrl
         });
         userId = insertUserRes.recordset[0].UserID;
 

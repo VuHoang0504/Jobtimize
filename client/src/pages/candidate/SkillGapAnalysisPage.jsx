@@ -150,35 +150,33 @@ export default function SkillGapAnalysisPage() {
 
       {/* 1. Header Banner */}
       <div className="text-center space-y-3 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-purpleLight text-brand-purple text-xs font-bold border border-brand-purple/20 shadow-xs">
-          <Sparkles className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
-          <span>Hệ Thống AI Phân Tích Lỗ Hổng Kỹ Năng Định Hướng Mục Tiêu</span>
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">
+          <span>Đánh giá năng lực & Lộ trình phát triển nghề nghiệp</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
-          Phân Tích Lỗ Hổng Kỹ Năng Theo Vị Trí Mục Tiêu
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+          Phân tích kỹ năng theo vị trí mục tiêu
         </h1>
-        <p className="text-sm text-gray-600 leading-relaxed">
-          So khớp thông minh giữa năng lực hiện tại trên CV của bạn và tiêu chuẩn cụ thể của vị trí ứng tuyển.
-          Loại bỏ hoàn toàn các kỹ năng gây nhiễu, tập trung chính xác vào kỹ năng bắt buộc và lộ trình đào tạo cần thiết.
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Đối chiếu năng lực hiện tại trong hồ sơ của bạn với tiêu chuẩn tuyển dụng cụ thể của từng vị trí, xác định kỹ năng cốt lõi cần bổ sung và khóa học phù hợp.
         </p>
       </div>
 
       {/* 2. CONTEXT BAR (Xác định Điểm B: Vị trí mục tiêu) */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-purple/20 shadow-xl shadow-purple-500/5 space-y-6">
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-gray-200 shadow-card space-y-6">
 
         {/* Context Bar Header & Active Status */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-purple-50 text-brand-purple">
+              <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
                 <Target className="w-5 h-5" />
               </span>
               <div>
-                <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">
-                  Mục Tiêu Ứng Tuyển
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Mục tiêu ứng tuyển
                 </h2>
-                <p className="text-xs text-gray-500">
-                  Chọn vị trí chuẩn hoặc dán JD cụ thể để AI so sánh chính xác 1-1
+                <p className="text-xs text-slate-500">
+                  Chọn vị trí chuẩn hoặc dán mô tả công việc cụ thể để đối chiếu 1-1
                 </p>
               </div>
             </div>
@@ -187,14 +185,14 @@ export default function SkillGapAnalysisPage() {
           {/* Active Target Status Badge & Match Score pill */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="px-3.5 py-1.5 rounded-2xl bg-gray-50 border border-gray-200/80 flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               <span className="text-gray-500">Đang phân tích cho:</span>
-              <strong className="text-gray-900 font-extrabold line-clamp-1 max-w-[280px]">
+              <strong className="text-gray-900 font-bold line-clamp-1 max-w-[280px]">
                 {data?.targetTitle || 'Senior Backend Developer (Node.js)'}
               </strong>
             </div>
 
-            <div className={`px-3.5 py-1.5 rounded-2xl border font-black text-xs flex items-center gap-1.5 ${scoreColor}`}>
+            <div className={`px-3.5 py-1.5 rounded-2xl border font-bold text-xs flex items-center gap-1.5 ${scoreColor}`}>
               <span>Độ phù hợp:</span>
               <span className="text-sm">{matchScore}%</span>
             </div>
@@ -206,37 +204,34 @@ export default function SkillGapAnalysisPage() {
           <button
             type="button"
             onClick={() => setMode('role')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${mode === 'role'
-              ? 'bg-brand-purple text-white shadow-md shadow-brand-purple/25'
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 ${mode === 'role'
+              ? 'bg-blue-600 text-white'
               : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
               }`}
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Chọn Vị trí chuẩn thị trường</span>
+            <span>Vị trí chuẩn thị trường</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMode('job')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${mode === 'job'
-              ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/25'
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 ${mode === 'job'
+              ? 'bg-blue-600 text-white'
               : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
               }`}
           >
-            <Briefcase className="w-3.5 h-3.5" />
-            <span>Chọn Việc làm trên Jobtimize</span>
+            <span>Việc làm trên Jobtimize</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMode('jd')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${mode === 'jd'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 ${mode === 'jd'
+              ? 'bg-blue-600 text-white'
               : 'bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200'
               }`}
           >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Vị trị cụ thể</span>
+            <span>Mô tả công việc cụ thể</span>
           </button>
         </div>
 
@@ -249,7 +244,7 @@ export default function SkillGapAnalysisPage() {
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-xs sm:text-sm font-semibold text-gray-900 bg-gray-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple transition-all"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-xs sm:text-sm font-semibold text-gray-900 bg-gray-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
                 >
                   {(data?.availableRoles || []).map((role) => (
                     <option key={role.id} value={role.id}>
@@ -263,7 +258,7 @@ export default function SkillGapAnalysisPage() {
                 <button
                   type="submit"
                   disabled={analyzing}
-                  className="w-full py-3 px-5 rounded-2xl bg-brand-purple hover:bg-purple-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-brand-purple/20 transition-all disabled:opacity-50"
+                  className="w-full py-3 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 >
                   <RefreshCw className={`w-4 h-4 ${analyzing ? 'animate-spin' : ''}`} />
                   <span>{analyzing ? 'Đang phân tích...' : 'Phân tích vị trí'}</span>
@@ -278,7 +273,7 @@ export default function SkillGapAnalysisPage() {
                 <select
                   value={selectedJobId}
                   onChange={(e) => setSelectedJobId(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-xs sm:text-sm font-semibold text-gray-900 bg-gray-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue transition-all"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-xs sm:text-sm font-semibold text-gray-900 bg-gray-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
                 >
                   <option value="">-- Chọn tin tuyển dụng trên hệ thống --</option>
                   {(data?.availableJobs || []).map((job) => (
@@ -293,7 +288,7 @@ export default function SkillGapAnalysisPage() {
                 <button
                   type="submit"
                   disabled={analyzing || !selectedJobId}
-                  className="w-full py-3 px-5 rounded-2xl bg-brand-blue hover:bg-blue-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-brand-blue/20 transition-all disabled:opacity-50"
+                  className="w-full py-3 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 >
                   <RefreshCw className={`w-4 h-4 ${analyzing ? 'animate-spin' : ''}`} />
                   <span>{analyzing ? 'Đang so khớp...' : 'So khớp việc làm'}</span>
@@ -308,17 +303,16 @@ export default function SkillGapAnalysisPage() {
                 rows={4}
                 value={customJdText}
                 onChange={(e) => setCustomJdText(e.target.value)}
-                placeholder="Dán toàn bộ nội dung Mô tả công việc (Job Description / JD) bạn muốn ứng tuyển vào đây (bao gồm Yêu cầu kỹ thuật, Kỹ năng bắt buộc, Kinh nghiệm mong muốn)..."
-                className="w-full p-4 rounded-2xl border border-gray-200 text-xs sm:text-sm font-medium text-gray-800 bg-gray-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-gray-400"
+                placeholder="Dán nội dung Mô tả công việc (JD) bạn muốn ứng tuyển vào đây (bao gồm Yêu cầu kỹ thuật, Kỹ năng bắt buộc, Kinh nghiệm mong muốn)..."
+                className="w-full p-4 rounded-xl border border-gray-200 text-xs sm:text-sm font-medium text-gray-800 bg-gray-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-gray-400"
               />
               <div className="flex justify-end">
                 <button
                   type="submit"
                   disabled={analyzing || !customJdText.trim()}
-                  className="py-2.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50"
+                  className="py-2.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-2 transition-all disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span>{analyzing ? 'AI đang phân tích JD...' : 'Bắt đầu so khớp 1-1 với JD'}</span>
+                  <span>{analyzing ? 'Đang phân tích...' : 'Bắt đầu đối chiếu'}</span>
                 </button>
               </div>
             </div>
@@ -335,7 +329,7 @@ export default function SkillGapAnalysisPage() {
           <div className="w-full h-3 rounded-full bg-gray-100 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-700 ${progressBg}`}
-              style={{ width: `${Math.max(5, matchScore)}%` }}
+              style={{ width: `${matchScore}%` }}
             ></div>
           </div>
         </div>
@@ -384,15 +378,15 @@ export default function SkillGapAnalysisPage() {
         </div>
 
         {/* Thẻ 4: Mức độ đáp ứng */}
-        <div className="bg-white p-6 rounded-3xl border border-purple-100 shadow-card space-y-2">
+        <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-card space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mức độ đáp ứng</p>
-            <div className="p-2 rounded-xl bg-purple-50 text-brand-purple">
-              <Sparkles className="w-4 h-4" />
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-3xl font-black text-brand-purple">{matchScore}%</p>
-          <p className="text-xs text-gray-500">Độ khớp hồ sơ theo trọng số AI</p>
+          <p className="text-3xl font-black text-blue-600">{matchScore}%</p>
+          <p className="text-xs text-gray-500">Độ tương thích hồ sơ theo trọng số</p>
         </div>
 
       </div>
@@ -586,12 +580,12 @@ export default function SkillGapAnalysisPage() {
         {/* Controls & Filter Bar */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-gray-100 pb-6">
           <div className="space-y-1">
-            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
-              <Compass className="w-5 h-5 text-brand-purple" />
-              <span>Kho Khóa Học & Lộ Trình Bù Đắp Lỗ Hổng Thực Tế</span>
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Compass className="w-5 h-5 text-blue-600" />
+              <span>Kho khóa học & Lộ trình bổ sung kỹ năng</span>
             </h2>
-            <p className="text-xs text-gray-500">
-              Kết nối trực tiếp từ Cơ sở dữ liệu JobtimizeDB với link đăng ký, chứng chỉ và chi phí chi tiết.
+            <p className="text-xs text-slate-500">
+              Danh sách khóa học đề xuất kèm liên kết đăng ký, chứng chỉ và học phí chi tiết.
             </p>
           </div>
 
@@ -599,21 +593,21 @@ export default function SkillGapAnalysisPage() {
           <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-2xl shrink-0">
             <button
               onClick={() => { setActiveView('recommended'); setFocusedSkill(null); }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeView === 'recommended'
-                ? 'bg-brand-purple text-white shadow-md shadow-brand-purple/20'
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${activeView === 'recommended'
+                ? 'bg-blue-600 text-white'
                 : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
-              Gợi ý cho mục tiêu này ({data?.recommendedCourses?.length || 0})
+              Đề xuất cho mục tiêu này ({data?.recommendedCourses?.length || 0})
             </button>
             <button
               onClick={() => { setActiveView('all'); setFocusedSkill(null); }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeView === 'all'
-                ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${activeView === 'all'
+                ? 'bg-blue-600 text-white'
                 : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
-              Tất cả khóa học CSDL ({allCourses.length})
+              Tất cả khóa học ({allCourses.length})
             </button>
           </div>
         </div>

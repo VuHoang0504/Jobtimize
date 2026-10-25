@@ -68,10 +68,10 @@ const INITIAL_CV_DATA = {
   },
   projects: [
     {
-      name: 'Jobtimize - Nền tảng Tuyển dụng Thông minh',
-      techStack: 'React.js, Node.js, Express, MSSQL, AI Matcher',
+      name: 'Jobtimize - Nền tảng Tuyển dụng Trực tuyến',
+      techStack: 'React.js, Node.js, Express, SQL Server',
       link: 'https://jobtimize.vn',
-      description: 'Hệ thống tự động phân tích CV, tính điểm tương thích JD bằng thuật toán AI và kết nối ứng viên với nhà tuyển dụng.'
+      description: 'Hệ thống quản lý hồ sơ ứng viên, đối chiếu kỹ năng theo mô tả công việc và kết nối ứng viên với doanh nghiệp.'
     }
   ],
   certifications: [
@@ -96,6 +96,8 @@ export default function CVBuilderPage() {
   const [cvTitle, setCvTitle] = useState('CV Chuyên Nghiệp ' + new Date().getFullYear());
   const [isPrimary, setIsPrimary] = useState(false);
   const [cvData, setCvData] = useState(INITIAL_CV_DATA);
+  const [hardSkillsText, setHardSkillsText] = useState(INITIAL_CV_DATA.skills.hardSkills.join(', '));
+  const [softSkillsText, setSoftSkillsText] = useState(INITIAL_CV_DATA.skills.softSkills.join(', '));
 
   // Active form section accordion/tab
   const [activeSection, setActiveSection] = useState('personal'); // 'personal', 'summary', 'experience', 'education', 'skills', 'projects', 'certifications'
@@ -122,6 +124,8 @@ export default function CVBuilderPage() {
             if (item.CvData) {
               const parsed = typeof item.CvData === 'string' ? JSON.parse(item.CvData) : item.CvData;
               setCvData(parsed);
+              setHardSkillsText((parsed.skills?.hardSkills || []).join(', '));
+              setSoftSkillsText((parsed.skills?.softSkills || []).join(', '));
               setLoading(false);
               return;
             }
@@ -177,6 +181,8 @@ export default function CVBuilderPage() {
         };
 
         setCvData(profileCvData);
+        setHardSkillsText((profileCvData.skills?.hardSkills || []).join(', '));
+        setSoftSkillsText((profileCvData.skills?.softSkills || []).join(', '));
       }
     } catch (err) {
       console.error('Prefill from profile error:', err);
@@ -245,6 +251,7 @@ export default function CVBuilderPage() {
 
   // Skill handlers
   const handleHardSkillChange = (value) => {
+    setHardSkillsText(value);
     const skillsArr = value.split(',').map(s => s.trim()).filter(Boolean);
     setCvData(prev => ({
       ...prev,
@@ -253,6 +260,7 @@ export default function CVBuilderPage() {
   };
 
   const handleSoftSkillChange = (value) => {
+    setSoftSkillsText(value);
     const skillsArr = value.split(',').map(s => s.trim()).filter(Boolean);
     setCvData(prev => ({
       ...prev,
@@ -399,20 +407,20 @@ export default function CVBuilderPage() {
             <button
               onClick={handlePrefillFromProfile}
               type="button"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors"
-              title="Lấy dữ liệu từ Profile cá nhân"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+              title="Lấy dữ liệu từ hồ sơ cá nhân"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Đồng bộ từ Profile</span>
+              <span>Đồng bộ từ hồ sơ</span>
             </button>
 
             <button
               onClick={handleExportPDF}
               type="button"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all shadow-xs"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all"
               title="Xuất file PDF hoặc In"
             >
-              <Printer className="w-4 h-4 text-gray-600" />
+              <Printer className="w-4 h-4 text-slate-600" />
               <span>Xuất PDF / In</span>
             </button>
 
@@ -420,7 +428,7 @@ export default function CVBuilderPage() {
               onClick={handleSaveCV}
               disabled={saving}
               type="button"
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-brand-blue to-indigo-600 hover:opacity-95 text-white text-xs font-bold shadow-md shadow-brand-blue/20 hover:shadow-lg transition-all disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-all disabled:opacity-60"
             >
               <Save className="w-4 h-4" />
               <span>{saving ? 'Đang lưu...' : 'Lưu phiên bản CV'}</span>
@@ -817,10 +825,10 @@ export default function CVBuilderPage() {
                     </label>
                     <textarea
                       rows={3}
-                      value={cvData.skills.hardSkills.join(', ')}
+                      value={hardSkillsText}
                       onChange={(e) => handleHardSkillChange(e.target.value)}
                       placeholder="React.js, Node.js, SQL Server, Docker, TypeScript..."
-                      className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-blue-600"
                     />
                   </div>
 
@@ -830,10 +838,10 @@ export default function CVBuilderPage() {
                     </label>
                     <input
                       type="text"
-                      value={cvData.skills.softSkills.join(', ')}
+                      value={softSkillsText}
                       onChange={(e) => handleSoftSkillChange(e.target.value)}
                       placeholder="Giao tiếp, Làm việc nhóm, Giải quyết vấn đề..."
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-blue-600"
                     />
                   </div>
                 </div>

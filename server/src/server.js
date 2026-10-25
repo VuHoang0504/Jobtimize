@@ -192,6 +192,25 @@ app.listen(PORT, async () => {
       END
     `);
 
+    // Đảm bảo bảng PaymentTransactions tồn tại (thanh toán & lịch sử giao dịch gói dịch vụ)
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PaymentTransactions')
+      BEGIN
+        CREATE TABLE PaymentTransactions (
+          PaymentID INT IDENTITY(1,1) PRIMARY KEY,
+          TransactionRef NVARCHAR(100) NOT NULL UNIQUE,
+          EmployerID INT NOT NULL FOREIGN KEY REFERENCES Employers(EmployerID) ON DELETE CASCADE,
+          PackageID INT NOT NULL FOREIGN KEY REFERENCES SubscriptionPackages(PackageID),
+          Amount DECIMAL(18,2) NOT NULL,
+          Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
+          PaymentMethod NVARCHAR(50) NULL,
+          GatewayTransactionNo NVARCHAR(100) NULL,
+          CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+          PaidAt DATETIME NULL
+        );
+      END
+    `);
+
     // Seed dữ liệu doanh thu & gói dịch vụ mẫu cho 6 tháng gần nhất nếu chưa có
     await pool.request().query(`
       IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'EmployerSubscriptions')

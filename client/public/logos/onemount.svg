@@ -1,0 +1,14 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#omBg)"/>
+  <polygon points="60,22 92,74 72,74 60,52 48,74 28,74" fill="#EF4444"/>
+  <polygon points="60,44 76,74 44,74" fill="#FFFFFF"/>
+  <text x="60" y="98" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="12" fill="#FFFFFF" letter-spacing="1.2">ONE MOUNT</text>
+  <defs>
+    <linearGradient id="omBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E1B4B"/>
+      <stop offset="1" stop-color="#312E81"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

@@ -50,8 +50,8 @@ import {
   Printer
 } from 'lucide-react';
 import MockInterviewSection from '../../components/candidate/MockInterviewSection';
-import AICVParserModal from '../../components/candidate/AICVParserModal';
 import JobAlertModal from '../../components/candidate/JobAlertModal';
+import { getCompanyLogo, handleCompanyLogoError, getUserAvatar, handleUserAvatarError } from '../../utils/logoHelper';
 
 export default function CandidateDashboard() {
   const { user, refreshUser } = useAuth();
@@ -84,9 +84,6 @@ export default function CandidateDashboard() {
   const [matchingJobsList, setMatchingJobsList] = useState([]);
   const [loadingMatchingJobs, setLoadingMatchingJobs] = useState(false);
 
-  // AI CV Parser modal state
-  const [isCvParserOpen, setIsCvParserOpen] = useState(false);
-
   // Edit profile state
   const [isEditing, setIsEditing] = useState(false);
   const [headline, setHeadline] = useState('');
@@ -100,6 +97,20 @@ export default function CandidateDashboard() {
   const [portfolioLink, setPortfolioLink] = useState('');
   const [profileAdditionalTab, setProfileAdditionalTab] = useState('projects');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [togglingJob, setTogglingJob] = useState(false);
+
+  const handleToggleLooking = async () => {
+    try {
+      setTogglingJob(true);
+      await api.patch('/candidate/toggle-looking', { isLookingForJob: !profile?.IsLookingForJob });
+      await fetchProfileData();
+      await refreshUser();
+    } catch (err) {
+      alert('Không thể cập nhật trạng thái tìm việc: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setTogglingJob(false);
+    }
+  };
 
   // Structured profile fields from AI / Bio JSON
   const [parsedBioData, setParsedBioData] = useState({
@@ -119,7 +130,6 @@ export default function CandidateDashboard() {
   // Avatar upload state
   const fileInputRef = useRef(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarError, setAvatarError] = useState('');
 
@@ -316,57 +326,6 @@ export default function CandidateDashboard() {
     }
   };
 
-  // Handle Apply AI Extracted CV Data
-  const handleApplyExtractedCVData = async (data) => {
-    if (!data) return;
-    if (data.fullName) setFullName(data.fullName);
-    if (data.headline) setHeadline(data.headline);
-    if (data.phone) setPhone(data.phone);
-    if (data.location) setCurrentLocation(data.location);
-    if (data.summary) setBio(data.summary);
-
-    const updatedLinks = {
-      linkedin: data.links?.linkedin || linkedinLink || '',
-      github: data.links?.github || githubLink || '',
-      portfolio: data.links?.portfolio || portfolioLink || ''
-    };
-    if (data.links?.linkedin) setLinkedinLink(data.links.linkedin);
-    if (data.links?.github) setGithubLink(data.links.github);
-    if (data.links?.portfolio) setPortfolioLink(data.links.portfolio);
-
-    const updatedBioData = {
-      bioText: data.summary || bio || '',
-      bio: data.summary || bio || '',
-      links: updatedLinks,
-      skills: {
-        hardSkills: Array.isArray(data.skills?.hardSkills) ? data.skills.hardSkills : (parsedBioData.skills?.hardSkills || []),
-        softSkills: Array.isArray(data.skills?.softSkills) ? data.skills.softSkills : (parsedBioData.skills?.softSkills || []),
-        languages: Array.isArray(data.skills?.languages) ? data.skills.languages : (parsedBioData.skills?.languages || [])
-      },
-      experiences: Array.isArray(data.experiences) ? data.experiences : (parsedBioData.experiences || []),
-      educations: Array.isArray(data.educations) ? data.educations : (parsedBioData.educations || []),
-      additionalInfo: data.additionalInfo || parsedBioData.additionalInfo || { projects: [], certifications: [], activities: [], references: [] }
-    };
-
-    setParsedBioData(updatedBioData);
-    setIsEditing(true);
-
-    try {
-      await api.put('/candidate/profile', {
-        headline: (data.headline || headline || '').trim(),
-        bio: JSON.stringify(updatedBioData),
-        desiredSalary: desiredSalary ? parseFloat(desiredSalary) : null,
-        currentLocation: (data.location || currentLocation || '').trim(),
-        fullName: (data.fullName || fullName || '').trim(),
-        phone: (data.phone || phone || '').trim()
-      });
-      await fetchProfileData();
-      await refreshUser();
-    } catch (err) {
-      console.warn('Auto-save extracted CV data error:', err);
-    }
-  };
-
   // Handle CV Upload
   const handleUploadCV = async (e) => {
     e.preventDefault();
@@ -403,12 +362,16 @@ export default function CandidateDashboard() {
 
   // Delete CV
   const handleDeleteCV = async (cvId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bản CV này?')) return;
     try {
       await api.delete(`/candidate/cv/${cvId}`);
+      setProfile((prev) =>
+        prev ? { ...prev, cvs: (prev.cvs || []).filter((c) => c.CVID !== cvId) } : prev
+      );
       await fetchProfileData();
+      await fetchSkillGap();
     } catch (err) {
       console.error('Delete CV error:', err);
+      alert('Không thể xóa CV: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -448,29 +411,6 @@ export default function CandidateDashboard() {
     } finally {
       setAvatarUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  // Handle avatar update via image URL
-  const handleAvatarUrlSave = async (e) => {
-    e.preventDefault();
-    if (!customAvatarUrl.trim()) return;
-
-    try {
-      setAvatarUploading(true);
-      setAvatarError('');
-      setAvatarSuccess('');
-      const res = await api.post('/auth/avatar', { avatarUrl: customAvatarUrl.trim() });
-      if (res.data.success) {
-        setAvatarSuccess('Cập nhật liên kết ảnh đại diện thành công!');
-        setCustomAvatarUrl('');
-        await refreshUser();
-        await fetchProfileData();
-      }
-    } catch (err) {
-      setAvatarError(err.response?.data?.message || 'Cập nhật avatar thất bại');
-    } finally {
-      setAvatarUploading(false);
     }
   };
 
@@ -528,8 +468,9 @@ export default function CandidateDashboard() {
         <div className="flex items-center gap-5 flex-1">
           <div className="relative group shrink-0">
             <img
-              src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'}
+              src={getUserAvatar(user, profile?.FullName || user?.fullName)}
               alt={user?.fullName}
+              onError={(e) => handleUserAvatarError(e, profile?.FullName || user?.fullName)}
               className="w-20 h-20 rounded-2xl object-cover border-2 border-brand-blue/30 shadow-md group-hover:opacity-90 transition-opacity"
             />
             <button
@@ -606,14 +547,31 @@ export default function CandidateDashboard() {
           </div>
         </div>
 
-        {/* Action Toggle */}
-        <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-200/80 shrink-0">
+        {/* Action Toggle (Moved from Navbar into Profile) */}
+        <div className="flex items-center gap-3.5 bg-slate-50 px-4 py-3 rounded-xl border border-gray-200 shrink-0">
           <div className="text-right">
-            <p className="text-xs font-bold text-gray-800">Trạng thái tìm việc</p>
-            <p className="text-[11px] text-gray-500">{profile?.IsLookingForJob ? 'Bật hiển thị với NTD' : 'Tạm dừng tìm việc'}</p>
+            <p className="text-xs font-bold text-slate-900">Trạng thái tìm việc</p>
+            <p className="text-[11px] text-slate-500">
+              {profile?.IsLookingForJob ? 'Đang bật hiển thị với nhà tuyển dụng' : 'Đang tạm tắt tìm việc'}
+            </p>
           </div>
-          <span className={`px-3 py-1 text-xs font-bold rounded-xl ${profile?.IsLookingForJob ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'}`}>
-            {profile?.IsLookingForJob ? 'ĐANG TÌM VIỆC' : 'ĐÃ TẮT'}
+          <button
+            type="button"
+            onClick={handleToggleLooking}
+            disabled={togglingJob}
+            aria-label="Bật hoặc tắt trạng thái tìm việc"
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              profile?.IsLookingForJob ? 'bg-emerald-600' : 'bg-slate-300'
+            } ${togglingJob ? 'opacity-60 cursor-wait' : ''}`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                profile?.IsLookingForJob ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+          <span className={`text-xs font-bold min-w-[28px] ${profile?.IsLookingForJob ? 'text-emerald-700' : 'text-slate-500'}`}>
+            {profile?.IsLookingForJob ? 'BẬT' : 'TẮT'}
           </span>
         </div>
       </div>
@@ -623,104 +581,91 @@ export default function CandidateDashboard() {
         
         {/* Navigation Sidebar (1/4) */}
         <div className="lg:col-span-1 space-y-2">
-          <div className="bg-white rounded-3xl p-3 border border-gray-200/80 shadow-card space-y-1">
+          <div className="bg-white rounded-xl p-2.5 border border-gray-200 shadow-xs space-y-1">
             <button
               onClick={() => setActiveTab('profile')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'profile'
-                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <User className="w-4 h-4" />
-              <span>Hồ sơ & Quản lý CV</span>
+              <span>Hồ sơ & CV</span>
             </button>
 
             <button
               onClick={() => setActiveTab('applications')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'applications'
-                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Send className="w-4 h-4" />
-                <span>Việc đã ứng tuyển</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-current">
+              <span>Việc làm đã ứng tuyển</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === 'applications' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
                 {applications.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab('saved')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'saved'
-                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Bookmark className="w-4 h-4" />
-                <span>Việc làm đã lưu</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-current">
+              <span>Việc làm đã lưu</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === 'saved' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
                 {savedJobs.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab('alerts')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'alerts'
-                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Bell className="w-4 h-4" />
-                <span>Thông báo việc làm</span>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'alerts' ? 'bg-white/20 text-white' : 'bg-blue-100 text-brand-blue'}`}>
+              <span>Thông báo việc làm</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === 'alerts' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
                 {jobAlerts.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab('skillgap')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'skillgap'
-                  ? 'bg-gradient-to-r from-brand-purple to-indigo-600 text-white shadow-md shadow-brand-purple/20'
-                  : 'text-brand-purple hover:bg-brand-purpleLight/50'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Sparkles className="w-4 h-4" />
-              <span>AI Skill Gap & Khóa học</span>
+              <span>Phân tích kỹ năng</span>
             </button>
 
             <button
               onClick={() => setActiveTab('interview')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'interview'
-                  ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-md shadow-purple-500/20'
-                  : 'text-purple-700 bg-purple-50/50 hover:bg-purple-100/80'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Bot className="w-4 h-4" />
-              <span>Luyện phỏng vấn AI</span>
+              <span>Luyện phỏng vấn</span>
             </button>
 
             <button
               onClick={() => setActiveTab('security')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-left ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'security'
-                  ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/20'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <KeyRound className="w-4 h-4" />
-              <span>Đổi mật khẩu & Avatar</span>
+              <span>Tài khoản & Bảo mật</span>
             </button>
           </div>
         </div>
@@ -740,14 +685,6 @@ export default function CandidateDashboard() {
                     <h2 className="text-base font-bold text-gray-900">Thông tin cá nhân & Giới thiệu</h2>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsCvParserOpen(true)}
-                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>AI Trích xuất CV</span>
-                    </button>
                     <button
                       onClick={() => setIsEditing(!isEditing)}
                       className="px-3.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 cursor-pointer"
@@ -816,12 +753,18 @@ export default function CandidateDashboard() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Tóm tắt bản thân / Mục tiêu nghề nghiệp (3-4 câu)</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-gray-700 uppercase">Tóm tắt bản thân / Mục tiêu nghề nghiệp (3-4 câu)</label>
+                        <span className={`text-[11px] font-semibold ${(bio || '').length >= 480 ? 'text-amber-600' : 'text-gray-400'}`}>
+                          {(bio || '').length}/500 ký tự
+                        </span>
+                      </div>
                       <textarea
                         rows={3}
+                        maxLength={500}
                         value={bio}
-                        onChange={(e) => setBio(e.target.value)}
-                        placeholder="Tóm tắt điểm mạnh, số năm kinh nghiệm, giá trị mang lại và định hướng sự nghiệp..."
+                        onChange={(e) => setBio(e.target.value.slice(0, 500))}
+                        placeholder="Tóm tắt ngắn gọn 3-4 câu về điểm mạnh, số năm kinh nghiệm, giá trị mang lại và định hướng sự nghiệp..."
                         className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-brand-blue/20"
                       />
                     </div>
@@ -874,20 +817,109 @@ export default function CandidateDashboard() {
                 ) : (
                   <div className="space-y-6 text-sm text-gray-700">
                     
-                    {/* 1. Summary & Desired Salary */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                      <div className="sm:col-span-2 space-y-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Tóm tắt bản thân & Mục tiêu</p>
+                    {/* 1. Personal Info Details Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 rounded-2xl bg-slate-50/80 border border-gray-100">
+                      <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-2xs space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <User className="w-3 h-3 text-brand-blue" /> Họ và tên
+                        </p>
+                        <p className="font-bold text-gray-900 text-xs truncate">
+                          {profile?.FullName || user?.fullName || 'Chưa cập nhật'}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-2xs space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <Briefcase className="w-3 h-3 text-indigo-600" /> Chức danh / Headline
+                        </p>
+                        <p className="font-bold text-brand-blue text-xs truncate">
+                          {profile?.Headline || 'Chưa cập nhật chức danh'}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-2xs space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <DollarSign className="w-3 h-3 text-emerald-600" /> Mức lương mong muốn
+                        </p>
+                        <p className="font-bold text-emerald-600 text-xs">
+                          {profile?.DesiredSalary ? `${Number(profile.DesiredSalary).toLocaleString('vi-VN')} VNĐ / tháng` : 'Thỏa thuận'}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-2xs space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-brand-blue" /> Email liên hệ
+                        </p>
+                        <p className="font-semibold text-gray-800 text-xs truncate">
+                          {profile?.Email || user?.email || 'Chưa cập nhật'}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-2xs space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-emerald-600" /> Số điện thoại
+                        </p>
+                        <p className="font-semibold text-gray-800 text-xs">
+                          {profile?.Phone || 'Chưa cập nhật'}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-2xs space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-rose-500" /> Địa điểm sinh sống
+                        </p>
+                        <p className="font-semibold text-gray-800 text-xs truncate">
+                          {profile?.CurrentLocation || 'Chưa cập nhật'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 1.2. Career Summary & Social Links */}
+                    <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-3">
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Tóm tắt bản thân & Mục tiêu nghề nghiệp (3-4 câu)</p>
                         <p className="text-gray-700 text-xs leading-relaxed whitespace-pre-line">
-                          {parsedBioData.bioText || profile?.Bio || 'Chưa có thông tin tóm tắt.'}
+                          {parsedBioData.bioText ||
+                            (profile?.Bio && !String(profile.Bio).trim().startsWith('{') ? profile.Bio : '') ||
+                            'Chưa có thông tin giới thiệu bản thân. Nhấn "Chỉnh sửa" để cập nhật mục tiêu nghề nghiệp của bạn.'}
                         </p>
                       </div>
-                      <div className="space-y-1 sm:border-l sm:border-gray-200 sm:pl-4">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Mức lương mong muốn</p>
-                        <p className="font-bold text-emerald-600 text-sm">
-                          {profile?.DesiredSalary ? `${profile.DesiredSalary.toLocaleString()} VNĐ` : 'Thỏa thuận'}
-                        </p>
-                      </div>
+
+                      {(parsedBioData.links?.linkedin || parsedBioData.links?.github || parsedBioData.links?.portfolio) && (
+                        <div className="pt-2 border-t border-gray-200/70 flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase mr-1">Liên kết cá nhân:</span>
+                          {parsedBioData.links.linkedin && (
+                            <a
+                              href={parsedBioData.links.linkedin.startsWith('http') ? parsedBioData.links.linkedin : `https://${parsedBioData.links.linkedin}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-[11px] font-semibold transition-colors"
+                            >
+                              <Linkedin className="w-3 h-3" /> {parsedBioData.links.linkedin}
+                            </a>
+                          )}
+                          {parsedBioData.links.github && (
+                            <a
+                              href={parsedBioData.links.github.startsWith('http') ? parsedBioData.links.github : `https://${parsedBioData.links.github}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 text-[11px] font-semibold transition-colors"
+                            >
+                              <Github className="w-3 h-3" /> {parsedBioData.links.github}
+                            </a>
+                          )}
+                          {parsedBioData.links.portfolio && (
+                            <a
+                              href={parsedBioData.links.portfolio.startsWith('http') ? parsedBioData.links.portfolio : `https://${parsedBioData.links.portfolio}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-[11px] font-semibold transition-colors"
+                            >
+                              <Globe className="w-3 h-3" /> {parsedBioData.links.portfolio}
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* 2. Skills Section */}
@@ -1119,20 +1151,11 @@ export default function CandidateDashboard() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link
                       to="/candidate/cv-builder"
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-blue to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-brand-blue/20 flex items-center gap-1.5"
+                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>Tạo CV Trực Tuyến (Online Builder)</span>
+                      <span>Thiết kế CV trực tuyến</span>
                     </Link>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsCvParserOpen(true)}
-                      className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                      <span>⚡ AI Phân tích CV</span>
-                    </button>
                   </div>
                 </div>
 
@@ -1179,27 +1202,23 @@ export default function CandidateDashboard() {
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
-                            cv.CvType === 'OnlineBuilder'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-brand-light text-brand-blue'
-                          }`}>
+                          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 text-blue-600">
                             <FileText className="w-5 h-5" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-bold text-gray-900">{cv.Title}</p>
                               {cv.IsPrimary && (
-                                <span className="px-2 py-0.5 text-[10px] font-extrabold bg-brand-blue text-white rounded-full">
+                                <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-600 text-white rounded-full">
                                   CV Mặc Định
                                 </span>
                               )}
                               {cv.CvType === 'OnlineBuilder' ? (
-                                <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 rounded-full border border-purple-200">
-                                  Online Mẫu {cv.Template?.toUpperCase() || 'MODERN'}
+                                <span className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 rounded-full border border-gray-200">
+                                  Mẫu trực tuyến ({cv.Template?.toUpperCase() || 'MODERN'})
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 rounded-full">
+                                <span className="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded-full">
                                   File tải lên
                                 </span>
                               )}
@@ -1216,7 +1235,7 @@ export default function CandidateDashboard() {
                             <>
                               <Link
                                 to={`/candidate/cv-builder?id=${cv.CVID}`}
-                                className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-colors flex items-center gap-1.5"
+                                className="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors flex items-center gap-1.5"
                                 title="Chỉnh sửa trực quan"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -1224,7 +1243,7 @@ export default function CandidateDashboard() {
                               </Link>
                               <Link
                                 to={`/candidate/cv-builder?id=${cv.CVID}`}
-                                className="px-3 py-1.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                                className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors flex items-center gap-1.5"
                                 title="Xem trước & Xuất PDF"
                               >
                                 <Printer className="w-3.5 h-3.5 text-gray-500" />
@@ -1245,16 +1264,18 @@ export default function CandidateDashboard() {
 
                           {!cv.IsPrimary && (
                             <button
+                              type="button"
                               onClick={() => handleSetPrimaryCV(cv.CVID)}
-                              className="px-3 py-1.5 rounded-xl border border-blue-200 bg-white text-brand-blue text-xs font-bold hover:bg-blue-50 transition-colors"
+                              className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-blue-600 text-xs font-semibold hover:bg-blue-50 transition-colors cursor-pointer"
                             >
                               Đặt làm mặc định
                             </button>
                           )}
 
                           <button
+                            type="button"
                             onClick={() => handleDeleteCV(cv.CVID)}
-                            className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                            className="p-2 rounded-lg border border-gray-200 text-slate-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
                             title="Xóa CV"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1308,8 +1329,9 @@ export default function CandidateDashboard() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-start gap-3.5">
                           <img
-                            src={app.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=100&q=80'}
+                            src={getCompanyLogo(app.CompanyLogoUrl, app.CompanyName)}
                             alt={app.CompanyName}
+                            onError={(e) => handleCompanyLogoError(e, app.CompanyName)}
                             className="w-12 h-12 rounded-xl object-cover border border-gray-100"
                           />
                           <div>
@@ -1366,8 +1388,9 @@ export default function CandidateDashboard() {
                     >
                       <div className="flex items-start gap-3.5">
                         <img
-                          src={job.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=100&q=80'}
+                          src={getCompanyLogo(job.CompanyLogoUrl, job.CompanyName)}
                           alt={job.CompanyName}
+                          onError={(e) => handleCompanyLogoError(e, job.CompanyName)}
                           className="w-12 h-12 rounded-xl object-cover border border-gray-100"
                         />
                         <div>
@@ -1403,8 +1426,8 @@ export default function CandidateDashboard() {
                     <Bell className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-gray-900">Thông báo việc làm theo tiêu chí (Job Alerts)</h2>
-                    <p className="text-[11px] text-gray-500">Tự động quét và thông báo các vị trí tuyển dụng khớp với kỳ vọng của bạn</p>
+                    <h2 className="text-base font-bold text-gray-900">Thông báo việc làm theo tiêu chí</h2>
+                    <p className="text-[11px] text-gray-500">Nhận thông báo các vị trí tuyển dụng khớp với kỳ vọng của bạn</p>
                   </div>
                 </div>
 
@@ -1535,22 +1558,19 @@ export default function CandidateDashboard() {
 
           {/* TAB 4: Skill Gap & Learning Paths */}
           {activeTab === 'skillgap' && skillGapData && (
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-purple/30 shadow-card space-y-8">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-8">
               
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-brand-purple animate-pulse" />
-                  <div>
-                    <h2 className="text-base font-black text-gray-900">AI Phân tích Kỹ năng & Gợi ý Khóa học</h2>
-                    <p className="text-[11px] text-gray-500">Lộ trình học tập trực tiếp từ các đối tác đào tạo hàng đầu kèm chứng chỉ</p>
-                  </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Phân tích kỹ năng & Gợi ý khóa học</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Đối chiếu kỹ năng hiện có với nhu cầu tuyển dụng và đề xuất lộ trình bổ sung</p>
                 </div>
 
                 <Link
                   to="/candidate/skill-gap"
-                  className="px-4 py-2 rounded-xl bg-purple-50 text-brand-purple hover:bg-purple-100 font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0"
+                  className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-xs flex items-center gap-1.5 transition-colors shrink-0"
                 >
-                  <span>Xem báo cáo chi tiết đầy đủ</span>
+                  <span>Xem báo cáo chi tiết</span>
                   <ArrowUpRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -1561,25 +1581,25 @@ export default function CandidateDashboard() {
                 {/* Your Acquired Skills */}
                 <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
                   <h3 className="text-xs font-bold text-emerald-800 uppercase flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Kỹ năng đã phát hiện trong hồ sơ ({skillGapData.acquiredSkills?.length || 0})
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Kỹ năng trong hồ sơ ({skillGapData.acquiredSkills?.length || 0})
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {skillGapData.acquiredSkills?.map((skill) => (
-                      <span key={skill.SkillID} className="px-3 py-1 bg-white text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 shadow-2xs">
-                        ✓ {skill.SkillName}
+                      <span key={skill.SkillID} className="px-3 py-1 bg-white text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200">
+                        {skill.SkillName}
                       </span>
                     ))}
                   </div>
                 </div>
 
                 {/* Market Skill Trends */}
-                <div className="p-5 rounded-2xl bg-purple-50/50 border border-purple-200/80 space-y-3">
-                  <h3 className="text-xs font-bold text-purple-900 uppercase flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-brand-purple" /> Kỹ năng công nghệ Hot nhất thị trường
+                <div className="p-5 rounded-2xl bg-slate-50 border border-gray-200 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                    Kỹ năng tuyển dụng phổ biến trên thị trường
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {skillGapData.marketSkillTrends?.map((trend) => (
-                      <span key={trend.SkillID} className="px-3 py-1 bg-white text-gray-800 text-xs font-semibold rounded-xl border border-purple-200 shadow-2xs">
+                      <span key={trend.SkillID} className="px-3 py-1 bg-white text-slate-800 text-xs font-medium rounded-lg border border-gray-200">
                         {trend.SkillName} ({trend.DemandCount} việc làm)
                       </span>
                     ))}
@@ -1591,10 +1611,10 @@ export default function CandidateDashboard() {
               {/* Rich Course Recommendations Connected to Database */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-brand-purple" /> Khóa học CSDL đề xuất bù đắp kỹ năng thiếu
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-blue-600" /> Khóa học đề xuất bổ sung kỹ năng
                   </h3>
-                  <span className="text-xs text-gray-500 font-semibold">
+                  <span className="text-xs text-slate-500 font-semibold">
                     {skillGapData.recommendedCourses?.length || 0} khóa học phù hợp
                   </span>
                 </div>
@@ -1603,19 +1623,19 @@ export default function CandidateDashboard() {
                   {skillGapData.recommendedCourses?.map((course) => (
                     <div
                       key={course.CourseID}
-                      className="group p-5 rounded-2xl border border-gray-200/80 hover:border-brand-purple/50 bg-white hover:bg-brand-purpleLight/10 shadow-xs transition-all space-y-3 flex flex-col justify-between"
+                      className="group p-5 rounded-2xl border border-gray-200 hover:border-blue-300 bg-white shadow-xs transition-all space-y-3 flex flex-col justify-between"
                     >
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-brand-purple">
-                          <span className="px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-gray-200">
                             Nền tảng: {course.Provider}
                           </span>
-                          <span className="text-xs font-extrabold text-emerald-600">
+                          <span className="text-xs font-bold text-emerald-600">
                             {course.IsFree ? 'Miễn phí' : (course.Price ? `${new Intl.NumberFormat('vi-VN').format(course.Price)} đ` : 'Liên hệ')}
                           </span>
                         </div>
 
-                        <h4 className="text-sm font-bold text-gray-900 group-hover:text-brand-purple mt-1 line-clamp-2">
+                        <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 mt-1 line-clamp-2">
                           {course.Title}
                         </h4>
 
@@ -1626,8 +1646,8 @@ export default function CandidateDashboard() {
                           </div>
                         )}
 
-                        <div className="pt-1 text-[11px] text-gray-500 flex items-center justify-between">
-                          <span>Bù đắp: <b className="text-brand-blue">{course.SkillName}</b></span>
+                        <div className="pt-1 text-[11px] text-slate-500 flex items-center justify-between">
+                          <span>Kỹ năng: <b className="text-blue-600">{course.SkillName}</b></span>
                           {course.Duration && <span>{course.Duration}</span>}
                         </div>
                       </div>
@@ -1636,9 +1656,9 @@ export default function CandidateDashboard() {
                         href={course.Url}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full py-2 px-3 rounded-xl bg-gray-900 group-hover:bg-brand-purple text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                        className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
                       >
-                        <span>Truy cập & Đăng ký học</span>
+                        <span>Đăng ký khóa học</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     </div>
@@ -1679,8 +1699,9 @@ export default function CandidateDashboard() {
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 pt-2">
                   <div className="relative group">
                     <img
-                      src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'}
+                      src={getUserAvatar(user, user?.fullName)}
                       alt={user?.fullName}
+                      onError={(e) => handleUserAvatarError(e, user?.fullName)}
                       className="w-28 h-28 rounded-3xl object-cover border-4 border-white shadow-xl shadow-brand-blue/10 ring-2 ring-brand-blue/20"
                     />
                     <button
@@ -1696,7 +1717,7 @@ export default function CandidateDashboard() {
 
                   <div className="space-y-4 flex-1 w-full text-center sm:text-left">
                     <div>
-                      <h4 className="text-sm font-bold text-gray-800">Tải ảnh đại diện mới</h4>
+                      <h4 className="text-sm font-bold text-gray-800">Tải ảnh đại diện mới từ thiết bị</h4>
                       <p className="text-xs text-gray-500 mt-1">
                         Hình ảnh đại diện rõ nét sẽ giúp hồ sơ của bạn thu hút sự chú ý của nhà tuyển dụng tốt hơn.
                       </p>
@@ -1721,29 +1742,6 @@ export default function CandidateDashboard() {
                           </>
                         )}
                       </button>
-                    </div>
-
-                    {/* URL Option */}
-                    <div className="pt-2 border-t border-gray-100">
-                      <label className="block text-xs font-bold text-gray-600 mb-1.5">
-                        Hoặc dán liên kết ảnh trực tiếp (URL)
-                      </label>
-                      <form onSubmit={handleAvatarUrlSave} className="flex gap-2">
-                        <input
-                          type="url"
-                          placeholder="https://example.com/avatar.jpg"
-                          value={customAvatarUrl}
-                          onChange={(e) => setCustomAvatarUrl(e.target.value)}
-                          className="flex-1 p-2.5 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
-                        />
-                        <button
-                          type="submit"
-                          disabled={avatarUploading || !customAvatarUrl}
-                          className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-bold hover:bg-black transition-all disabled:opacity-40 cursor-pointer"
-                        >
-                          Lưu URL
-                        </button>
-                      </form>
                     </div>
 
                   </div>
@@ -1978,8 +1976,9 @@ export default function CandidateDashboard() {
                   >
                     <div className="flex items-start gap-3.5">
                       <img
-                        src={job.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=100&q=80'}
+                        src={getCompanyLogo(job.CompanyLogoUrl, job.CompanyName)}
                         alt={job.CompanyName}
+                        onError={(e) => handleCompanyLogoError(e, job.CompanyName)}
                         className="w-11 h-11 rounded-xl object-cover border border-gray-100 shrink-0"
                       />
                       <div>
@@ -2011,13 +2010,6 @@ export default function CandidateDashboard() {
           </div>
         </div>
       )}
-
-      {/* AI CV Parser Modal */}
-      <AICVParserModal
-        isOpen={isCvParserOpen}
-        onClose={() => setIsCvParserOpen(false)}
-        onApplyExtractedData={handleApplyExtractedCVData}
-      />
 
     </div>
   );

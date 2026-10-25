@@ -1,0 +1,14 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#momoBg)"/>
+  <rect x="18" y="18" width="84" height="84" rx="20" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="3"/>
+  <text x="60" y="57" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="30" fill="#FFFFFF" letter-spacing="2">mo</text>
+  <text x="60" y="85" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="30" fill="#FCE7F3" letter-spacing="2">mo</text>
+  <defs>
+    <linearGradient id="momoBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D82D8B"/>
+      <stop offset="1" stop-color="#9D174D"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

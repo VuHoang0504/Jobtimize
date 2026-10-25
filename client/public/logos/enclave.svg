@@ -1,0 +1,14 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#encBg)"/>
+  <path d="M60 22L88 36V62C88 79 75 93 60 98C45 93 32 79 32 62V36L60 22Z" fill="#FFFFFF" fill-opacity="0.16" stroke="#34D399" stroke-width="3"/>
+  <text x="60" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="28" fill="#FFFFFF">E</text>
+  <text x="60" y="111" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="10.5" fill="#A7F3D0" letter-spacing="1.8">ENCLAVE</text>
+  <defs>
+    <linearGradient id="encBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F766E"/>
+      <stop offset="1" stop-color="#064E3B"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

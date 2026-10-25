@@ -1,0 +1,16 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#vinaiBg)"/>
+  <path d="M36 30L60 68L84 30" stroke="#38BDF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="36" cy="30" r="6" fill="#F43F5E"/>
+  <circle cx="84" cy="30" r="6" fill="#F43F5E"/>
+  <circle cx="60" cy="68" r="7" fill="#38BDF8"/>
+  <text x="60" y="99" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="20" fill="#FFFFFF" letter-spacing="1">VinAI</text>
+  <defs>
+    <linearGradient id="vinaiBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#1E3A8A"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

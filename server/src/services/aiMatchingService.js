@@ -1,8 +1,9 @@
 const { executeQuery } = require('../config/db');
 
 /**
- * AI Matching Engine for Jobtimize
- * Analyzes candidate profile, extracted CV skills against job requirements.
+ * Matching Engine for Jobtimize
+ * Analyzes candidate profile & CV skills against job requirements.
+ * Strictly returns 0% when no skills match.
  */
 class AIMatchingService {
   /**
@@ -14,15 +15,51 @@ class AIMatchingService {
     const matchedSkills = [];
 
     for (const skill of skillTaxonomyList) {
-      const sName = skill.SkillName.toLowerCase();
+      const sName = (skill.SkillName || '').toLowerCase();
       const sNorm = (skill.NormalizedName || '').toLowerCase();
-      
-      const pattern = new RegExp(`\\b(${sName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|${sNorm})\\b`, 'i');
-      if (pattern.test(normalizedText) || normalizedText.includes(sName)) {
+      if (!sName) continue;
+
+      const pattern = new RegExp(`\\b(${sName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${sNorm ? `|${sNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` : ''})\\b`, 'i');
+      if (pattern.test(normalizedText) || normalizedText.includes(sName) || (sNorm && normalizedText.includes(sNorm))) {
         matchedSkills.push(skill);
       }
     }
     return matchedSkills;
+  }
+
+  /**
+   * Check whether candidate text contains a given skill (with common aliases)
+   */
+  static hasSkill(candidateText, skill) {
+    if (!candidateText || !skill) return false;
+    const sName = (skill.SkillName || '').toLowerCase();
+    const sNorm = (skill.NormalizedName || '').toLowerCase();
+
+    const terms = new Set([sName, sNorm].filter(Boolean));
+    if (sName.includes('react')) { terms.add('react'); terms.add('reactjs'); terms.add('react.js'); }
+    if (sName.includes('node')) { terms.add('node'); terms.add('nodejs'); terms.add('node.js'); }
+    if (sName.includes('next')) { terms.add('next'); terms.add('nextjs'); terms.add('next.js'); }
+    if (sName.includes('typescript')) { terms.add('typescript'); }
+    if (sName.includes('c#') || sName.includes('.net')) { terms.add('c#'); terms.add('.net'); terms.add('dotnet'); terms.add('asp.net'); }
+    if (sName.includes('java ') || sName.includes('spring')) { terms.add('spring'); terms.add('spring boot'); terms.add('java'); }
+    if (sName.includes('python')) { terms.add('python'); terms.add('django'); terms.add('fastapi'); }
+    if (sName.includes('docker')) { terms.add('docker'); }
+    if (sName.includes('kubernetes')) { terms.add('kubernetes'); terms.add('k8s'); }
+    if (sName.includes('aws')) { terms.add('aws'); terms.add('amazon web services'); }
+    if (sName.includes('azure')) { terms.add('azure'); }
+    if (sName.includes('sql server')) { terms.add('sql server'); terms.add('mssql'); }
+    if (sName.includes('postgresql')) { terms.add('postgresql'); terms.add('postgres'); }
+    if (sName.includes('mongodb')) { terms.add('mongodb'); }
+    if (sName.includes('redis')) { terms.add('redis'); }
+    if (sName.includes('figma')) { terms.add('figma'); terms.add('ui/ux'); }
+    if (sName.includes('tailwind')) { terms.add('tailwind'); terms.add('tailwindcss'); }
+
+    for (const term of terms) {
+      if (term && candidateText.includes(term)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -44,8 +81,18 @@ class AIMatchingService {
         return { matchScore: 0, matchedSkills: [], missingSkills: [], recommendedCourses: [] };
       }
 
-      const requiredSkills = jobRes.recordset.filter(r => r.SkillID != null);
-      
+      let requiredSkills = jobRes.recordset.filter(r => r.SkillID != null);
+      const jobRow = jobRes.recordset[0];
+
+      // If job has no rows in JobSkillRequirements, extract required skills from Job Description/Requirements
+      if (requiredSkills.length === 0) {
+        const taxonomyRes = await executeQuery(`SELECT SkillID, SkillName, NormalizedName FROM SkillTaxonomy`);
+        const jobText = `${jobRow.Title || ''} ${jobRow.Description || ''} ${jobRow.Requirements || ''}`.toLowerCase();
+        requiredSkills = (taxonomyRes.recordset || [])
+          .filter(sk => AIMatchingService.hasSkill(jobText, sk))
+          .map(sk => ({ ...sk, IsMandatory: true }));
+      }
+
       // 2. Fetch Candidate Profile & CVs
       const candidateQuery = `
         SELECT cp.ProfileID, cp.Headline, cp.Bio, cp.DesiredSalary, cp.CurrentLocation,
@@ -60,24 +107,33 @@ class AIMatchingService {
         return { matchScore: 0, matchedSkills: [], missingSkills: [], recommendedCourses: [] };
       }
 
-      // Fetch candidate CVs for text matching
-      const cvRes = await executeQuery(
-        `SELECT Title, FileUrl FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC`,
-        { ProfileID: profileId }
-      );
-      
-      // Combine candidate text signals
-      const cvTitles = cvRes.recordset.map(c => c.Title).join(' ');
-      const candidateContext = `${candidate.Headline || ''} ${candidate.Bio || ''} ${cvTitles}`.toLowerCase();
+      // Fetch candidate CVs (including CvData if available)
+      let cvText = '';
+      try {
+        const cvRes = await executeQuery(
+          `SELECT Title, CvData FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC`,
+          { ProfileID: profileId }
+        );
+        cvText = (cvRes.recordset || []).map(c => `${c.Title || ''} ${c.CvData || ''}`).join(' ');
+      } catch (e) {
+        const cvResFallback = await executeQuery(
+          `SELECT Title FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC`,
+          { ProfileID: profileId }
+        );
+        cvText = (cvResFallback.recordset || []).map(c => c.Title || '').join(' ');
+      }
 
-      // If job has no explicit required skills, calculate based on general text similarity
+      // Combine candidate text signals
+      const candidateContext = `${candidate.Headline || ''} ${candidate.Bio || ''} ${cvText}`.toLowerCase();
+
+      // If job still has no required skills at all, return 0%
       if (requiredSkills.length === 0) {
         return {
-          matchScore: 75.0,
+          matchScore: 0,
           matchedSkills: [],
           missingSkills: [],
           recommendedCourses: [],
-          summary: 'Công việc không có danh sách kỹ năng bắt buộc cụ thể. Điểm phù hợp dựa trên hồ sơ tổng quát.'
+          summary: 'Chưa có kỹ năng nào phù hợp giữa hồ sơ và yêu cầu công việc (0%).'
         };
       }
 
@@ -90,10 +146,7 @@ class AIMatchingService {
         const weight = req.IsMandatory ? 2.0 : 1.0;
         totalWeight += weight;
 
-        const sName = req.SkillName.toLowerCase();
-        const sNorm = (req.NormalizedName || '').toLowerCase();
-
-        const isMatched = candidateContext.includes(sName) || (sNorm && candidateContext.includes(sNorm));
+        const isMatched = AIMatchingService.hasSkill(candidateContext, req);
 
         if (isMatched) {
           earnedWeight += weight;
@@ -111,23 +164,17 @@ class AIMatchingService {
         }
       }
 
-      // Base percentage
-      let matchScore = totalWeight > 0 ? (earnedWeight / totalWeight) * 100 : 70;
-      
-      // Bonus: If candidate has a well-defined Headline
-      if (candidate.Headline && candidate.Headline.length > 5) {
-        matchScore = Math.min(100, matchScore + 5);
+      // Strictly 0% if no skills matched
+      let matchScore = 0;
+      if (matchedSkills.length > 0 && totalWeight > 0) {
+        matchScore = Math.round((earnedWeight / totalWeight) * 100);
+        if (matchScore > 100) matchScore = 100;
       }
-
-      // Round to 1 decimal place
-      matchScore = Math.round(matchScore * 10) / 10;
-      if (matchScore > 100) matchScore = 100;
-      if (matchScore < 15 && requiredSkills.length > 0) matchScore = 20; // baseline floor
 
       // 3. Query Recommended Courses for Missing Skills
       let recommendedCourses = [];
       if (missingSkills.length > 0) {
-        const missingSkillIds = missingSkills.map(s => s.skillId).join(',');
+        const missingSkillIds = missingSkills.map(s => s.skillId).filter(Boolean).join(',');
         if (missingSkillIds) {
           const coursesRes = await executeQuery(`
             SELECT c.CourseID, c.Title, c.Provider, c.Url, c.SkillID, st.SkillName
@@ -139,14 +186,16 @@ class AIMatchingService {
         }
       }
 
-      // AI Summary string
+      // Summary string
       let summary = '';
-      if (matchScore >= 80) {
-        summary = `Hồ sơ rất phù hợp (${matchScore}%). Ứng viên đáp ứng hầu hết các kỹ năng trọng yếu của vị trí này.`;
+      if (matchScore === 0) {
+        summary = `Chưa có kỹ năng nào trong hồ sơ trùng khớp với yêu cầu của vị trí này (0%). Bạn cần bổ sung: ${missingSkills.map(s => s.skillName).join(', ')}.`;
+      } else if (matchScore >= 80) {
+        summary = `Hồ sơ rất phù hợp (${matchScore}%). Bạn đáp ứng hầu hết các kỹ năng trọng yếu của vị trí này.`;
       } else if (matchScore >= 50) {
-        summary = `Hồ sơ tiềm năng (${matchScore}%). Ứng viên đáp ứng một phần kỹ năng, cần bổ sung thêm: ${missingSkills.map(s => s.skillName).join(', ')}.`;
+        summary = `Hồ sơ phù hợp một phần (${matchScore}%). Cần bổ sung thêm: ${missingSkills.map(s => s.skillName).join(', ')}.`;
       } else {
-        summary = `Độ tương thích cơ bản (${matchScore}%). Cần trau dồi thêm các kỹ năng chuyên sâu để đáp ứng tiêu chuẩn công việc.`;
+        summary = `Độ phù hợp thấp (${matchScore}%). Cần trau dồi thêm các kỹ năng chuyên môn để đáp ứng yêu cầu công việc.`;
       }
 
       return {
@@ -158,7 +207,7 @@ class AIMatchingService {
       };
     } catch (error) {
       console.error('Error in calculateMatchScore:', error.message);
-      return { matchScore: 50, matchedSkills: [], missingSkills: [], recommendedCourses: [] };
+      return { matchScore: 0, matchedSkills: [], missingSkills: [], recommendedCourses: [] };
     }
   }
 }

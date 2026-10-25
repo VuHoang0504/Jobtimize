@@ -351,7 +351,7 @@ const login = async (req, res) => {
           email: user.Email,
           fullName: user.FullName,
           phone: user.Phone,
-          avatarUrl: user.AvatarUrl,
+          avatarUrl: user.AvatarUrl || profile?.CompanyLogoUrl || null,
           role: user.RoleName,
           profile
         }
@@ -565,7 +565,7 @@ const getMe = async (req, res) => {
         email: user.Email,
         fullName: user.FullName,
         phone: user.Phone,
-        avatarUrl: user.AvatarUrl,
+        avatarUrl: user.AvatarUrl || profile?.CompanyLogoUrl || null,
         role: user.RoleName,
         createdAt: user.CreatedAt,
         profile

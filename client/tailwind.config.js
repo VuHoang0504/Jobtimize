@@ -6,6 +6,11 @@ export default {
   ],
   theme: {
     extend: {
+      spacing: {
+        13: '3.25rem',
+        15: '3.75rem',
+        18: '4.5rem',
+      },
       colors: {
         brand: {
           blue: '#0A66C2',       // LinkedIn Signature Blue
@@ -19,7 +24,23 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: [
+          '"Be Vietnam Pro"',
+          'Inter',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          '"Noto Sans"',
+          'sans-serif',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          '"Noto Color Emoji"'
+        ],
       },
       boxShadow: {
         'card': '0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',

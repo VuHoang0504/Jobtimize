@@ -41,15 +41,21 @@ export default function EmployerPricingPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [packRes, subRes, histRes] = await Promise.all([
+      const [packRes, subRes, histRes] = await Promise.allSettled([
         api.get('/employer/packages'),
         api.get('/employer/subscription'),
         api.get('/employer/payment/history')
       ]);
 
-      if (packRes.data.success) setPackages(packRes.data.data);
-      if (subRes.data.success) setSubscription(subRes.data.data);
-      if (histRes.data.success) setHistory(histRes.data.data);
+      if (packRes.status === 'fulfilled' && packRes.value.data.success) {
+        setPackages(packRes.value.data.data);
+      }
+      if (subRes.status === 'fulfilled' && subRes.value.data.success) {
+        setSubscription(subRes.value.data.data);
+      }
+      if (histRes.status === 'fulfilled' && histRes.value.data.success) {
+        setHistory(histRes.value.data.data);
+      }
     } catch (err) {
       console.error('Fetch pricing error:', err);
     } finally {

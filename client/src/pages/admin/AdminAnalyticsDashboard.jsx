@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { getCompanyLogo, handleCompanyLogoError } from '../../utils/logoHelper';
 import {
   TrendingUp,
   DollarSign,
@@ -1149,17 +1150,12 @@ export default function AdminAnalyticsDashboard() {
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">
-                          {tx.companyLogoUrl ? (
-                            <img
-                              src={tx.companyLogoUrl}
-                              alt={tx.companyName}
-                              className="w-7 h-7 rounded-lg object-cover border border-gray-200"
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 font-bold">
-                              <Building2 className="w-4 h-4" />
-                            </div>
-                          )}
+                          <img
+                            src={getCompanyLogo(tx.companyLogoUrl, tx.companyName)}
+                            alt={tx.companyName}
+                            onError={(e) => handleCompanyLogoError(e, tx.companyName)}
+                            className="w-7 h-7 rounded-lg object-cover border border-gray-200"
+                          />
                           <span className="font-semibold text-gray-900 truncate max-w-[200px]">
                             {tx.companyName}
                           </span>

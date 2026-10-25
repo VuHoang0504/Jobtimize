@@ -68,6 +68,8 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/jobs/:id" element={<JobDetailPage />} />
+              <Route path="/invitations/:id" element={<Navigate to="/candidate/dashboard?tab=applications" replace />} />
+              <Route path="/applications/:id" element={<Navigate to="/candidate/dashboard?tab=applications" replace />} />
               <Route path="/dashboard" element={<DashboardRedirect />} />
 
               {/* Candidate Routes */}

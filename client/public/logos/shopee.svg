@@ -1,0 +1,14 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#shopeeBg)"/>
+  <path d="M45 40C45 31.7 51.7 25 60 25C68.3 25 75 31.7 75 40" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+  <rect x="30" y="40" width="60" height="56" rx="12" fill="#FFFFFF"/>
+  <text x="60" y="79" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="34" fill="#EE4D2D">S</text>
+  <defs>
+    <linearGradient id="shopeeBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF6533"/>
+      <stop offset="1" stop-color="#EE4D2D"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

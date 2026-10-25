@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import KYCModal from '../../components/employer/KYCModal';
 import EditJobModal from '../../components/employer/EditJobModal';
+import { getCompanyLogo, handleCompanyLogoError } from '../../utils/logoHelper';
 import { 
   Building2, 
   PlusCircle, 
@@ -150,9 +151,10 @@ export default function EmployerDashboard() {
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-5">
           <img
-            src={profile?.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=150&q=80'}
+            src={getCompanyLogo(profile?.CompanyLogoUrl, profile?.CompanyName)}
             alt={profile?.CompanyName}
-            className="w-18 h-18 rounded-2xl object-cover border-2 border-brand-green/30 shadow-md"
+            onError={(e) => handleCompanyLogoError(e, profile?.CompanyName)}
+            className="w-14 h-14 rounded-2xl object-contain shrink-0 border-2 border-brand-green/30 shadow-md"
           />
           <div className="space-y-1.5">
             <div className="flex items-center gap-2.5 flex-wrap">

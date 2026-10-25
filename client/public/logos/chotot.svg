@@ -1,0 +1,14 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#ctBg)"/>
+  <rect x="20" y="28" width="80" height="46" rx="14" fill="#FFFFFF"/>
+  <text x="60" y="60" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="26" fill="#D97706">CT</text>
+  <text x="60" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="14" fill="#FFFFFF" letter-spacing="1">CHá»¢ Tá»T</text>
+  <defs>
+    <linearGradient id="ctBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

@@ -246,31 +246,21 @@ export default function MockInterviewSection() {
           
           {/* Header */}
           <div className="border-b border-gray-100 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <Bot className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">Luyện Phỏng Vấn Thử Cùng AI</h2>
-                  <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-extrabold uppercase tracking-wide">
-                    Gemini AI
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  AI đóng vai trò Tech Lead & HR đặt câu hỏi thực tế, chấm điểm và gợi ý câu trả lời theo chuẩn STAR.
-                </p>
-              </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Luyện phỏng vấn chuyên môn</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Thực hành trả lời các câu hỏi phỏng vấn theo vị trí ứng tuyển, nhận đánh giá và gợi ý cải thiện theo cấu trúc STAR.
+              </p>
             </div>
 
             {historyList.length > 0 && (
               <button
                 type="button"
                 onClick={() => setStep('history')}
-                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-all flex items-center gap-1.5 self-start sm:self-auto"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all flex items-center gap-1.5 self-start sm:self-auto"
               >
-                <History className="w-4 h-4 text-purple-600" />
-                <span>Xem lịch sử luyện tập ({historyList.length})</span>
+                <History className="w-4 h-4 text-blue-600" />
+                <span>Lịch sử luyện tập ({historyList.length})</span>
               </button>
             )}
           </div>
@@ -369,26 +359,17 @@ export default function MockInterviewSection() {
 
           {/* Highlights & Features */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="p-3.5 rounded-2xl bg-purple-50/50 border border-purple-100 flex items-start gap-2.5">
-              <Zap className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
-              <div>
-                <h4 className="text-xs font-bold text-gray-800">Câu hỏi thực chiến</h4>
-                <p className="text-[11px] text-gray-500 mt-0.5">Kết hợp câu hỏi chuyên môn và tình huống xử lý thực tế.</p>
-              </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-gray-200 space-y-1">
+              <h4 className="text-xs font-bold text-slate-800">Câu hỏi sát thực tế</h4>
+              <p className="text-[11px] text-slate-500">Kết hợp câu hỏi chuyên môn và tình huống xử lý công việc.</p>
             </div>
-            <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 flex items-start gap-2.5">
-              <Mic className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
-              <div>
-                <h4 className="text-xs font-bold text-gray-800">Trả lời bằng giọng nói</h4>
-                <p className="text-[11px] text-gray-500 mt-0.5">Hỗ trợ thu âm và chuyển đổi giọng nói thành văn bản tức thì.</p>
-              </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-gray-200 space-y-1">
+              <h4 className="text-xs font-bold text-slate-800">Trả lời bằng giọng nói</h4>
+              <p className="text-[11px] text-slate-500">Hỗ trợ thu âm và chuyển đổi giọng nói thành văn bản.</p>
             </div>
-            <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex items-start gap-2.5">
-              <Award className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-              <div>
-                <h4 className="text-xs font-bold text-gray-800">Chấm điểm STAR</h4>
-                <p className="text-[11px] text-gray-500 mt-0.5">Phân tích điểm mạnh, điểm yếu và gợi ý câu trả lời mẫu chuẩn mực.</p>
-              </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-gray-200 space-y-1">
+              <h4 className="text-xs font-bold text-slate-800">Đánh giá theo chuẩn STAR</h4>
+              <p className="text-[11px] text-slate-500">Phân tích điểm mạnh, điểm cần cải thiện và câu trả lời mẫu.</p>
             </div>
           </div>
 
@@ -398,17 +379,17 @@ export default function MockInterviewSection() {
               type="button"
               disabled={loading}
               onClick={handleStartInterview}
-              className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-purple-500/25 disabled:opacity-50 transition-all flex items-center gap-2"
+              className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs disabled:opacity-50 transition-colors flex items-center gap-2"
             >
               {loading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>AI đang chuẩn bị bộ câu hỏi...</span>
+                  <span>Đang chuẩn bị bộ câu hỏi...</span>
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4 fill-white" />
-                  <span>Bắt đầu buổi phỏng vấn AI</span>
+                  <span>Bắt đầu buổi phỏng vấn</span>
                 </>
               )}
             </button>
@@ -456,13 +437,12 @@ export default function MockInterviewSection() {
             <div className="space-y-6">
               
               {/* Question Header & Content */}
-              <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-50/60 via-indigo-50/40 to-blue-50/60 border border-purple-100 space-y-3">
+              <div className="p-6 rounded-2xl bg-slate-50 border border-gray-200 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-purple-700 font-bold text-xs uppercase tracking-wider">
-                    <Bot className="w-4 h-4" />
-                    <span>Người phỏng vấn AI hỏi:</span>
+                  <div className="flex items-center gap-2 text-blue-700 font-bold text-xs uppercase tracking-wider">
+                    <span>Câu hỏi phỏng vấn:</span>
                   </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                     sessionData.questions[currentIndex].type === 'Technical'
                       ? 'bg-blue-100 text-blue-700'
                       : 'bg-amber-100 text-amber-700'
@@ -471,14 +451,14 @@ export default function MockInterviewSection() {
                   </span>
                 </div>
 
-                <h3 className="text-base sm:text-lg font-black text-gray-900 leading-relaxed">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed">
                   "{sessionData.questions[currentIndex].question}"
                 </h3>
 
                 {sessionData.questions[currentIndex].hint && (
-                  <div className="flex items-start gap-2 text-xs text-gray-500 pt-2 border-t border-purple-200/50">
-                    <HelpCircle className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-                    <span><strong>Gợi ý AI:</strong> {sessionData.questions[currentIndex].hint}</span>
+                  <div className="flex items-start gap-2 text-xs text-slate-600 pt-2 border-t border-gray-200">
+                    <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <span><strong>Gợi ý trả lời:</strong> {sessionData.questions[currentIndex].hint}</span>
                   </div>
                 )}
               </div>
@@ -568,12 +548,12 @@ export default function MockInterviewSection() {
       {/* SECTION 3: EVALUATION LOADING */}
       {step === 'evaluating' && (
         <div className="bg-white rounded-3xl p-12 text-center border border-gray-200/80 shadow-card space-y-4">
-          <div className="w-16 h-16 rounded-3xl bg-purple-100 text-purple-600 flex items-center justify-center mx-auto animate-bounce">
-            <Sparkles className="w-8 h-8 animate-spin" />
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+            <RefreshCw className="w-6 h-6 animate-spin" />
           </div>
-          <h3 className="text-base font-bold text-gray-900">AI đang phân tích & chấm điểm buổi phỏng vấn...</h3>
-          <p className="text-xs text-gray-500 max-w-md mx-auto">
-            Hệ thống đang đối chiếu câu trả lời của bạn với tiêu chuẩn ngành, phân tích điểm mạnh, điểm yếu và gợi ý câu trả lời mẫu theo mô hình STAR.
+          <h3 className="text-base font-bold text-slate-900">Đang tổng hợp & đánh giá kết quả phỏng vấn...</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Hệ thống đang đối chiếu câu trả lời của bạn với tiêu chuẩn vị trí, phân tích điểm mạnh, điểm cần cải thiện và gợi ý câu trả lời mẫu theo mô hình STAR.
           </p>
         </div>
       )}
@@ -583,28 +563,28 @@ export default function MockInterviewSection() {
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-8 animate-in fade-in duration-200">
           
           {/* Header Score Card */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white relative overflow-hidden">
+          <div className="p-6 sm:p-8 rounded-2xl bg-slate-900 text-white relative overflow-hidden">
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2 max-w-xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-purple-200 text-[11px] font-bold backdrop-blur-xs">
-                  <Award className="w-3.5 h-3.5 text-amber-400" />
-                  Báo cáo đánh giá Phỏng vấn AI
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-slate-200 text-[11px] font-semibold">
+                  <Award className="w-3.5 h-3.5 text-emerald-400" />
+                  Kết quả đánh giá phỏng vấn
                 </div>
-                <h2 className="text-2xl font-black tracking-tight">{sessionData?.jobTitle || jobTitle}</h2>
-                <p className="text-xs text-purple-100/80 leading-relaxed">
+                <h2 className="text-2xl font-bold tracking-tight">{sessionData?.jobTitle || jobTitle}</h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
                   {evaluation.summary}
                 </p>
               </div>
 
               {/* Overall Score Badge */}
-              <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shrink-0 min-w-[140px]">
-                <span className="text-[10px] font-bold text-purple-200 uppercase tracking-wider">Điểm tổng kết</span>
-                <div className="text-4xl font-black text-amber-300 mt-1">
+              <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-white/10 border border-white/15 shrink-0 min-w-[140px]">
+                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Điểm tổng kết</span>
+                <div className="text-4xl font-black text-emerald-400 mt-1">
                   {evaluation.overallScore}
-                  <span className="text-sm font-normal text-purple-200"> / 100</span>
+                  <span className="text-sm font-normal text-slate-300"> / 100</span>
                 </div>
-                <span className="mt-1 text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-white/20 text-white">
-                  {evaluation.overallScore >= 80 ? 'Xuất sắc ⭐' : evaluation.overallScore >= 65 ? 'Khá tốt 👍' : 'Cần cải thiện 💡'}
+                <span className="mt-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-white/15 text-white">
+                  {evaluation.overallScore >= 80 ? 'Đạt yêu cầu cao' : evaluation.overallScore >= 65 ? 'Khá tốt' : 'Cần cải thiện'}
                 </span>
               </div>
             </div>

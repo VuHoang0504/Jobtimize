@@ -1,0 +1,14 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#ghtkBg)"/>
+  <path d="M26 44H74L88 60L74 76H26L38 60L26 44Z" fill="#FFFFFF" fill-opacity="0.2"/>
+  <text x="60" y="67" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="28" fill="#FFFFFF" letter-spacing="1">GHTK</text>
+  <rect x="28" y="80" width="64" height="6" rx="3" fill="#A7F3D0"/>
+  <defs>
+    <linearGradient id="ghtkBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#059669"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

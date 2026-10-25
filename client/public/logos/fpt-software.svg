@@ -1,0 +1,18 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="26" fill="url(#fptBg)"/>
+  <g transform="translate(14, 34)">
+    <path d="M8 0H34L28 14H19L17 20H29L24 32H12L6 48H0L8 0Z" fill="#0066B3"/>
+    <path d="M38 0H62C69 0 73 5 71 13L69 21C67 28 61 33 53 33H44L40 48H28L38 0ZM47 21H53C56 21 58 19 59 16L60 13C61 10 59 9 56 9H50L47 21Z" fill="#F37021"/>
+    <path d="M74 0H96L92 12H84L75 48H62L71 12H64L74 0Z" fill="#0DB14B"/>
+  </g>
+  <text x="60" y="100" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="12" fill="#1E293B" letter-spacing="1.5">SOFTWARE</text>
+  <defs>
+    <linearGradient id="fptBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF7ED"/>
+      <stop offset="0.5" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EFF6FF"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+

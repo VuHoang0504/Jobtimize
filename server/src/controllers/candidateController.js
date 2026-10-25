@@ -2,9 +2,30 @@ const { executeQuery } = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 
+let cvColumnsVerified = false;
+const ensureCVTableColumns = async () => {
+  if (cvColumnsVerified) return;
+  try {
+    await executeQuery(`
+      IF COL_LENGTH('CVs', 'CvType') IS NULL
+          ALTER TABLE CVs ADD CvType NVARCHAR(20) DEFAULT 'Upload' WITH VALUES;
+      IF COL_LENGTH('CVs', 'CvData') IS NULL
+          ALTER TABLE CVs ADD CvData NVARCHAR(MAX) NULL;
+      IF COL_LENGTH('CVs', 'Template') IS NULL
+          ALTER TABLE CVs ADD Template NVARCHAR(50) DEFAULT 'modern' WITH VALUES;
+      IF COL_LENGTH('CVs', 'UpdatedAt') IS NULL
+          ALTER TABLE CVs ADD UpdatedAt DATETIME DEFAULT GETDATE() WITH VALUES;
+    `);
+    cvColumnsVerified = true;
+  } catch (err) {
+    console.warn('ensureCVTableColumns warning:', err.message);
+  }
+};
+
 // Get candidate profile
 const getCandidateProfile = async (req, res) => {
   try {
+    await ensureCVTableColumns();
     const userId = req.user.userId;
 
     const candRes = await executeQuery(
@@ -200,7 +221,10 @@ const setPrimaryCV = async (req, res) => {
 const deleteCV = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { cvId } = req.params;
+    const cvId = parseInt(req.params.cvId, 10);
+    if (isNaN(cvId)) {
+      return res.status(400).json({ success: false, message: 'ID bản CV không hợp lệ' });
+    }
 
     const candRes = await executeQuery('SELECT ProfileID FROM CandidateProfiles WHERE UserID = @UserID', { UserID: userId });
     if (!candRes.recordset || candRes.recordset.length === 0) {
@@ -208,17 +232,46 @@ const deleteCV = async (req, res) => {
     }
     const profileId = candRes.recordset[0].ProfileID;
 
-    const cvRes = await executeQuery('SELECT FileUrl FROM CVs WHERE CVID = @CVID AND ProfileID = @ProfileID', {
+    const cvRes = await executeQuery('SELECT CVID, FileUrl, IsPrimary FROM CVs WHERE CVID = @CVID AND ProfileID = @ProfileID', {
       CVID: cvId,
       ProfileID: profileId
     });
 
-    if (cvRes.recordset && cvRes.recordset.length > 0) {
-      const filePath = path.join(__dirname, '../../', cvRes.recordset[0].FileUrl);
+    if (!cvRes.recordset || cvRes.recordset.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy bản CV để xóa' });
+    }
+
+    const cvToDelete = cvRes.recordset[0];
+
+    // Unlink any JobApplications referencing this CV so foreign key constraint never blocks deletion
+    try {
+      await executeQuery('UPDATE JobApplications SET CVID = NULL WHERE CVID = @CVID', { CVID: cvId });
+    } catch (fkErr) {
+      console.warn('Unlink JobApplications CVID warning:', fkErr.message);
+    }
+
+    // Remove physical file only if it is an uploaded file under /uploads/
+    if (cvToDelete.FileUrl && cvToDelete.FileUrl.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '../../', cvToDelete.FileUrl);
       if (fs.existsSync(filePath)) {
         try { fs.unlinkSync(filePath); } catch (e) { console.error(e); }
       }
-      await executeQuery('DELETE FROM CVs WHERE CVID = @CVID', { CVID: cvId });
+    }
+
+    await executeQuery('DELETE FROM CVs WHERE CVID = @CVID AND ProfileID = @ProfileID', {
+      CVID: cvId,
+      ProfileID: profileId
+    });
+
+    // If the deleted CV was primary, promote the newest remaining CV (if any) to primary
+    if (cvToDelete.IsPrimary) {
+      await executeQuery(`
+        UPDATE CVs
+        SET IsPrimary = 1
+        WHERE CVID = (
+          SELECT TOP 1 CVID FROM CVs WHERE ProfileID = @ProfileID ORDER BY CreatedAt DESC, CVID DESC
+        )
+      `, { ProfileID: profileId });
     }
 
     return res.json({
@@ -227,7 +280,7 @@ const deleteCV = async (req, res) => {
     });
   } catch (error) {
     console.error('deleteCV error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: 'Không thể xóa CV: ' + error.message });
   }
 };
 
@@ -297,6 +350,7 @@ const getMySavedJobs = async (req, res) => {
 // Save or Create Online Builder CV (UC-C06)
 const saveOnlineCV = async (req, res) => {
   try {
+    await ensureCVTableColumns();
     const userId = req.user.userId;
     const { title, template, cvData, isPrimary } = req.body;
 
@@ -351,6 +405,7 @@ const saveOnlineCV = async (req, res) => {
 // Update Online Builder CV (UC-C06)
 const updateOnlineCV = async (req, res) => {
   try {
+    await ensureCVTableColumns();
     const userId = req.user.userId;
     const { cvId } = req.params;
     const { title, template, cvData, isPrimary } = req.body;
@@ -404,6 +459,7 @@ const updateOnlineCV = async (req, res) => {
 // Get Single CV Detail (UC-C06)
 const getCVDetail = async (req, res) => {
   try {
+    await ensureCVTableColumns();
     const userId = req.user.userId;
     const { cvId } = req.params;
 
@@ -850,6 +906,7 @@ const checkCandidateHasSkill = (candidateText, skill) => {
 // Get Skill Gap & Learning Paths with Target Role / Job / JD
 const getSkillGapAnalytics = async (req, res) => {
   try {
+    await ensureCVTableColumns();
     const userId = req.user.userId;
     const mode = req.query.mode || req.body?.mode || 'role'; // 'role' | 'job' | 'jd'
     const targetRoleParam = req.query.targetRole || req.body?.targetRole;
@@ -982,14 +1039,6 @@ const getSkillGapAnalytics = async (req, res) => {
           });
         }
       }
-
-      // If no skills matched from JD, fallback to relevant software skills
-      if (targetSkillsMap.size === 0) {
-        const fallbackSkills = allSkills.filter(s => s.CategoryID === 1).slice(0, 5);
-        for (const s of fallbackSkills) {
-          targetSkillsMap.set(s.SkillID, { skill: s, isMandatory: true });
-        }
-      }
     } else {
       // MODE 1 (DEFAULT): TARGET ROLE (Vị trí mục tiêu)
       let activeRole = null;
@@ -1061,8 +1110,9 @@ const getSkillGapAnalytics = async (req, res) => {
     const missingSkills = [...mustHaveMissing, ...niceToHaveMissing];
 
     // Compute Match Score (0 - 100%)
+    // Nếu không có kỹ năng nào phù hợp (acquiredSkills.length === 0) thì matchScore bắt buộc là 0%
     let matchScore = 0;
-    if (requiredSkills.length > 0) {
+    if (requiredSkills.length > 0 && acquiredSkills.length > 0) {
       const mustHaveTotal = requiredSkills.filter(s => s.isMandatory).length;
       const niceToHaveTotal = requiredSkills.filter(s => !s.isMandatory).length;
       

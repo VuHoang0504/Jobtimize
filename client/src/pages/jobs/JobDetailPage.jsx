@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import MatchScoreBadge from '../../components/common/MatchScoreBadge';
+import { getCompanyLogo, handleCompanyLogoError } from '../../utils/logoHelper';
 import { 
   Building2, 
   MapPin, 
@@ -150,9 +151,10 @@ export default function JobDetailPage() {
               
               <div className="flex items-start gap-4">
                 <img
-                  src={job.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=150&q=80'}
+                  src={getCompanyLogo(job.CompanyLogoUrl, job.CompanyName)}
                   alt={job.CompanyName}
-                  className="w-16 h-16 rounded-2xl object-cover border border-gray-100 shadow-sm"
+                  onError={(e) => handleCompanyLogoError(e, job.CompanyName)}
+                  className="w-14 h-14 rounded-2xl object-contain shrink-0 border border-gray-100 shadow-sm"
                 />
                 <div className="space-y-1">
                   <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
@@ -233,22 +235,20 @@ export default function JobDetailPage() {
             
             {/* 1. Job Description */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-2">
-                <Briefcase className="w-5 h-5 text-brand-blue" />
-                Mô tả công việc (Job Description)
+              <h2 className="text-lg font-bold text-slate-900 border-b border-gray-100 pb-2">
+                Mô tả công việc
               </h2>
-              <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
                 {job.Description}
               </div>
             </div>
 
             {/* 2. Requirements */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-2">
-                <CheckCircle2 className="w-5 h-5 text-brand-green" />
-                Yêu cầu ứng viên (Requirements)
+              <h2 className="text-lg font-bold text-slate-900 border-b border-gray-100 pb-2">
+                Yêu cầu ứng viên
               </h2>
-              <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
                 {job.Requirements}
               </div>
             </div>
@@ -283,33 +283,28 @@ export default function JobDetailPage() {
         {/* Right Column (1/3): AI Matching, Skills Gap, Course Suggestions & Company Card */}
         <div className="space-y-6">
           
-          {/* AI Matching Widget (If Candidate Logged In) */}
+          {/* Matching & Skill Analysis Widget (If Candidate Logged In) */}
           {aiAnalysis && (
-            <div className="bg-white rounded-3xl p-6 border border-brand-purple/20 shadow-ai-glow space-y-5 relative overflow-hidden">
-              <div className="absolute -right-8 -top-8 w-24 h-24 bg-brand-purple/10 rounded-full blur-xl pointer-events-none"></div>
-
+            <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-brand-purple animate-pulse" />
-                  <h3 className="text-base font-black text-gray-900">AI Match Score</h3>
-                </div>
+                <h3 className="text-base font-bold text-slate-900">Mức độ phù hợp hồ sơ</h3>
                 <MatchScoreBadge score={aiAnalysis.matchScore} size="lg" />
               </div>
 
-              <p className="text-xs text-gray-600 leading-relaxed bg-brand-purpleLight/60 p-3 rounded-2xl border border-brand-purple/10">
+              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-gray-200">
                 {aiAnalysis.summary}
               </p>
 
               {/* Matched Skills */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-emerald-700 flex items-center gap-1 uppercase tracking-wider">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Kỹ năng bạn đã đáp ứng ({aiAnalysis.matchedSkills?.length || 0})
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Kỹ năng đã đáp ứng ({aiAnalysis.matchedSkills?.length || 0})
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {aiAnalysis.matchedSkills && aiAnalysis.matchedSkills.length > 0 ? (
                     aiAnalysis.matchedSkills.map((s) => (
                       <span key={s.skillId} className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200">
-                        ✓ {s.skillName}
+                        {s.skillName}
                       </span>
                     ))
                   ) : (
@@ -322,12 +317,12 @@ export default function JobDetailPage() {
               {aiAnalysis.missingSkills && aiAnalysis.missingSkills.length > 0 && (
                 <div className="space-y-2 pt-2 border-t border-gray-100">
                   <p className="text-xs font-bold text-amber-700 flex items-center gap-1 uppercase tracking-wider">
-                    <XCircle className="w-3.5 h-3.5" /> Lỗ hổng kỹ năng cần bổ sung ({aiAnalysis.missingSkills.length})
+                    <XCircle className="w-3.5 h-3.5" /> Kỹ năng cần bổ sung ({aiAnalysis.missingSkills.length})
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {aiAnalysis.missingSkills.map((s) => (
                       <span key={s.skillId} className="text-[11px] font-semibold bg-amber-50 text-amber-800 px-2.5 py-1 rounded-lg border border-amber-200">
-                        ! {s.skillName}
+                        {s.skillName}
                       </span>
                     ))}
                   </div>
@@ -337,8 +332,8 @@ export default function JobDetailPage() {
               {/* Recommended Courses (UC-C12) */}
               {aiAnalysis.recommendedCourses && aiAnalysis.recommendedCourses.length > 0 && (
                 <div className="space-y-3 pt-3 border-t border-gray-100">
-                  <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5 uppercase tracking-wider">
-                    <BookOpen className="w-4 h-4 text-brand-purple" /> Khóa học gợi ý từ AI
+                  <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                    <BookOpen className="w-4 h-4 text-blue-600" /> Khóa học đề xuất
                   </p>
                   
                   <div className="space-y-2">
@@ -348,17 +343,17 @@ export default function JobDetailPage() {
                         href={course.Url}
                         target="_blank"
                         rel="noreferrer"
-                        className="group flex items-center justify-between p-3 rounded-2xl bg-gray-50 hover:bg-brand-purpleLight/40 border border-gray-200/80 hover:border-brand-purple/40 transition-all text-xs"
+                        className="group flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-blue-50/50 border border-gray-200 hover:border-blue-300 transition-all text-xs"
                       >
                         <div className="space-y-0.5">
-                          <p className="font-bold text-gray-800 group-hover:text-brand-purple line-clamp-1">
+                          <p className="font-bold text-slate-800 group-hover:text-blue-600 line-clamp-1">
                             {course.Title}
                           </p>
-                          <p className="text-[11px] text-gray-500">
-                            Nền tảng: <span className="font-semibold">{course.Provider}</span> • Bổ sung: <span className="text-brand-purple font-semibold">{course.SkillName}</span>
+                          <p className="text-[11px] text-slate-500">
+                            Nền tảng: <span className="font-semibold">{course.Provider}</span> • Kỹ năng: <span className="text-blue-600 font-semibold">{course.SkillName}</span>
                           </p>
                         </div>
-                        <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-brand-purple shrink-0 ml-2" />
+                        <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0 ml-2" />
                       </a>
                     ))}
                   </div>
@@ -368,26 +363,20 @@ export default function JobDetailPage() {
             </div>
           )}
 
-          {/* AI Mock Interview CTA Card */}
-          <div className="p-6 rounded-3xl bg-linear-to-r from-purple-900 via-indigo-900 to-slate-900 text-white space-y-4 shadow-lg shadow-purple-950/30 relative overflow-hidden">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-xs flex items-center justify-center text-purple-300">
-                <Bot className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-white">Luyện Phỏng Vấn AI</h4>
-                <p className="text-[11px] text-purple-200/80">Cho riêng vị trí {job.Title}</p>
-              </div>
+          {/* Mock Interview CTA Card */}
+          <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-card space-y-4">
+            <div>
+              <h4 className="text-sm font-bold text-slate-900">Luyện phỏng vấn theo vị trí</h4>
+              <p className="text-xs text-slate-500 mt-0.5">Vị trí: {job.Title}</p>
             </div>
-            <p className="text-xs text-purple-100/90 leading-relaxed">
-              Thử sức trả lời các câu hỏi thực tế được tạo dựa trên JD này và nhận phân tích điểm mạnh, điểm yếu từ AI Gemini.
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Thực hành trả lời bộ câu hỏi chuyên môn sát với mô tả công việc này và nhận đánh giá chi tiết từng câu trả lời.
             </p>
             <Link
               to={`/candidate/dashboard?tab=interview&jobId=${job.JobID}&jobTitle=${encodeURIComponent(job.Title)}`}
-              className="w-full py-2.5 px-4 rounded-xl bg-linear-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-500/20 transition-all"
+              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center justify-center transition-colors"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Phỏng vấn thử ngay</span>
+              <span>Bắt đầu luyện phỏng vấn</span>
             </Link>
           </div>
 
@@ -398,9 +387,10 @@ export default function JobDetailPage() {
             </h3>
             <div className="flex items-center gap-3">
               <img
-                src={job.CompanyLogoUrl || 'https://images.unsplash.com/photo-1549923746-c502d488b3ea?w=100&q=80'}
+                src={getCompanyLogo(job.CompanyLogoUrl, job.CompanyName)}
                 alt={job.CompanyName}
-                className="w-12 h-12 rounded-xl object-cover border border-gray-100"
+                onError={(e) => handleCompanyLogoError(e, job.CompanyName)}
+                className="w-11 h-11 rounded-xl object-contain shrink-0 border border-gray-100"
               />
               <div>
                 <div className="flex items-center gap-1.5">
