@@ -3,6 +3,7 @@ const router = express.Router();
 const employerController = require('../controllers/employerController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 const kycUpload = require('../middleware/kycUploadMiddleware');
+const receiptUpload = require('../middleware/receiptUploadMiddleware');
 
 // All employer routes require Employer role
 router.use(authenticate, authorize(['Employer']));
@@ -32,8 +33,9 @@ router.post('/interviews', employerController.scheduleInterview);
 // 5. Subscription Packages & Payment (UC-E07)
 router.get('/packages', employerController.getSubscriptionPackages);
 router.get('/subscription', employerController.getEmployerSubscription);
+router.post('/subscription/switch', employerController.switchSubscriptionPackage);
 router.post('/checkout', employerController.createCheckout);
-router.post('/payment/confirm', employerController.confirmPayment);
+router.post('/payment/confirm', receiptUpload, employerController.confirmPayment);
 router.get('/payment/history', employerController.getPaymentHistory);
 
 // 6. Passive Talent Hunting & Invitations (UC-E11, UC-E12)
