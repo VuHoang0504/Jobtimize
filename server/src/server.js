@@ -25,6 +25,7 @@ const employerRoutes = require('./routes/employerRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -108,6 +109,7 @@ app.use('/api/employer', employerRoutes);
 app.use('/api/metadata', categoryRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
