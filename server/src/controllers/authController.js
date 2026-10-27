@@ -2,19 +2,34 @@ const { executeQuery } = require('../config/db');
 const { hashPassword, comparePassword, generateToken, validatePasswordStrength } = require('../utils/authHelper');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
+const { randomInt } = require('crypto');
 const { sendOtpEmail } = require('../services/emailService');
 const { saveOtp, getOtpRecord, verifyOtp, deleteOtp } = require('../utils/otpStore');
+
+const otpDeliveryError = (res) => res.status(503).json({
+  success: false,
+  code: 'OTP_EMAIL_UNAVAILABLE',
+  message: 'Chưa thể gửi mã OTP qua email. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.'
+});
+
+const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
+const isValidEmail = (email) => /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(email);
 
 // Step 1: Register - Validate data, generate OTP and send email
 const register = async (req, res) => {
   try {
-    const { email, password, fullName, phone, roleName, companyName } = req.body;
+    const { password, fullName, phone, roleName, companyName } = req.body;
+    const email = normalizeEmail(req.body.email);
 
     if (!email || !password || !fullName || !roleName) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập đầy đủ các trường: email, password, fullName, roleName'
       });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Địa chỉ email không hợp lệ' });
     }
 
     const pwdValidation = validatePasswordStrength(password);
@@ -55,7 +70,11 @@ const register = async (req, res) => {
     const hashedPassword = await hashPassword(password);
 
     // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = randomInt(100000, 1000000).toString();
+
+    // Activate the new code only after SMTP accepts the email.
+    const emailResult = await sendOtpEmail(email, otp, fullName);
+    if (!emailResult.success || emailResult.simulated) return otpDeliveryError(res);
 
     // Store pending registration data with OTP in store (10 mins TTL)
     saveOtp(
@@ -72,22 +91,14 @@ const register = async (req, res) => {
       10
     );
 
-    // Send OTP via Gmail/SMTP
-    const emailResult = await sendOtpEmail(email, otp, fullName);
-    const isSimulated = Boolean(emailResult.simulated || !emailResult.success);
-
     return res.status(200).json({
       success: true,
       requireOtp: true,
-      simulated: isSimulated,
-      message: isSimulated
-        ? `[Chế độ thử nghiệm] Mã OTP của bạn là: ${otp}`
-        : `Mã OTP xác thực 6 chữ số đã được gửi đến email ${email}.`,
+      message: `Mã OTP xác thực 6 chữ số đã được gửi đến email ${email}.`,
       data: {
         email,
         fullName,
-        roleName,
-        otp: isSimulated ? otp : undefined
+        roleName
       }
     });
   } catch (error) {
@@ -223,7 +234,7 @@ const verifyEmailOtp = async (req, res) => {
 // Resend OTP
 const resendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
 
     if (!email) {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp email' });
@@ -238,21 +249,17 @@ const resendOtp = async (req, res) => {
     }
 
     // Generate new OTP
-    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    saveOtp(email, newOtp, record.registrationData, 10);
+    const newOtp = randomInt(100000, 1000000).toString();
 
     const emailResult = await sendOtpEmail(email, newOtp, record.registrationData.fullName || 'Bạn');
-    const isSimulated = Boolean(emailResult.simulated || !emailResult.success);
+    if (!emailResult.success || emailResult.simulated) return otpDeliveryError(res);
+    saveOtp(email, newOtp, record.registrationData, 10);
 
     return res.json({
       success: true,
-      simulated: isSimulated,
-      message: isSimulated
-        ? `[Chế độ thử nghiệm] Mã OTP mới của bạn là: ${newOtp}`
-        : `Đã gửi lại mã OTP xác thực tới ${email}.`,
+      message: `Đã gửi lại mã OTP xác thực tới ${email}.`,
       data: {
-        email,
-        otp: isSimulated ? newOtp : undefined
+        email
       }
     });
   } catch (error) {
@@ -580,9 +587,9 @@ const getMe = async (req, res) => {
 // Forgot Password - Step 1: Send OTP to registered email
 const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp địa chỉ email' });
+    const email = normalizeEmail(req.body.email);
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp địa chỉ email hợp lệ' });
     }
 
     const userRes = await executeQuery('SELECT UserID, Email, FullName, Status FROM Users WHERE Email = @Email', { Email: email });
@@ -596,24 +603,19 @@ const forgotPassword = async (req, res) => {
     }
 
     // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = randomInt(100000, 1000000).toString();
+
+    const emailResult = await sendOtpEmail(email, otp, user.FullName, 'reset_password');
+    if (!emailResult.success || emailResult.simulated) return otpDeliveryError(res);
 
     // Store pending reset in OTP store
     saveOtp(email, otp, { email, userId: user.UserID, fullName: user.FullName, type: 'reset_password' }, 10);
 
-    // Send email via Gmail
-    const emailResult = await sendOtpEmail(email, otp, user.FullName, 'reset_password');
-    const isSimulated = Boolean(emailResult.simulated || !emailResult.success);
-
     return res.status(200).json({
       success: true,
-      simulated: isSimulated,
-      message: isSimulated
-        ? `[Chế độ thử nghiệm] Mã OTP đặt lại mật khẩu của bạn là: ${otp}`
-        : `Mã OTP xác nhận đặt lại mật khẩu đã được gửi đến email ${email}.`,
+      message: `Mã OTP xác nhận đặt lại mật khẩu đã được gửi đến email ${email}.`,
       data: {
-        email,
-        otp: isSimulated ? otp : undefined
+        email
       }
     });
   } catch (error) {
@@ -630,7 +632,7 @@ const verifyResetOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập đầy đủ email và mã OTP' });
     }
 
-    const verifyResult = verifyOtp(email, otp);
+    const verifyResult = verifyOtp(email, otp, 'reset_password');
     if (!verifyResult.valid) {
       return res.status(400).json({ success: false, message: verifyResult.message });
     }
@@ -648,7 +650,8 @@ const verifyResetOtp = async (req, res) => {
 // Forgot Password - Step 3: Set New Password
 const resetPassword = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { otp, newPassword } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email || !otp || !newPassword) {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đầy đủ email, mã OTP và mật khẩu mới' });
     }
@@ -658,7 +661,7 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: pwdValidation.message });
     }
 
-    const verifyResult = verifyOtp(email, otp);
+    const verifyResult = verifyOtp(email, otp, 'reset_password');
     if (!verifyResult.valid) {
       return res.status(400).json({ success: false, message: verifyResult.message });
     }
@@ -678,7 +681,7 @@ const resetPassword = async (req, res) => {
     );
 
     // Clean up OTP record
-    deleteOtp(email);
+    deleteOtp(email, 'reset_password');
 
     return res.status(200).json({
       success: true,

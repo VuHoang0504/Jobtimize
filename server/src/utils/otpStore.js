@@ -1,5 +1,6 @@
 // In-memory OTP and Pending Registration Store with TTL
 const otpMap = new Map();
+const getKey = (email, purpose) => `${purpose}:${email.toLowerCase().trim()}`;
 
 /**
  * Save OTP and pending registration data
@@ -9,7 +10,7 @@ const otpMap = new Map();
  * @param {number} ttlMinutes 
  */
 const saveOtp = (email, otp, registrationData = {}, ttlMinutes = 10) => {
-  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedEmail = getKey(email, registrationData.type || 'register');
   const expiresAt = Date.now() + ttlMinutes * 60 * 1000;
   
   otpMap.set(normalizedEmail, {
@@ -23,8 +24,8 @@ const saveOtp = (email, otp, registrationData = {}, ttlMinutes = 10) => {
  * Get OTP record
  * @param {string} email 
  */
-const getOtpRecord = (email) => {
-  const normalizedEmail = email.toLowerCase().trim();
+const getOtpRecord = (email, purpose = 'register') => {
+  const normalizedEmail = getKey(email, purpose);
   const record = otpMap.get(normalizedEmail);
   if (!record) return null;
 
@@ -41,8 +42,8 @@ const getOtpRecord = (email) => {
  * @param {string} email 
  * @param {string} inputOtp 
  */
-const verifyOtp = (email, inputOtp) => {
-  const record = getOtpRecord(email);
+const verifyOtp = (email, inputOtp, purpose = 'register') => {
+  const record = getOtpRecord(email, purpose);
   if (!record) {
     return { valid: false, message: 'Mã OTP không tồn tại hoặc đã hết hạn (10 phút). Vui lòng yêu cầu mã mới.' };
   }
@@ -58,8 +59,8 @@ const verifyOtp = (email, inputOtp) => {
  * Delete OTP after successful verification
  * @param {string} email 
  */
-const deleteOtp = (email) => {
-  const normalizedEmail = email.toLowerCase().trim();
+const deleteOtp = (email, purpose = 'register') => {
+  const normalizedEmail = getKey(email, purpose);
   otpMap.delete(normalizedEmail);
 };
 
@@ -71,7 +72,7 @@ setInterval(() => {
       otpMap.delete(email);
     }
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 module.exports = {
   saveOtp,

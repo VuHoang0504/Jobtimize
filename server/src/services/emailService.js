@@ -1,45 +1,4 @@
-const nodemailer = require('nodemailer');
-const path = require('path');
-const dotenv = require('dotenv');
-dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
-
-const isEmailConfigured = (user, pass) => {
-  if (!user || !pass) return false;
-  const dummyKeywords = [
-    'your_email',
-    'your_16_char',
-    'example.com',
-    'your_password',
-    'your_google',
-    'placeholder'
-  ];
-  const userLower = user.toLowerCase();
-  const passLower = pass.toLowerCase();
-  for (const kw of dummyKeywords) {
-    if (userLower.includes(kw) || passLower.includes(kw)) {
-      return false;
-    }
-  }
-  return true;
-};
-
-const createTransporter = () => {
-  dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
-  const user = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim();
-  const pass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').replace(/\s+/g, '');
-
-  if (!isEmailConfigured(user, pass)) {
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user,
-      pass
-    }
-  });
-};
+const { createTransporter, getMailFrom } = require('../config/mail');
 
 const sendOtpEmail = async (toEmail, otpCode, fullName = 'Bạn', purpose = 'register') => {
   const transporter = createTransporter();
@@ -84,7 +43,7 @@ const sendOtpEmail = async (toEmail, otpCode, fullName = 'Bạn', purpose = 'reg
           <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 14px;">${headingTitle}</p>
         </div>
         <div class="content">
-          <p class="greeting">Xin chào <strong>${fullName}</strong>,</p>
+          <p class="greeting">Xin chào <strong>${escapeHtml(fullName)}</strong>,</p>
           <p style="color: #475569; font-size: 14px; line-height: 1.6;">
             ${introMessage}
           </p>
@@ -108,28 +67,27 @@ const sendOtpEmail = async (toEmail, otpCode, fullName = 'Bạn', purpose = 'reg
   `;
 
   if (!transporter) {
-    console.log('\n==================================================');
-    console.log(`[EMAIL SERVICE] Không tìm thấy EMAIL_USER / EMAIL_PASS trong .env.`);
-    console.log(`[EMAIL SERVICE] Mã OTP gửi tới ${toEmail}: ${otpCode}`);
-    console.log('==================================================\n');
-    return { success: true, simulated: true, otp: otpCode };
+    return { success: false, code: 'EMAIL_NOT_CONFIGURED' };
   }
 
   try {
     const info = await transporter.sendMail({
-      from: `"Jobtimize AI Recruitment" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      from: getMailFrom('Jobtimize AI Recruitment'),
       to: toEmail,
       subject: emailSubject,
+      text: `Xin chào ${fullName}, mã OTP ${isReset ? 'đặt lại mật khẩu' : 'đăng ký tài khoản'} của bạn là ${otpCode}. Mã có hiệu lực trong 10 phút. Không chia sẻ mã này với bất kỳ ai.`,
       html: emailHtml
     });
-    console.log(`[EMAIL SERVICE] Đã gửi OTP (${purpose}) thành công tới ${toEmail}, MessageID: ${info.messageId}`);
+    if (!info.accepted || info.accepted.length === 0) {
+      return { success: false, code: 'EMAIL_RECIPIENT_REJECTED' };
+    }
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[EMAIL SERVICE] Lỗi gửi email tới ${toEmail}:`, error.message);
-    console.log('\n==================================================');
-    console.log(`[EMAIL SERVICE FALLBACK] Mã OTP cho ${toEmail}: ${otpCode}`);
-    console.log('==================================================\n');
-    return { success: false, error: error.message, otp: otpCode };
+    // Do not log OTPs, credentials, or the SMTP response body.
+    console.error('[EMAIL SERVICE] OTP delivery failed:', error.code || 'UNKNOWN', error.responseCode || '');
+    return { success: false, code: error.code || 'EMAIL_SEND_FAILED' };
+  } finally {
+    transporter.close();
   }
 };
 
@@ -163,7 +121,7 @@ const sendInterviewEmail = async ({ toEmail, candidateName, companyName, jobTitl
 
   try {
     const info = await transporter.sendMail({
-      from: `"Jobtimize" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      from: getMailFrom('Jobtimize'),
       to: toEmail,
       subject,
       html
@@ -258,7 +216,7 @@ const sendInvitationEmail = async ({ toEmail, candidateName, companyName, jobTit
 
   try {
     const info = await transporter.sendMail({
-      from: `"Jobtimize" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      from: getMailFrom('Jobtimize'),
       to: toEmail,
       subject,
       html
@@ -296,7 +254,7 @@ const sendPaymentPendingEmail = async ({ toEmail, companyName, packageName, amou
 
   try {
     const info = await transporter.sendMail({
-      from: `"Jobtimize Thanh Toán" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      from: getMailFrom('Jobtimize Thanh Toán'),
       to: toEmail,
       subject,
       html
@@ -333,7 +291,7 @@ const sendPaymentSuccessEmail = async ({ toEmail, companyName, packageName, dura
 
   try {
     const info = await transporter.sendMail({
-      from: `"Jobtimize Thanh Toán" <${process.env.EMAIL_USER || process.env.SMTP_USER}>`,
+      from: getMailFrom('Jobtimize Thanh Toán'),
       to: toEmail,
       subject,
       html

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
-import { Briefcase, Lock, Mail, ArrowRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2, RefreshCw, X } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2, RefreshCw, X } from 'lucide-react';
 import { validatePassword } from '../../utils/validation';
 
 export default function LoginPage() {
@@ -30,7 +30,6 @@ export default function LoginPage() {
   const [forgotSuccessMsg, setForgotSuccessMsg] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
-  const [forgotDevOtp, setForgotDevOtp] = useState('');
   const [verifiedForgotOtp, setVerifiedForgotOtp] = useState('');
 
   const otpInputRefs = useRef([]);
@@ -54,7 +53,6 @@ export default function LoginPage() {
     setConfirmNewPassword('');
     setForgotError('');
     setForgotSuccessMsg('');
-    setForgotDevOtp('');
     setVerifiedForgotOtp('');
     setShowForgotModal(true);
   };
@@ -122,12 +120,10 @@ export default function LoginPage() {
     setForgotLoading(true);
 
     try {
-      const res = await forgotPassword(forgotEmail);
+      await forgotPassword(forgotEmail);
       setForgotStep(2);
       setCountdown(60);
       setOtpDigits(['', '', '', '', '', '']);
-      const receivedOtp = res.data?.otp || res.otp || '';
-      setForgotDevOtp(receivedOtp);
       setTimeout(() => {
         otpInputRefs.current[0]?.focus();
       }, 300);
@@ -205,10 +201,6 @@ export default function LoginPage() {
       const res = await forgotPassword(forgotEmail);
       setCountdown(60);
       setForgotSuccessMsg(res.message || 'Đã gửi lại mã OTP mới vào hòm thư Gmail của bạn!');
-      const receivedOtp = res.data?.otp || res.otp || '';
-      if (receivedOtp) {
-        setForgotDevOtp(receivedOtp);
-      }
     } catch (err) {
       setForgotError(err.response?.data?.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại sau.');
     } finally {
@@ -257,9 +249,13 @@ export default function LoginPage() {
         
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-blue to-brand-green flex items-center justify-center text-white shadow-lg shadow-brand-blue/20 mb-4">
-            <Briefcase className="w-6 h-6" />
-          </div>
+          <Link to="/" className="inline-block mb-4 transition-transform hover:scale-105">
+            <img 
+              src="/logo.png" 
+              alt="Jobtimize" 
+              className="h-16 w-auto mx-auto object-contain" 
+            />
+          </Link>
           <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
             Chào mừng trở lại!
           </h2>
@@ -469,30 +465,6 @@ export default function LoginPage() {
                   </p>
                   <p className="text-sm font-bold text-brand-blue mt-0.5">{forgotEmail}</p>
                 </div>
-
-            {forgotDevOtp && (
-              <div className="mb-4 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-2 text-left">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold flex items-center gap-1.5 text-amber-900">
-                    <span>💡</span> Chế độ thử nghiệm (Chưa cấu hình SMTP)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const digits = forgotDevOtp.split('');
-                      setOtpDigits(digits);
-                      handleVerifyForgotOtp(forgotDevOtp);
-                    }}
-                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] shadow-sm cursor-pointer transition-colors"
-                  >
-                    Điền mã & Tiếp tục
-                  </button>
-                </div>
-                <p className="text-[11px] text-amber-800">
-                  Mã OTP của bạn là: <strong className="text-base font-mono text-amber-950 tracking-widest">{forgotDevOtp}</strong>
-                </p>
-              </div>
-            )}
 
             {forgotSuccessMsg && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700 flex items-center gap-2">

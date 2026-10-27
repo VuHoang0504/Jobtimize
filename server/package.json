@@ -7,7 +7,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:init": "node scripts/initDb.js",
-    "seed:jobs": "node scripts/seedJobs.js"
+    "seed:jobs": "node scripts/seedJobs.js",
+    "check:smtp": "node scripts/check_smtp.js",
+    "test:otp": "node --test scripts/test_otp.js"
   },
   "keywords": [
     "recruitment",

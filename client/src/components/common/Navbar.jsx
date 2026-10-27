@@ -346,28 +346,6 @@ export default function Navbar() {
                   >
                     Quản lý & Duyệt tin
                   </Link>
-
-                  <Link
-                    to="/employer/talents"
-                    className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      location.pathname === '/employer/talents'
-                        ? 'text-slate-900 font-semibold bg-slate-100'
-                        : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    Tìm kiếm ứng viên
-                  </Link>
-
-                  <Link
-                    to="/employer/pricing"
-                    className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      location.pathname === '/employer/pricing'
-                        ? 'text-slate-900 font-semibold bg-slate-100'
-                        : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    Bảng giá dịch vụ
-                  </Link>
                 </>
               )}
             </div>

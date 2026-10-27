@@ -184,6 +184,17 @@ Hệ thống đã nạp sẵn các tài khoản mẫu để bạn kiểm thử n
 
 ## 6. Xử lý Sự cố Thường gặp (Troubleshooting)
 
+### Không nhận được mã OTP qua email
+
+- Cấu hình `EMAIL_USER` và `EMAIL_PASS` trong `server/.env`. Với Gmail, dùng App Password của chính tài khoản `EMAIL_USER`, không dùng mật khẩu đăng nhập thông thường. Xem [hướng dẫn App Password của Google](https://support.google.com/accounts/answer/185833).
+- Chế độ `npm run dev` theo dõi cả `src` và `.env`, tự khởi động lại backend khi cấu hình thay đổi. Nếu vừa thêm cấu hình nodemon, dừng và chạy lại lệnh dev một lần để áp dụng. Với `npm start`, cần khởi động lại backend sau khi sửa `.env`. Biến môi trường của tiến trình được ưu tiên hơn `.env`.
+- Chạy `npm --prefix server run check:smtp` để kiểm tra kết nối và xác thực (không gửi email). Trên Windows PowerShell nếu `npm.ps1` bị chặn, dùng `npm.cmd` thay cho `npm`.
+- `EAUTH 535` nghĩa là máy chủ SMTP từ chối thông tin đăng nhập; kiểm tra tài khoản gửi và tạo lại App Password. Lỗi timeout cần kiểm tra kết nối đến máy chủ/cổng SMTP.
+- Muốn dùng nhà cung cấp khác, cấu hình `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` và tùy chọn `SMTP_FROM` theo `server/.env.example`.
+- API chỉ báo thành công khi SMTP chấp nhận email; khi gửi thất bại, trả HTTP 503 và không cung cấp OTP qua API hoặc log. Mã cũ còn hạn vẫn dùng được nếu gửi lại thất bại. Nếu SMTP chấp nhận mà chưa thấy thư, kiểm tra mục Spam.
+- Chạy `npm --prefix server run test:otp` để kiểm thử hồi quy bằng SMTP và database giả lập.
+- OTP hiện được lưu trong bộ nhớ, có hiệu lực 10 phút và mất khi backend khởi động lại. Khi chạy nhiều backend, cần kho OTP dùng chung.
+
 ### ❓ Lỗi: `ConnectionError: Failed to connect to 127.0.0.1:1433 - Could not connect (sequence)`
 - **Nguyên nhân:** Khi cài đặt SQL Server trên Windows, giao thức TCP/IP trên cổng 1433 bị tắt mặc định.
 - **Cách khắc phục:** Nhấp chuột phải vào file [enable-sql-tcp.bat](file:///c:/Users/duong/Desktop/Jobtimize/enable-sql-tcp.bat) và chọn **"Run as administrator"** (hoặc mở PowerShell Admin dán lệnh trong [fix-sql.ps1](file:///c:/Users/duong/Desktop/Jobtimize/fix-sql.ps1)), sau đó khởi động lại server.
