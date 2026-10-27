@@ -136,7 +136,20 @@ Hệ thống đã nạp sẵn các tài khoản mẫu để bạn kiểm thử n
 | **Nhà tuyển dụng (VNG)** | `career@vng.com.vn` | `Admin@123` | Đăng tin JD Frontend & UI/UX |
 | **Nhà tuyển dụng (KMS Tech)** | `career-dn@kms-technology.com` | `Admin@123` | Đăng tin JD .NET & QA Automation |
 | **Nhà tuyển dụng (VinAI)** | `career@vinai.io` | `Admin@123` | Đăng tin JD Python & AI / MLOps |
+| **Ứng viên — Nguyễn Minh Anh** | `ungvien01@example.com` | `Candidate@123` | Frontend Developer, Hà Nội |
+| **Ứng viên — Trần Hoàng Nam** | `ungvien02@example.com` | `Candidate@123` | Backend Developer, TP. Hồ Chí Minh |
+| **Ứng viên — Lê Thu Hà** | `ungvien03@example.com` | `Candidate@123` | UI/UX Designer, Đà Nẵng |
 | **Ứng viên (Candidate)** | *Tự đăng ký mới* | *Tùy chọn* | Hoặc dùng nút **Đăng nhập 1-Click giả lập Google** |
+
+Ba tài khoản `ungvien01`–`ungvien03` đã được kích hoạt và có hồ sơ cơ bản. Email `example.com` chỉ dùng để đăng nhập kiểm thử, không nhận OTP.
+
+Khi cài trên máy khác với database mới, sau khi cài dependencies và khởi tạo database, chạy lệnh sau từ thư mục gốc để tạo ba tài khoản này:
+
+```bash
+node server/scripts/seedDemoCandidates.js
+```
+
+Script bỏ qua email đã tồn tại, không ghi đè tài khoản hoặc mật khẩu hiện có.
 
 > [!TIP]
 > Bạn có thể bấm vào nút **"Đăng nhập nhanh với tư cách Ứng viên / Nhà tuyển dụng"** ngay trên giao diện trang Đăng nhập mà không cần nhập mật khẩu.
