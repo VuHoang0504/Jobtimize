@@ -434,7 +434,7 @@ export default function AdminAnalyticsDashboard() {
                   <Sparkles className="w-3 h-3 mr-0.5" />
                   {kpi.avgMatchScore || 85}%
                 </span>
-                <span className="text-gray-500 font-medium">AI Match TB</span>
+                <span className="text-gray-500 font-medium">Điểm phù hợp TB</span>
               </div>
               <div className="mt-2 text-[11px] text-gray-500">
                 Trong kỳ: <strong className="text-gray-800">{kpi.periodApplications || kpi.totalApplications || 0} lượt nộp</strong>
@@ -911,7 +911,7 @@ export default function AdminAnalyticsDashboard() {
 
             <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
               <span>Tỷ lệ phản hồi CV/Job: <strong className="text-gray-900">{kpi.totalJobs > 0 ? (kpi.totalApplications / kpi.totalJobs).toFixed(1) : 0} CV/tin</strong></span>
-              <span>Độ tương thích AI TB: <strong className="text-purple-600 font-bold">{kpi.avgMatchScore || 85}%</strong></span>
+              <span>Độ phù hợp trung bình: <strong className="text-purple-600 font-bold">{kpi.avgMatchScore || 85}%</strong></span>
             </div>
           </div>
 

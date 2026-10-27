@@ -1,10 +1,15 @@
 const { executeQuery } = require('../config/db');
 const AIMatchingService = require('../services/aiMatchingService');
+const browseGroups = require('../../../shared/jobBrowseGroups.json');
 
 // Get all published jobs with search & filter
 const getJobs = async (req, res) => {
   try {
-    const { keyword, location, categoryId, minSalary } = req.query;
+    const { keyword, location, categoryId, group, minSalary } = req.query;
+    const selectedGroup = [...browseGroups.positions, ...browseGroups.industries].find(item => item.id === group);
+    if (group && !selectedGroup) {
+      return res.status(400).json({ success: false, message: 'Nhóm việc làm không hợp lệ' });
+    }
 
     let query = `
       SELECT jp.JobID, jp.Title, jp.SalaryRange, jp.Location, jp.Status, jp.CreatedAt, jp.ExpiresAt,
@@ -24,6 +29,18 @@ const getJobs = async (req, res) => {
     `;
 
     const params = {};
+
+    // Browse groups use taxonomy membership, independently of the user's keyword.
+    if (selectedGroup?.categories) {
+      const placeholders = selectedGroup.categories.map((name, index) => {
+        params[`BrowseCategory${index}`] = name;
+        return `@BrowseCategory${index}`;
+      });
+      query += ` AND jc.CategoryName IN (${placeholders.join(', ')})`;
+    }
+    if (selectedGroup?.level === 'senior') {
+      query += ` AND (jp.Title LIKE '%Senior%' OR jp.Title LIKE N'%Cao cấp%')`;
+    }
 
     if (keyword) {
       query += ` AND (jp.Title LIKE '%' + @Keyword + '%' OR jp.Description LIKE '%' + @Keyword + '%' OR e.CompanyName LIKE '%' + @Keyword + '%')`;
@@ -284,7 +301,7 @@ const applyJob = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Nộp hồ sơ ứng tuyển thành công! AI đã tính toán điểm phù hợp hồ sơ của bạn.',
+      message: 'Nộp hồ sơ ứng tuyển thành công! Đã đối chiếu mức độ phù hợp của hồ sơ.',
       data: {
         application: insertRes.recordset[0],
         aiAnalysis: aiResult

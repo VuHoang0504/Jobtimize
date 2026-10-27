@@ -1784,7 +1784,7 @@ export default function AdminUserManagementPage() {
                     <thead>
                       <tr className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200 text-xs uppercase tracking-wider">
                         <th className="py-3.5 px-4">Tên Kỹ Năng Chuẩn</th>
-                        <th className="py-3.5 px-4">Normalized Key (AI Map)</th>
+                        <th className="py-3.5 px-4">Khóa chuẩn hóa</th>
                         <th className="py-3.5 px-4">Ngành Nghề Trực Thuộc</th>
                         <th className="py-3.5 px-4">Nhu Cầu Tuyển Dụng</th>
                         <th className="py-3.5 px-4 text-center">Thao Tác</th>
@@ -2519,7 +2519,7 @@ export default function AdminUserManagementPage() {
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Normalized Key (dùng cho AI matching)
+                  Khóa chuẩn hóa để đối chiếu kỹ năng
                 </label>
                 <input
                   type="text"
@@ -2529,7 +2529,7 @@ export default function AdminUserManagementPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
                 <span className="text-[11px] text-slate-400 block mt-0.5">
-                  AI sử dụng key này để đối sánh từ đồng nghĩa giữa CV và JD.
+                  Hệ thống dùng khóa này để đối chiếu từ đồng nghĩa giữa hồ sơ và yêu cầu tuyển dụng.
                 </span>
               </div>
 

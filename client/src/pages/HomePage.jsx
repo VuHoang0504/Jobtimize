@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import useJobCategories from '../hooks/useJobCategories';
+import browseGroups from '../../../shared/jobBrowseGroups.json';
 import { getCompanyLogo, handleCompanyLogoError } from '../utils/logoHelper';
 import {
   Search,
@@ -16,82 +18,6 @@ import {
   RotateCcw,
   FileText
 } from 'lucide-react';
-
-// Dữ liệu việc làm mẫu chuẩn doanh nghiệp khi chưa kết nối hoặc API trống
-const SAMPLE_JOBS = [
-  {
-    JobID: 101,
-    Title: 'Senior Frontend Engineer (ReactJS / Next.js / TypeScript)',
-    CompanyName: 'VNG Corporation',
-    CompanyLogoUrl: '/logos/vng.svg',
-    Location: 'TP. Hồ Chí Minh',
-    JobType: 'fulltime',
-    ExperienceLevel: 'senior',
-    SalaryRange: '30 - 52 triệu VNĐ',
-    PostedAgo: 'Đăng 2 ngày trước',
-    KYCStatus: 'Approved',
-    requiredSkills: [
-      { SkillName: 'React.js' },
-      { SkillName: 'TypeScript' },
-      { SkillName: 'Next.js' },
-      { SkillName: 'Tailwind CSS' }
-    ]
-  },
-  {
-    JobID: 102,
-    Title: 'Senior Fullstack Developer (Node.js & React.js)',
-    CompanyName: 'FPT Software',
-    CompanyLogoUrl: '/logos/fpt-software.svg',
-    Location: 'Hà Nội',
-    JobType: 'fulltime',
-    ExperienceLevel: 'mid',
-    SalaryRange: '28 - 45 triệu VNĐ',
-    PostedAgo: 'Đăng 1 ngày trước',
-    KYCStatus: 'Approved',
-    requiredSkills: [
-      { SkillName: 'Node.js' },
-      { SkillName: 'React.js' },
-      { SkillName: 'PostgreSQL' },
-      { SkillName: 'Docker' }
-    ]
-  },
-  {
-    JobID: 103,
-    Title: 'Senior Site Reliability Engineer (DevOps / SRE / Kubernetes)',
-    CompanyName: 'Shopee (Sea Group)',
-    CompanyLogoUrl: '/logos/shopee.svg',
-    Location: 'TP. Hồ Chí Minh • Remote',
-    JobType: 'remote',
-    ExperienceLevel: 'senior',
-    SalaryRange: '35 - 65 triệu VNĐ',
-    PostedAgo: 'Đăng 3 ngày trước',
-    KYCStatus: 'Approved',
-    requiredSkills: [
-      { SkillName: 'Kubernetes' },
-      { SkillName: 'AWS Cloud' },
-      { SkillName: 'Docker' },
-      { SkillName: 'Python' }
-    ]
-  },
-  {
-    JobID: 104,
-    Title: 'Senior Python Engineer / AI Platform & MLOps',
-    CompanyName: 'VinAI (Vingroup)',
-    CompanyLogoUrl: '/logos/vinai.svg',
-    Location: 'Hà Nội',
-    JobType: 'fulltime',
-    ExperienceLevel: 'senior',
-    SalaryRange: '35 - 65 triệu VNĐ',
-    PostedAgo: 'Đăng 4 ngày trước',
-    KYCStatus: 'Approved',
-    requiredSkills: [
-      { SkillName: 'Python' },
-      { SkillName: 'Machine Learning' },
-      { SkillName: 'Docker' },
-      { SkillName: 'Kubernetes' }
-    ]
-  }
-];
 
 const JOB_TYPES = [
   { id: 'fulltime', label: 'Toàn thời gian (Full-time)' },
@@ -158,7 +84,13 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const { categories, loading: categoriesLoading, error: categoriesError } = useJobCategories();
+  const categoryId = searchParams.get('categoryId') || '';
+  const groupId = searchParams.get('group') || '';
+  const selectedGroup = [...browseGroups.positions, ...browseGroups.industries].find(group => group.id === groupId);
+  const selectedCategory = categories.find((category) => String(category.CategoryID) === categoryId);
   const [jobs, setJobs] = useState([]);
+  const [jobsError, setJobsError] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Trạng thái thanh tìm kiếm
@@ -170,41 +102,44 @@ export default function HomePage() {
   const [selectedExpLevels, setSelectedExpLevels] = useState([]);
   const [selectedSalaryRange, setSelectedSalaryRange] = useState('all');
 
-  const fetchJobs = async (customParams) => {
-    setLoading(true);
-    try {
-      const kw = customParams?.keyword !== undefined ? customParams.keyword : keyword;
-      const loc = customParams?.location !== undefined ? customParams.location : location;
-
-      const params = {};
-      if (kw) params.keyword = kw;
-      if (loc) params.location = loc;
-
-      const res = await api.get('/jobs', { params });
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        setJobs(res.data.data);
-      } else {
-        setJobs(SAMPLE_JOBS);
-      }
-    } catch (err) {
-      console.error('Fetch jobs error:', err);
-      setJobs(SAMPLE_JOBS);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const controller = new AbortController();
     const kw = searchParams.get('keyword') || '';
     const loc = searchParams.get('location') || '';
+    const category = searchParams.get('categoryId') || '';
     setKeyword(kw);
     setLocation(loc);
-    fetchJobs({ keyword: kw, location: loc });
+    setLoading(true);
+    setJobsError('');
+    setJobs([]);
+
+    const params = {};
+    if (kw) params.keyword = kw;
+    if (loc) params.location = loc;
+    if (category) params.categoryId = category;
+    if (searchParams.get('group')) params.group = searchParams.get('group');
+
+    api.get('/jobs', { params, signal: controller.signal })
+      .then(({ data }) => {
+        if (!data?.success || !Array.isArray(data.data)) throw new Error('Invalid jobs');
+        setJobs(data.data);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.error('Fetch jobs error:', err);
+        setJobsError('Không tải được danh sách việc làm. Vui lòng tải lại trang để thử lại.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [searchParams, user]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     const params = {};
+    if (categoryId) params.categoryId = categoryId;
+    if (groupId) params.group = groupId;
     if (keyword.trim()) params.keyword = keyword.trim();
     if (location.trim()) params.location = location.trim();
     setSearchParams(params);
@@ -433,6 +368,41 @@ export default function HomePage() {
               </button>
             </div>
 
+            <div className="space-y-3">
+              <label htmlFor="job-category" className="block text-xs font-semibold text-slate-900 uppercase tracking-wider">
+                Nghề nghiệp
+              </label>
+              <select
+                id="job-category"
+                value={groupId ? 'group:' + groupId : categoryId}
+                disabled={categoriesLoading}
+                onChange={(e) => {
+                  const params = new URLSearchParams(searchParams);
+                  params.delete('categoryId');
+                  params.delete('group');
+                  if (e.target.value.startsWith('group:')) params.set('group', e.target.value.slice(6));
+                  else if (e.target.value) params.set('categoryId', e.target.value);
+                  setSearchParams(params);
+                }}
+                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm text-slate-700"
+              >
+                <option value="">Tất cả nghề nghiệp</option>
+                {categoryId && !selectedCategory && <option value={categoryId}>Ngành nghề đã chọn</option>}
+                <optgroup label="Theo vị trí">
+                  {browseGroups.positions.map(group => <option key={group.id} value={'group:' + group.id}>{group.label}</option>)}
+                </optgroup>
+                <optgroup label="Theo lĩnh vực">
+                  {browseGroups.industries.map(group => <option key={group.id} value={'group:' + group.id}>{group.label}</option>)}
+                </optgroup>
+                <optgroup label="Tất cả ngành nghề">
+                  {categories.map((category) => (
+                    <option key={category.CategoryID} value={category.CategoryID}>{category.CategoryName}</option>
+                  ))}
+                </optgroup>
+              </select>
+              {categoriesError && <p role="alert" className="text-xs text-red-600">{categoriesError}</p>}
+            </div>
+
             {/* Nhóm lọc 1: Hình thức làm việc */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
@@ -510,6 +480,21 @@ export default function HomePage() {
 
           {/* Cột phải: Danh sách Thẻ Việc làm (75% -> 9/12 cột) */}
           <section className="lg:col-span-9 space-y-4">
+            {(categoryId || groupId) && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {groupId ? `Việc làm ${selectedGroup?.label || 'theo nhóm đã chọn'}` : `Việc làm ngành ${selectedCategory?.CategoryName || 'đã chọn'}`}
+                </h2>
+                <button type="button" onClick={() => {
+                  const params = new URLSearchParams(searchParams);
+                  params.delete('categoryId');
+                  params.delete('group');
+                  setSearchParams(params);
+                }} className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800">
+                  Bỏ lọc nghề
+                </button>
+              </div>
+            )}
             {/* Tiêu đề danh sách */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <p className="text-sm text-slate-600">
@@ -538,6 +523,8 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
+            ) : jobsError ? (
+              <div role="alert" className="rounded-lg border border-red-200 bg-white p-6 text-sm text-red-600">{jobsError}</div>
             ) : filteredJobs.length === 0 ? (
               <div className="bg-white rounded-lg p-12 text-center border border-gray-200 space-y-3">
                 <div className="w-12 h-12 rounded-lg bg-slate-50 border border-gray-200 flex items-center justify-center mx-auto text-slate-400">

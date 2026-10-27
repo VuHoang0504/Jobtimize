@@ -92,13 +92,13 @@ export default function EmployerATSPage() {
         <div className="space-y-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-light text-brand-blue text-xs font-bold">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>AI Automated Candidate Ranking System</span>
+            <span>Xếp hạng mức độ phù hợp của ứng viên</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
             ATS Quản lý Ứng viên: <span className="text-brand-blue">{job?.Title}</span>
           </h1>
           <p className="text-xs text-gray-500">
-            Hồ sơ được sắp xếp tự động từ cao xuống thấp dựa trên điểm số khớp kỹ năng của AI (Match Score).
+            Hồ sơ được sắp xếp tự động từ cao xuống thấp dựa trên điểm phù hợp kỹ năng.
           </p>
         </div>
 
@@ -126,7 +126,7 @@ export default function EmployerATSPage() {
           <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-sm space-y-3">
             <Users className="w-12 h-12 text-gray-300 mx-auto" />
             <h3 className="text-base font-bold text-gray-800">Chưa có ứng viên nào ở trạng thái này</h3>
-            <p className="text-xs text-gray-500">Khi ứng viên nộp hồ sơ, AI sẽ tự động phân tích và đưa vào danh sách này.</p>
+            <p className="text-xs text-gray-500">Khi ứng viên nộp hồ sơ, hệ thống sẽ tự động đối chiếu và đưa vào danh sách này.</p>
           </div>
         ) : (
           filteredApplicants.map((applicant, idx) => (

@@ -34,7 +34,7 @@ const generateJD = async (req, res) => {
     console.error('generateJD error:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Lỗi khi tạo JD bằng AI'
+      message: 'Chưa tạo được nội dung tuyển dụng. Vui lòng thử lại.'
     });
   }
 };
@@ -113,7 +113,7 @@ const parseCV = async (req, res) => {
     console.error('parseCV error:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Lỗi khi phân tích CV bằng AI'
+      message: 'Chưa đọc được nội dung CV. Vui lòng kiểm tra tệp và thử lại.'
     });
   }
 };
@@ -163,7 +163,7 @@ const startMockInterview = async (req, res) => {
     console.error('startMockInterview error:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Lỗi khi khởi tạo buổi phỏng vấn AI'
+      message: 'Chưa tạo được buổi phỏng vấn. Vui lòng thử lại.'
     });
   }
 };
@@ -206,7 +206,7 @@ const evaluateMockInterview = async (req, res) => {
          VALUES (@ProfileID, @JobTitleTarget, @AIFeedback, @Score, GETDATE())`,
         {
           ProfileID: profileId,
-          JobTitleTarget: jobTitle || 'Phỏng vấn thử AI',
+          JobTitleTarget: jobTitle || 'Phỏng vấn thử',
           AIFeedback: feedbackJSON,
           Score: score
         }
@@ -221,7 +221,7 @@ const evaluateMockInterview = async (req, res) => {
     console.error('evaluateMockInterview error:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Lỗi khi chấm điểm phỏng vấn AI'
+      message: 'Chưa đánh giá được bài phỏng vấn. Vui lòng thử lại.'
     });
   }
 };

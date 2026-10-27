@@ -141,7 +141,7 @@ export default function EditJobModal({ isOpen, onClose, jobId, onJobUpdated }) {
                 Chỉnh Sửa Tin Tuyển Dụng (UC-E06)
               </h2>
               <p className="text-xs text-gray-500">
-                Cập nhật nội dung JD, mức lương, quyền lợi và yêu cầu kỹ năng cho thuật toán AI.
+                Cập nhật nội dung tuyển dụng, mức lương, quyền lợi và yêu cầu kỹ năng.
               </p>
             </div>
           </div>
@@ -264,7 +264,7 @@ export default function EditJobModal({ isOpen, onClose, jobId, onJobUpdated }) {
             {/* Skill Taxonomy tags */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-gray-700 uppercase">
-                Gắn thẻ kỹ năng cho JD (Dùng cho AI chấm Match Score)
+                Kỹ năng yêu cầu để đối chiếu hồ sơ
               </label>
               <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-3 rounded-xl border border-gray-100 bg-gray-50/50">
                 {skillTaxonomy.map((skill) => {

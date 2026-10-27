@@ -3,6 +3,7 @@ const router = express.Router();
 const candidateController = require('../controllers/candidateController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
+const cvDocument = require('../controllers/cvDocumentController');
 
 // All candidate routes require Candidate role
 router.use(authenticate, authorize(['Candidate']));
@@ -12,8 +13,11 @@ router.get('/profile', candidateController.getCandidateProfile);
 router.put('/profile', candidateController.updateCandidateProfile);
 router.patch('/toggle-looking', candidateController.toggleLookingForJob);
 router.post('/cv', upload.single('cvFile'), candidateController.uploadCV);
-router.post('/cv/online', candidateController.saveOnlineCV);
-router.put('/cv/online/:cvId', candidateController.updateOnlineCV);
+router.post('/cv/avatar', cvDocument.uploadAvatar);
+router.get('/cv/avatar/:userId/:filename', cvDocument.getAvatar);
+router.post('/cv/export', cvDocument.exportPDF);
+router.post('/cv/online', cvDocument.validateOnlineCV, candidateController.saveOnlineCV);
+router.put('/cv/online/:cvId', cvDocument.validateOnlineCV, candidateController.updateOnlineCV);
 router.get('/cv/:cvId', candidateController.getCVDetail);
 router.put('/cv/:cvId/primary', candidateController.setPrimaryCV);
 router.delete('/cv/:cvId', candidateController.deleteCV);

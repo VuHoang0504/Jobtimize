@@ -1,4 +1,5 @@
-const { executeQuery } = require('../src/config/db');
+const { executeQuery, getPool } = require('../src/config/db');
+const { seedBrowseJobs } = require('./seedBrowseJobs');
 const bcrypt = require('bcryptjs');
 
 const sampleEmployers = [
@@ -549,6 +550,7 @@ async function seedJobs() {
       }
     }
 
+    console.log('Browse seed:', await seedBrowseJobs(await getPool()));
     console.log('🎉 Hoàn tất nạp dữ liệu công ty tuyển DevOps, Python, Node.js thành công!');
     process.exit(0);
   } catch (err) {

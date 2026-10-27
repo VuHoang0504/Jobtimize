@@ -31,6 +31,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middlewares
 app.use(cors());
+app.use('/api/candidate/cv', express.json({ limit: '320kb' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));

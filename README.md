@@ -233,3 +233,71 @@ Script bỏ qua email đã tồn tại, không ghi đè tài khoản hoặc mậ
 - **Backend:** Node.js, Express.js, mssql (Tedious Driver), Multer, JsonWebToken, Bcrypt.js, Mammoth, Pdf-parse.
 - **Database:** Microsoft SQL Server (Transact-SQL), Docker MSSQL 2022.
 - **AI Engine:** Heuristic Weighted AI Matching Algorithm & Skill Gap Taxonomy Mapping.
+
+## Trình tạo CV trực tiếp
+
+- Bảng bên trái chọn mẫu **Đơn giản / Chuyên nghiệp / Ấn tượng**, font, màu, cỡ chữ, giãn dòng và quản lý các mục. Bấm vào chữ trên trang A4 bên phải để nhập; rời ô nhập để phân trang lại. Kéo các mục trong cùng cột hoặc dùng nút lên/xuống.
+- **Lưu CV** lưu phiên bản chỉnh sửa vào tài khoản. **Tải về** tải trực tiếp PDF của nội dung hiện tại, kể cả khi chưa lưu; không mở hộp thoại in. Tải PDF không tự lưu CV.
+- Avatar riêng từng CV: JPG/PNG/WebP tối đa 5 MB, cắt vuông và căn chỉnh trước khi tải. Ảnh gốc không thay đổi avatar tài khoản. CV hỗ trợ giải thưởng, sở thích, hoạt động, người giới thiệu và thông tin thêm.
+- Bốn font được phục vụ cục bộ trong `client/public/cv-fonts/` (kèm giấy phép). Font không tự dịch nội dung. Khi cập nhật các gói `@fontsource`, chạy `node scripts/copyCVFonts.mjs` để cập nhật font đóng gói.
+
+### Cài đặt PDF trên máy phát triển / triển khai
+
+Sau `npm run install:all`, chạy:
+
+```bash
+npm run cv:browser
+```
+
+Lệnh cài Chromium vào `.cache/ms-playwright/`. Có thể cấu hình `PLAYWRIGHT_BROWSERS_PATH` cho thư mục cài riêng; dùng cùng giá trị khi cài và khi chạy server. Trên Linux, cài thêm thư viện hệ thống theo hướng dẫn `playwright install-deps chromium`. Server cần quyền chạy Chromium và ghi `server/private/cv-avatars/`; giữ thư mục ảnh này trên ổ lưu trữ bền vững khi triển khai. Không đặt thư mục ảnh riêng dưới static uploads. Các ảnh đã thay vẫn được giữ để CV khác và thao tác hoàn tác không mất ảnh.
+
+PDF sử dụng cùng bộ dựng HTML/CSS, font và quy tắc phân trang với xem trước. Triển khai kèm `shared/cv/` và `client/public/cv-fonts/` bên cạnh `server/` trong cùng cấu trúc monorepo. Máy chủ không tải tài nguyên bên ngoài khi tạo PDF. Không cần thay đổi schema: cấu hình mới nằm trong JSON `CvData`, CV cũ được chuẩn hóa khi mở.
+
+### Kiểm tra CV
+
+```bash
+npm run test:cv
+npm --prefix server run test:otp
+# Chạy Vite trên 127.0.0.1:3000 trước khi chạy kiểm thử giao diện:
+npm run test:cv:ui
+```
+
+Kiểm thử CV dùng dữ liệu giả lập, kiểm tra 12 tổ hợp mẫu/font, phân trang dài, font tiếng Việt, quyền ảnh, API xuất PDF và thao tác chỉnh sửa/lưu/mở lại. Không ghi vào database thật. Ảnh kiểm tra và PDF nằm trong `.cache/cv-tests/`.
+
+### Dữ liệu mẫu cho menu việc làm
+
+Chạy `npm run seed:browse` để bổ sung 19 tin tuyển dụng mẫu và các ngành nghề cho menu vị trí/lĩnh vực. Script chỉ thêm dữ liệu còn thiếu, chạy trong transaction và không tạo tin trùng khi chạy lại. Tin thuộc doanh nghiệp mẫu được ghi rõ là dữ liệu minh họa. Lệnh `npm run seed:jobs` cũng bao gồm bước này.
+
+Danh sách nhóm và ánh xạ ngành dùng chung cho giao diện/API nằm trong `shared/jobBrowseGroups.json`. Nhóm Senior lọc theo cấp bậc trong chức danh; các nhóm còn lại lọc theo danh mục ngành nghề, độc lập với từ khóa tìm kiếm.
+
+Kiểm tra sau khi đã chạy ứng dụng và seed:
+- `node --test server/scripts/test_job_browse.js`: kiểm tra đọc trên cơ sở dữ liệu hiện tại, mỗi nhóm có ít nhất một tin đúng ngành.
+- `node --test server/scripts/test_job_category_ui.mjs`: kiểm tra giao diện desktop/mobile với API giả lập; mặc định Vite ở cổng 3000, có thể đổi bằng `JOB_CATEGORY_TEST_URL`.
+
+### Kết nối OpenAI cho các chức năng nội dung
+
+Cấu hình trong `server/.env` (không thêm khóa vào client hoặc commit):
+
+```env
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_api_key
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_TIMEOUT_MS=60000
+OPENAI_MAX_OUTPUT_TOKENS=8000
+```
+
+Khởi động lại API sau khi thay đổi cấu hình. OpenAI được nối vào soạn mô tả tuyển dụng, đọc CV dạng văn bản/tài liệu/hình ảnh, tạo câu hỏi và nhận xét phỏng vấn. Các chức năng đối chiếu kỹ năng, điểm phù hợp và gợi ý khóa học vẫn dùng dữ liệu/kỹ năng của hệ thống, không gọi mô hình cho từng tin tuyển dụng. Giao diện không hiển thị tên nhà cung cấp.
+
+`AI_PROVIDER=auto` ưu tiên OpenAI nếu có khóa, tiếp theo Gemini, cuối cùng xử lý cục bộ khi không có khóa. `gemini` và `local` cho phép chọn rõ dịch vụ. Lỗi OpenAI được báo về chức năng thay vì trả kết quả mẫu hoặc chuyển CV sang nhà cung cấp khác. Model được chọn ở server qua `OPENAI_MODEL`.
+
+- `npm run check:ai`: xem trạng thái cấu hình, không in khóa và không gọi dịch vụ.
+- `npm run check:ai -- --live`: gửi yêu cầu kiểm tra tổng hợp nhỏ tới OpenAI, không gửi CV hoặc dữ liệu người dùng. Yêu cầu này sử dụng hạn mức API.
+- `npm run test:ai`: kiểm tra độc lập bằng HTTP giả lập, không gọi nhà cung cấp.
+
+Tích hợp dùng [Responses API và JSON mode](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses), hỗ trợ ảnh mã hóa base64 và đặt `store: false`.
+
+Lệnh `npm run check:ai` hiển thị cấu hình cả OpenAI và Gemini. `npm run check:ai -- --live` kiểm tra độc lập tất cả dịch vụ đã có khóa, vẫn tiếp tục nếu một dịch vụ lỗi. Có thể kiểm tra riêng bằng `npm run check:ai -- --live --provider=gemini` hoặc `--provider=openai`. Tham số kiểm tra không thay đổi dịch vụ website đang dùng; `AI_PROVIDER` quyết định dịch vụ thực tế. `GEMINI_MODEL` cho phép chọn model Gemini trên server.
+
+### Model đang dùng cho website
+
+Các chức năng soạn tin tuyển dụng, đọc CV và luyện phỏng vấn dùng cấu hình server: `AI_PROVIDER=gemini` và `GEMINI_MODEL=gemini-3-flash-preview`. Khởi động lại backend sau khi thay đổi cấu hình. Model được chọn rõ sẽ được sử dụng cho các chức năng này.

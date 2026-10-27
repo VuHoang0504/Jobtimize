@@ -93,10 +93,7 @@ export default function AICVParserModal({ isOpen, onClose, onApplyExtractedData 
             </div>
             <div>
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                Trợ lý AI Trích xuất Hồ sơ từ CV
-                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-extrabold uppercase">
-                  Gemini AI
-                </span>
+                Điền hồ sơ từ CV
               </h3>
               <p className="text-xs text-gray-500">Tự động đọc nội dung CV và điền đầy đủ thông tin chuẩn vào hồ sơ</p>
             </div>
@@ -163,7 +160,7 @@ export default function AICVParserModal({ isOpen, onClose, onApplyExtractedData 
                     </div>
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-400 italic">⚡ Dung lượng tối đa: 10MB / file. Gemini AI hỗ trợ nhận diện trực quan đa phương thức.</p>
+                <p className="text-[11px] text-gray-400 italic">Dung lượng tối đa: 10MB / file. Hỗ trợ đọc nội dung từ tài liệu và hình ảnh.</p>
               </div>
             </div>
           ) : (
@@ -171,7 +168,7 @@ export default function AICVParserModal({ isOpen, onClose, onApplyExtractedData 
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>AI đã phân tích và cấu trúc hóa CV thành công! Vui lòng kiểm tra các trường thông tin:</span>
+                <span>Đã đọc và sắp xếp thông tin trong CV! Vui lòng kiểm tra các trường thông tin:</span>
               </div>
 
               {/* 1. Contact Information Header */}
@@ -483,7 +480,7 @@ export default function AICVParserModal({ isOpen, onClose, onApplyExtractedData 
               {loading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>AI đang phân tích file...</span>
+                  <span>Đang đọc nội dung CV...</span>
                 </>
               ) : (
                 <>

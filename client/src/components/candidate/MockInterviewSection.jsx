@@ -181,7 +181,7 @@ export default function MockInterviewSection() {
       }
     } catch (err) {
       console.error('Start interview error:', err);
-      setError(err.response?.data?.message || 'Có lỗi khi AI tạo câu hỏi phỏng vấn. Vui lòng thử lại.');
+      setError(err.response?.data?.message || 'Chưa tạo được câu hỏi phỏng vấn. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -224,7 +224,7 @@ export default function MockInterviewSection() {
       }
     } catch (err) {
       console.error('Evaluate interview error:', err);
-      setError(err.response?.data?.message || 'Có lỗi khi AI đánh giá bài phỏng vấn.');
+      setError(err.response?.data?.message || 'Chưa đánh giá được bài phỏng vấn.');
       setStep('interviewing');
     } finally {
       setLoading(false);
@@ -533,7 +533,7 @@ export default function MockInterviewSection() {
                       className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-500/20 flex items-center gap-1.5"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Hoàn thành & Nhận đánh giá AI</span>
+                      <span>Hoàn thành và nhận đánh giá</span>
                     </button>
                   )}
                 </div>
@@ -657,7 +657,7 @@ export default function MockInterviewSection() {
                     </div>
 
                     <div>
-                      <span className="font-bold text-purple-700 uppercase text-[10px]">Nhận xét từ AI:</span>
+                      <span className="font-bold text-purple-700 uppercase text-[10px]">Nhận xét:</span>
                       <p className="text-gray-800 mt-0.5">{fb.comment}</p>
                     </div>
 
@@ -711,7 +711,7 @@ export default function MockInterviewSection() {
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
             <div className="flex items-center gap-2">
               <History className="w-5 h-5 text-purple-600" />
-              <h3 className="text-base font-bold text-gray-900">Lịch Sử Luyện Phỏng Vấn AI</h3>
+              <h3 className="text-base font-bold text-gray-900">Lịch sử luyện phỏng vấn</h3>
             </div>
             <button
               type="button"
@@ -737,7 +737,7 @@ export default function MockInterviewSection() {
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-gray-900">{item.jobTitle || 'Phỏng vấn thử AI'}</h4>
+                      <h4 className="text-sm font-bold text-gray-900">{item.jobTitle || 'Phỏng vấn thử'}</h4>
                       <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-extrabold">
                         {item.score || 0} / 100 điểm
                       </span>

@@ -166,13 +166,13 @@ export default function EmployerPricingPage() {
       <div className="text-center max-w-3xl mx-auto space-y-3">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 shadow-2xs">
           <Zap className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Gói dịch vụ tuyển dụng & AI Matching (UC-E07)</span>
+          <span>Gói dịch vụ tuyển dụng</span>
         </div>
         <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
           Bảng Giá Dịch Vụ Tuyển Dụng Jobtimize
         </h1>
         <p className="text-sm text-gray-600 leading-relaxed">
-          Nâng cấp quyền lợi đăng tin không giới hạn, tiếp cận kho ứng viên chất lượng cao và tích hợp xếp hạng ứng viên tự động bằng thuật toán AI.
+          Nâng cấp quyền lợi đăng tin không giới hạn, tiếp cận kho ứng viên chất lượng cao và tích hợp xếp hạng ứng viên tự động theo mức độ phù hợp.
         </p>
       </div>
 
@@ -190,7 +190,7 @@ export default function EmployerPricingPage() {
             </div>
             <h3 className="text-2xl font-black">{subscription.PackageName}</h3>
             <p className="text-xs text-emerald-100 max-w-xl">
-              Bạn đang sở hữu đặc quyền tiếp cận ứng viên cao cấp và AI hỗ trợ phân tích độ khớp kỹ năng (Match Score).
+              Bạn đang sở hữu đặc quyền tiếp cận ứng viên cao cấp và công cụ phân tích độ phù hợp kỹ năng.
             </p>
           </div>
 
@@ -260,7 +260,7 @@ export default function EmployerPricingPage() {
 
                   <div className="flex items-center gap-2.5 text-xs text-gray-700 font-semibold">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Tự động chấm điểm AI Match Score cho mọi ứng viên</span>
+                    <span>Tự động đánh giá độ phù hợp của ứng viên</span>
                   </div>
 
                   <div className="flex items-center gap-2.5 text-xs text-gray-700 font-semibold">

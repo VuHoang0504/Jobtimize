@@ -143,7 +143,7 @@ export default function JobAlertModal({ isOpen, onClose, onSaved, initialAlert =
                 type="text"
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
-                placeholder="VD: React Developer, Fullstack Node.js, AI Engineer..."
+                placeholder="VD: React Developer, Kế toán, Marketing..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 text-sm font-medium text-gray-800 transition-all"
                 required
               />

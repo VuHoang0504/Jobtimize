@@ -416,6 +416,12 @@ const updateOnlineCV = async (req, res) => {
     }
     const profileId = candRes.recordset[0].ProfileID;
 
+    // Verify the target before changing any primary flags in this profile.
+    const ownedCV = await executeQuery('SELECT CVID FROM CVs WHERE CVID = @CVID AND ProfileID = @ProfileID', { CVID: cvId, ProfileID: profileId });
+    if (!ownedCV.recordset?.length) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy CV để cập nhật' });
+    }
+
     if (isPrimary) {
       await executeQuery('UPDATE CVs SET IsPrimary = 0 WHERE ProfileID = @ProfileID', { ProfileID: profileId });
     }

@@ -3,11 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env'), override: true });
+const openaiService = require('./openaiService');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 // Helper to get active Gemini Client dynamically
 const getActiveGenAI = (customApiKey = null) => {
-  require('dotenv').config({ path: path.resolve(__dirname, '../../.env'), override: true });
   const key = (customApiKey && customApiKey.trim().length > 10) ? customApiKey.trim() : (process.env.GEMINI_API_KEY || '').trim();
   if (key && key.length > 10) {
     return new GoogleGenerativeAI(key);
@@ -17,6 +17,7 @@ const getActiveGenAI = (customApiKey = null) => {
 
 // Preferred model list to try in order (Top latest & smartest active Gemini models)
 const CANDIDATE_MODELS = [
+  'gemini-3-flash-preview',
   'gemini-flash-lite-latest',
   'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
@@ -26,6 +27,25 @@ const CANDIDATE_MODELS = [
   'gemini-2.0-flash',
   'gemini-1.5-flash'
 ];
+
+const getGeminiModel = () => process.env.GEMINI_MODEL?.trim() || CANDIDATE_MODELS[0];
+
+// One diagnostic request; no fallback loop or disclosure of provider error text.
+const checkGeminiConnection = async () => {
+  const client = getActiveGenAI();
+  if (!client) throw Object.assign(new Error('Missing key'), { code: 'GEMINI_NOT_CONFIGURED' });
+  try {
+    const model = client.getGenerativeModel({ model: getGeminiModel() });
+    const result = await model.generateContent('Return only this JSON object: {"ok":true}', { timeout: 15000 });
+    if (parseCleanJSON(result.response.text())?.ok !== true) throw new Error('Invalid response');
+  } catch (error) {
+    const code = error.status === 429 ? 'GEMINI_RATE_LIMITED'
+      : error.status === 401 || error.status === 403 ? 'GEMINI_ACCESS_DENIED'
+      : error.status === 400 ? 'GEMINI_INVALID_REQUEST'
+      : error.status === 404 ? 'GEMINI_MODEL_NOT_FOUND' : 'GEMINI_REQUEST_FAILED';
+    throw Object.assign(new Error('Gemini connection check failed'), { code });
+  }
+};
 
 /**
  * Helper to clean and parse JSON response from Gemini
@@ -110,8 +130,9 @@ const callGeminiWithFallback = async (promptOrParts, customApiKey = null, prefer
   }
 
   // If a specific model is preferred (e.g. gemini-2.0-pro-exp-02-05 or custom 3.x ID), try it first
-  const modelsToTry = preferredModel && preferredModel.trim()
-    ? [preferredModel.trim(), ...CANDIDATE_MODELS.filter(m => m !== preferredModel.trim())]
+  const selectedModel = preferredModel?.trim() || process.env.GEMINI_MODEL?.trim();
+  const modelsToTry = selectedModel
+    ? [selectedModel]
     : CANDIDATE_MODELS;
 
   let lastError = null;
@@ -132,6 +153,25 @@ const callGeminiWithFallback = async (promptOrParts, customApiKey = null, prefer
 
   throw lastError || new Error('Không thể kết nối với Gemini AI Model');
 };
+
+// All generated features share the same server-side provider configuration.
+const callStructuredModel = async (promptOrParts, customApiKey = null, preferredModel = null, kind) => {
+  const provider = openaiService.getProvider();
+  let result;
+  if (provider === 'openai') result = await openaiService.generateJSON(promptOrParts);
+  else if (provider === 'gemini') result = await callGeminiWithFallback(promptOrParts, customApiKey, preferredModel);
+  else throw new Error('Local processing selected');
+
+  const valid = kind === 'jd' ? typeof result?.description === 'string' && result.description.trim() && typeof result.requirements === 'string' && result.requirements.trim()
+    : kind === 'cv' ? typeof result?.fullName === 'string' && result.skills && Array.isArray(result.skills.hardSkills)
+    : kind === 'questions' ? Array.isArray(result?.questions) && result.questions.length > 0 && result.questions.every(item => typeof item.question === 'string' && item.question.trim())
+    : kind === 'evaluation' ? Number.isFinite(result?.overallScore) && result.overallScore >= 0 && result.overallScore <= 100 && Array.isArray(result.detailedFeedback)
+    : false;
+  if (!valid) throw Object.assign(new Error('Kết quả xử lý nội dung chưa đầy đủ.'), { provider, code: 'INVALID_GENERATED_CONTENT' });
+  return result;
+};
+
+const shouldPropagateError = error => error.provider === 'openai' || error.code === 'AI_CONFIG_ERROR';
 
 /**
  * Extract comprehensive CV data directly from Image using Gemini Multimodal / Vision
@@ -238,9 +278,10 @@ Trả về DUY NHẤT một chuỗi JSON thuần túy (không kèm markdown chà
 `;
 
   try {
-    return await callGeminiWithFallback([prompt, imagePart], customApiKey, preferredModel);
+    return await callStructuredModel([prompt, imagePart], customApiKey, preferredModel, 'cv');
   } catch (err) {
-    console.warn('Gemini image CV parse failed, returning fallback:', err.message);
+    if (shouldPropagateError(err)) throw err;
+    console.warn('Content provider image CV parse failed, returning fallback:', err.message);
     return {
       fullName: '',
       email: '',
@@ -287,14 +328,15 @@ Hãy trả về DUY NHẤT một chuỗi JSON thuần túy (không kèm bất k�
 `;
 
   try {
-    return await callGeminiWithFallback(prompt, customApiKey, preferredModel);
+    return await callStructuredModel(prompt, customApiKey, preferredModel, 'jd');
   } catch (err) {
-    console.warn('Gemini JD call failed, using intelligent fallback generator:', err.message);
+    if (shouldPropagateError(err)) throw err;
+    console.warn('Content provider JD call failed, using intelligent fallback generator:', err.message);
     return {
-      description: `- Tham gia nghiên cứu, thiết kế và phát triển các tính năng cho sản phẩm tại vị trí ${title}.\n- Phối hợp chặt chẽ với các thành viên trong nhóm (Product Owner, UI/UX Designer, QA) theo quy trình Agile/Scrum.\n- Tối ưu hóa hiệu năng, độ tin cậy và khả năng mở rộng của hệ thống.\n- Viết mã nguồn sạch, dễ bảo trì và tham gia review code của các đồng nghiệp.`,
-      requirements: `- Có từ 1-3 năm kinh nghiệm làm việc thực tế ở vị trí tương đương (${title}).\n- Thành thạo các công nghệ: ${skills || 'JavaScript, SQL, Git, RESTful API'}.\n- Khả năng tư duy logic, giải quyết vấn đề tốt và chủ động trong công việc.\n- Kỹ năng giao tiếp và làm việc nhóm hiệu quả.`,
+      description: `- Thực hiện các nhiệm vụ chuyên môn tại vị trí ${title} trong lĩnh vực ${categoryName || 'của doanh nghiệp'}.\n- Phối hợp với các bộ phận liên quan để hoàn thành mục tiêu công việc.\n- Theo dõi kết quả, báo cáo tiến độ và đề xuất cải tiến quy trình.\n- Thực hiện các công việc khác phù hợp với vai trò theo phân công.`,
+      requirements: `- Có kiến thức chuyên môn phù hợp với vị trí ${title}, cấp bậc ${level || 'theo nhu cầu tuyển dụng'}.\n${skills ? '- Có các kỹ năng: ' + skills + '.' : '- Có khả năng tổ chức công việc và học hỏi nghiệp vụ.'}\n- Chủ động giải quyết vấn đề và có trách nhiệm với công việc.\n- Giao tiếp rõ ràng và phối hợp làm việc nhóm hiệu quả.`,
       benefits: `- Mức thu nhập cạnh tranh, đánh giá tăng lương định kỳ.\n- Thưởng tháng 13, thưởng hiệu quả dự án và các dịp lễ tết.\n- Đầy đủ chế độ BHXH, BHYT theo Luật Lao động và gói bảo hiểm sức khỏe cao cấp.\n- Môi trường làm việc trẻ trung, năng động, hỗ trợ thiết bị làm việc hiện đại.`,
-      suggestedSkills: (skills ? skills.split(',').map(s => s.trim()) : ['JavaScript', 'React', 'Node.js', 'SQL Server', 'Git']),
+      suggestedSkills: (skills ? skills.split(',').map(s => s.trim()).filter(Boolean) : []),
       suggestedSalaryRange: '15 - 30 triệu VNĐ'
     };
   }
@@ -398,9 +440,10 @@ Trả về DUY NHẤT một chuỗi JSON thuần túy (không kèm markdown chà
 `;
 
   try {
-    return await callGeminiWithFallback(prompt, customApiKey, preferredModel);
+    return await callStructuredModel(prompt, customApiKey, preferredModel, 'cv');
   } catch (err) {
-    console.warn('Gemini CV parse failed, using heuristic fallback extractor:', err.message);
+    if (shouldPropagateError(err)) throw err;
+    console.warn('Content provider CV parse failed, using heuristic fallback extractor:', err.message);
     
     // Heuristic extraction
     const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
@@ -471,9 +514,10 @@ Hãy trả về DUY NHẤT một chuỗi JSON thuần túy với cấu trúc:
 `;
 
   try {
-    return await callGeminiWithFallback(prompt);
+    return await callStructuredModel(prompt, null, null, 'questions');
   } catch (err) {
-    console.warn('Gemini question generator failed, using smart interview pool fallback:', err.message);
+    if (shouldPropagateError(err)) throw err;
+    console.warn('Content provider question generator failed, using smart interview pool fallback:', err.message);
     
     // Dynamic realistic question generator
     const defaultPool = [
@@ -561,9 +605,10 @@ Hãy phân tích và trả về DUY NHẤT một chuỗi JSON thuần túy với
 `;
 
   try {
-    return await callGeminiWithFallback(prompt);
+    return await callStructuredModel(prompt, null, null, 'evaluation');
   } catch (err) {
-    console.warn('Gemini evaluation failed, using intelligent grading fallback:', err.message);
+    if (shouldPropagateError(err)) throw err;
+    console.warn('Content provider evaluation failed, using intelligent grading fallback:', err.message);
 
     // Calculate score based on answers length and presence
     let totalScore = 0;
@@ -619,6 +664,8 @@ Hãy phân tích và trả về DUY NHẤT một chuỗi JSON thuần túy với
 };
 
 module.exports = {
+  getGeminiModel,
+  checkGeminiConnection,
   extractTextFromFile,
   generateJD,
   parseCVWithAI,

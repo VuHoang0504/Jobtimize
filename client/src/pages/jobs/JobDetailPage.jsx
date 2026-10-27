@@ -468,7 +468,7 @@ export default function JobDetailPage() {
                   <CheckCircle2 className="w-10 h-10" />
                 </div>
                 <h4 className="text-base font-bold text-gray-900">Nộp hồ sơ thành công!</h4>
-                <p className="text-xs text-gray-500">AI đã chuyển hồ sơ cùng điểm số Match Score đến Nhà tuyển dụng.</p>
+                <p className="text-xs text-gray-500">Hồ sơ và kết quả đối chiếu kỹ năng đã được gửi đến nhà tuyển dụng.</p>
               </div>
             ) : (
               <div className="space-y-4">

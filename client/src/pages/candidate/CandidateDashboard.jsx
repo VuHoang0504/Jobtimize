@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import { downloadCV } from '../../services/cv';
 import MatchScoreBadge from '../../components/common/MatchScoreBadge';
 import { validatePassword } from '../../utils/validation';
 import { 
@@ -47,7 +48,7 @@ import {
   Play,
   Pause,
   Clock,
-  Printer
+  Download
 } from 'lucide-react';
 import MockInterviewSection from '../../components/candidate/MockInterviewSection';
 import JobAlertModal from '../../components/candidate/JobAlertModal';
@@ -126,6 +127,7 @@ export default function CandidateDashboard() {
   const [cvTitle, setCvTitle] = useState('');
   const [cvFile, setCvFile] = useState(null);
   const [uploadingCv, setUploadingCv] = useState(false);
+  const [downloadingCv, setDownloadingCv] = useState(null);
 
   // Avatar upload state
   const fileInputRef = useRef(null);
@@ -348,6 +350,16 @@ export default function CandidateDashboard() {
     } finally {
       setUploadingCv(false);
     }
+  };
+
+  const handleDownloadCV = async (cv) => {
+    setDownloadingCv(cv.CVID);
+    try {
+      const response = await api.get(`/candidate/cv/${cv.CVID}`);
+      const row = response.data.data;
+      await downloadCV({ title: row.Title || 'CV', template: row.Template || 'modern', cvData: row.CvData });
+    } catch (error) { alert(error.message || 'Không thể tải PDF. Vui lòng thử lại.'); }
+    finally { setDownloadingCv(null); }
   };
 
   // Set Primary CV
@@ -1241,14 +1253,16 @@ export default function CandidateDashboard() {
                                 <Edit3 className="w-3.5 h-3.5" />
                                 <span>Sửa CV</span>
                               </Link>
-                              <Link
-                                to={`/candidate/cv-builder?id=${cv.CVID}`}
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadCV(cv)}
+                                disabled={downloadingCv !== null}
                                 className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors flex items-center gap-1.5"
-                                title="Xem trước & Xuất PDF"
+                                title="Tải về PDF"
                               >
-                                <Printer className="w-3.5 h-3.5 text-gray-500" />
-                                <span>Xuất PDF</span>
-                              </Link>
+                                <Download className="w-3.5 h-3.5 text-gray-500" />
+                                <span>{downloadingCv === cv.CVID ? 'Đang tạo PDF…' : 'Tải về'}</span>
+                              </button>
                             </>
                           ) : (
                             <a

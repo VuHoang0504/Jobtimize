@@ -9,7 +9,13 @@
     "dev": "npx concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
     "db:init": "npm --prefix server run db:init",
     "seed:jobs": "npm --prefix server run seed:jobs",
-    "build": "npm --prefix client run build"
+    "build": "npm --prefix client run build",
+    "cv:browser": "node scripts/installCVBrowser.mjs",
+    "test:cv": "node --test server/scripts/test_cv_builder.mjs server/scripts/test_cv_api.mjs",
+    "test:cv:ui": "node --test server/scripts/test_cv_editor_ui.mjs",
+    "seed:browse": "npm --prefix server run seed:browse",
+    "test:ai": "npm --prefix server run test:ai",
+    "check:ai": "npm --prefix server run check:ai --"
   },
   "keywords": [
     "recruitment",

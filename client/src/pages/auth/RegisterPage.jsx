@@ -305,7 +305,7 @@ export default function RegisterPage() {
                   required
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Ví dụ: Công ty Cổ phần Công nghệ AI Việt"
+                  placeholder="Ví dụ: Công ty Cổ phần Công nghệ Việt"
                   className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green text-sm"
                 />
               </div>

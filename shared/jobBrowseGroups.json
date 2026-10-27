@@ -1,0 +1,25 @@
+{
+  "positions": [
+    { "id": "sales", "label": "Nhân viên kinh doanh", "categories": ["Kinh doanh / Bán hàng"] },
+    { "id": "accounting", "label": "Kế toán", "categories": ["Kế toán / Kiểm toán"] },
+    { "id": "marketing", "label": "Marketing", "categories": ["Marketing / Truyền thông"] },
+    { "id": "human-resources", "label": "Hành chính nhân sự", "categories": ["Hành chính / Nhân sự"] },
+    { "id": "customer-service", "label": "Chăm sóc khách hàng", "categories": ["Chăm sóc khách hàng"] },
+    { "id": "banking", "label": "Ngân hàng", "categories": ["Tài chính / Ngân hàng"] },
+    { "id": "it", "label": "IT", "categories": ["Công nghệ thông tin / Phần mềm", "Trí tuệ nhân tạo / Dữ liệu (AI & Data)", "Điện toán đám mây / DevOps", "Kiểm thử phần mềm (QA/QC)"] },
+    { "id": "general-labor", "label": "Lao động phổ thông", "categories": ["Lao động phổ thông"] },
+    { "id": "senior", "label": "Senior", "level": "senior" },
+    { "id": "civil-engineering", "label": "Kỹ sư xây dựng", "categories": ["Xây dựng / Kỹ thuật công trình"] },
+    { "id": "graphic-design", "label": "Thiết kế đồ hoạ", "categories": ["Thiết kế đồ hoạ", "Thiết kế UI/UX & Sản phẩm"] },
+    { "id": "real-estate", "label": "Bất động sản", "categories": ["Bất động sản"] },
+    { "id": "education", "label": "Giáo dục", "categories": ["Giáo dục / Đào tạo"] },
+    { "id": "telesales", "label": "Telesales", "categories": ["Telesales / Tư vấn qua điện thoại"] }
+  ],
+  "industries": [
+    { "id": "manufacturing", "label": "Sản xuất", "categories": ["Sản xuất / Vận hành nhà máy"] },
+    { "id": "retail-fmcg", "label": "Bán lẻ - Hàng tiêu dùng - FMCG", "categories": ["Bán lẻ / Hàng tiêu dùng / FMCG"] },
+    { "id": "software", "label": "IT - Phần mềm", "categories": ["Công nghệ thông tin / Phần mềm", "Trí tuệ nhân tạo / Dữ liệu (AI & Data)", "Điện toán đám mây / DevOps", "Kiểm thử phần mềm (QA/QC)"] },
+    { "id": "construction", "label": "Xây dựng", "categories": ["Xây dựng / Kỹ thuật công trình"] },
+    { "id": "training", "label": "Giáo dục/Đào tạo", "categories": ["Giáo dục / Đào tạo"] }
+  ]
+}

@@ -260,8 +260,8 @@ export default function EmployerDashboard() {
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-gray-900">AI Match Score</h4>
-            <p className="text-[11px] text-gray-500">{totalApplicants} hồ sơ được AI chấm điểm</p>
+            <h4 className="text-xs font-bold text-gray-900">Điểm phù hợp</h4>
+            <p className="text-[11px] text-gray-500">{totalApplicants} hồ sơ được đánh giá độ phù hợp</p>
           </div>
         </div>
       </div>
@@ -277,7 +277,7 @@ export default function EmployerDashboard() {
         <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-card space-y-2">
           <p className="text-xs font-bold text-gray-400 uppercase">Tổng lượt ứng viên nộp hồ sơ</p>
           <p className="text-3xl font-black text-brand-green">{totalApplicants}</p>
-          <p className="text-xs text-gray-500">Được AI tự động chấm điểm Match Score</p>
+          <p className="text-xs text-gray-500">Tự động đối chiếu kỹ năng với yêu cầu tuyển dụng</p>
         </div>
 
         <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-card space-y-2">
@@ -499,7 +499,7 @@ export default function EmployerDashboard() {
             </div>
 
             <p className="text-xs text-gray-600 leading-relaxed">
-              Bạn có chắc chắn muốn xóa tin tuyển dụng này? Toàn bộ danh sách ứng tuyển và điểm AI Match Score liên quan sẽ bị xóa vĩnh viễn và không thể khôi phục.
+              Bạn có chắc chắn muốn xóa tin tuyển dụng này? Toàn bộ danh sách ứng tuyển và điểm Điểm phù hợp liên quan sẽ bị xóa vĩnh viễn và không thể khôi phục.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2">

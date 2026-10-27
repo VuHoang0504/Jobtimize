@@ -93,7 +93,7 @@ export default function NotificationDropdown() {
     if (type === 'match') {
       return (
         <p className="text-xs sm:text-sm text-slate-700 leading-snug">
-          🔥 AI Match: Công việc <strong className="font-semibold text-slate-900">Backend Node.js</strong> tại{' '}
+          🔥 Việc làm phù hợp: Công việc <strong className="font-semibold text-slate-900">Backend Node.js</strong> tại{' '}
           <strong className="font-semibold text-slate-900">FinTech Co.</strong> phù hợp với bạn{' '}
           <strong className="font-bold text-emerald-600">85%</strong>. Ứng tuyển ngay!
         </p>

@@ -83,6 +83,7 @@ const executeQuery = async (queryText, params = {}) => {
 
 module.exports = {
   sql,
+  config,
   getPool,
   executeQuery
 };

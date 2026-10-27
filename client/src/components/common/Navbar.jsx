@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Menu, X, ChevronDown } from 'lucide-react';
 import { getUserAvatar, handleUserAvatarError } from '../../utils/logoHelper';
 import NotificationDropdown from './NotificationDropdown';
+import JobBrowseMenu from './JobBrowseMenu';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -76,162 +77,94 @@ export default function Navbar() {
                 {/* Mega Menu Popover */}
                 {jobMenuOpen && (
                   <div 
-                    className="absolute top-full left-0 mt-1.5 w-[880px] bg-white rounded-xl shadow-lg border border-gray-200 p-6 z-50"
+                    className={`absolute top-full left-0 mt-1.5 ${isEmployer ? 'w-[min(880px,calc(100vw-200px))]' : 'w-[min(1120px,calc(100vw-200px))]'} bg-white rounded-xl shadow-lg border border-gray-200 p-6 z-50`}
                     onMouseEnter={handleMouseEnterJob}
                     onMouseLeave={handleMouseLeaveJob}
                   >
                     <div className="grid grid-cols-12 gap-6">
                       
                       {/* Cột 1: VIỆC LÀM & CÔNG TY */}
-                      <div className="col-span-3 space-y-5 border-r border-gray-100 pr-4">
-                        <div>
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                            VIỆC LÀM
-                          </h3>
-                          <ul className="space-y-1">
-                            <li>
-                              <Link
-                                to="/"
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                Tìm việc làm
-                              </Link>
-                            </li>
-                            <li>
-                              <Link
-                                to="/candidate/cv-builder"
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                Thiết kế CV
-                              </Link>
-                            </li>
-                            <li>
-                              <Link
-                                to="/candidate/dashboard?tab=saved"
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                Việc làm đã lưu
-                              </Link>
-                            </li>
-                            <li>
-                              <Link
-                                to="/candidate/dashboard?tab=applications"
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                Việc làm đã ứng tuyển
-                              </Link>
-                            </li>
-                            <li>
-                              <Link
-                                to="/candidate/skill-gap"
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                Phân tích kỹ năng
-                              </Link>
-                            </li>
-                          </ul>
-                        </div>
+                      {!isEmployer && (
+                          <div className="col-span-3 space-y-5 border-r border-gray-100 pr-4">
+                            <div>
+                              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                                VIỆC LÀM
+                              </h3>
+                              <ul className="space-y-1">
+                                <li>
+                                  <Link
+                                    to="/"
+                                    onClick={() => setJobMenuOpen(false)}
+                                    className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                                  >
+                                    Tìm việc làm
+                                  </Link>
+                                </li>
+                                <li>
+                                  <Link
+                                    to="/candidate/cv-builder"
+                                    onClick={() => setJobMenuOpen(false)}
+                                    className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                                  >
+                                    Thiết kế CV
+                                  </Link>
+                                </li>
+                                <li>
+                                  <Link
+                                    to="/candidate/dashboard?tab=saved"
+                                    onClick={() => setJobMenuOpen(false)}
+                                    className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                                  >
+                                    Việc làm đã lưu
+                                  </Link>
+                                </li>
+                                <li>
+                                  <Link
+                                    to="/candidate/dashboard?tab=applications"
+                                    onClick={() => setJobMenuOpen(false)}
+                                    className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                                  >
+                                    Việc làm đã ứng tuyển
+                                  </Link>
+                                </li>
+                                <li>
+                                  <Link
+                                    to="/candidate/skill-gap"
+                                    onClick={() => setJobMenuOpen(false)}
+                                    className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                                  >
+                                    Phân tích kỹ năng
+                                  </Link>
+                                </li>
+                              </ul>
+                            </div>
 
-                        <div>
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                            DOANH NGHIỆP
-                          </h3>
-                          <ul className="space-y-1">
-                            <li>
-                              <Link
-                                to="/?keyword=Công ty"
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                Danh sách công ty
-                              </Link>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-
-                      {/* Cột 2 & 3: VIỆC LÀM THEO VỊ TRÍ */}
-                      <div className="col-span-6 px-2">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                          VIỆC LÀM THEO VỊ TRÍ
-                        </h3>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                          <div className="space-y-1">
-                            {[
-                              'Việc làm Nhân viên kinh doanh',
-                              'Việc làm Kế toán',
-                              'Việc làm Marketing',
-                              'Việc làm Hành chính nhân sự',
-                              'Việc làm Chăm sóc khách hàng',
-                              'Việc làm Ngân hàng',
-                              'Việc làm IT',
-                            ].map((item, idx) => (
-                              <Link
-                                key={idx}
-                                to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm text-slate-800 font-medium hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                {item}
-                              </Link>
-                            ))}
+                            <div>
+                              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                                DOANH NGHIỆP
+                              </h3>
+                              <ul className="space-y-1">
+                                <li>
+                                  <Link
+                                    to="/?keyword=Công ty"
+                                    onClick={() => setJobMenuOpen(false)}
+                                    className="block px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                                  >
+                                    Danh sách công ty
+                                  </Link>
+                                </li>
+                              </ul>
+                            </div>
                           </div>
 
-                          <div className="space-y-1">
-                            {[
-                              'Việc làm Lao động phổ thông',
-                              'Việc làm Senior',
-                              'Việc làm Kỹ sư xây dựng',
-                              'Việc làm Thiết kế đồ hoạ',
-                              'Việc làm Bất động sản',
-                              'Việc làm Giáo dục',
-                              'Việc làm Telesales',
-                            ].map((item, idx) => (
-                              <Link
-                                key={idx}
-                                to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
-                                onClick={() => setJobMenuOpen(false)}
-                                className="block px-2.5 py-1.5 rounded-lg text-sm text-slate-800 font-medium hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              >
-                                {item}
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                        )}
 
-                      {/* Cột 4: VIỆC LÀM THEO LĨNH VỰC */}
-                      <div className="col-span-3 border-l border-gray-100 pl-4">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                          VIỆC LÀM THEO LĨNH VỰC
-                        </h3>
-                        <div className="space-y-1">
-                          {[
-                            'Việc làm Sản xuất',
-                            'Việc làm Bán lẻ - Hàng tiêu dùng - FMCG',
-                            'Việc làm IT - Phần mềm',
-                            'Việc làm Xây dựng',
-                            'Việc làm Giáo dục/Đào tạo',
-                          ].map((item, idx) => (
-                            <Link
-                              key={idx}
-                              to={`/?keyword=${encodeURIComponent(item.replace('Việc làm ', ''))}`}
-                              onClick={() => setJobMenuOpen(false)}
-                              className="block px-2.5 py-1.5 rounded-lg text-sm text-slate-800 font-medium hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                            >
-                              {item}
-                            </Link>
-                          ))}
+                        <div className={isEmployer ? 'col-span-12' : 'col-span-9'}>
+                          <JobBrowseMenu onSelect={() => setJobMenuOpen(false)} />
                         </div>
-                      </div>
 
+                      </div>
                     </div>
-                  </div>
                 )}
               </div>
 
@@ -539,6 +472,7 @@ export default function Navbar() {
 
             {mobileJobSubmenuOpen && (
               <div className="pl-3 pr-1 py-2 space-y-3 border-l-2 border-gray-200 ml-2 mt-1 bg-slate-50 rounded-r-lg text-sm">
+                {!isEmployer && (
                 <div>
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-2">Truy cập nhanh</p>
                   <div className="grid grid-cols-2 gap-1">
@@ -572,31 +506,9 @@ export default function Navbar() {
                     </Link>
                   </div>
                 </div>
+                )}
 
-                <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-2">Vị trí phổ biến</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {[
-                      'Kinh doanh',
-                      'Kế toán',
-                      'Marketing',
-                      'Nhân sự',
-                      'CSKH',
-                      'IT',
-                      'Senior',
-                      'Thiết kế đồ hoạ'
-                    ].map((item, idx) => (
-                      <Link
-                        key={idx}
-                        to={`/?keyword=${encodeURIComponent(item)}`}
-                        onClick={() => { setMobileMenuOpen(false); setMobileJobSubmenuOpen(false); }}
-                        className="px-2 py-1 rounded-md text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100"
-                      >
-                        Việc làm {item}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+                <JobBrowseMenu mobile onSelect={() => { setMobileMenuOpen(false); setMobileJobSubmenuOpen(false); }} />
               </div>
             )}
           </div>

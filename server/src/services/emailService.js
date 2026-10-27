@@ -59,7 +59,7 @@ const sendOtpEmail = async (toEmail, otpCode, fullName = 'Bạn', purpose = 'reg
           </p>
         </div>
         <div class="footer">
-          © ${new Date().getFullYear()} Jobtimize AI Platform. All rights reserved.
+          © ${new Date().getFullYear()} Jobtimize. All rights reserved.
         </div>
       </div>
     </body>
@@ -72,7 +72,7 @@ const sendOtpEmail = async (toEmail, otpCode, fullName = 'Bạn', purpose = 'reg
 
   try {
     const info = await transporter.sendMail({
-      from: getMailFrom('Jobtimize AI Recruitment'),
+      from: getMailFrom('Jobtimize Recruitment'),
       to: toEmail,
       subject: emailSubject,
       text: `Xin chào ${fullName}, mã OTP ${isReset ? 'đặt lại mật khẩu' : 'đăng ký tài khoản'} của bạn là ${otpCode}. Mã có hiệu lực trong 10 phút. Không chia sẻ mã này với bất kỳ ai.`,
@@ -194,7 +194,7 @@ const sendInvitationEmail = async ({ toEmail, candidateName, companyName, jobTit
           </p>
         </div>
         <div class="footer">
-          © ${new Date().getFullYear()} Jobtimize AI Platform. Email này được gửi tự động khi Nhà tuyển dụng gửi lời mời ứng tuyển.
+          © ${new Date().getFullYear()} Jobtimize. Email này được gửi tự động khi Nhà tuyển dụng gửi lời mời ứng tuyển.
         </div>
       </div>
     </body>

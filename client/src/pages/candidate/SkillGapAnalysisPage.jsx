@@ -436,7 +436,7 @@ export default function SkillGapAnalysisPage() {
           </div>
 
           <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-100 text-[11px] text-gray-500 space-y-1">
-            <span className="font-bold text-gray-700">💡 Gợi ý AI:</span>
+            <span className="font-bold text-gray-700">💡 Gợi ý cải thiện:</span>
             <p>Kỹ năng đã sở hữu giúp bạn chứng minh năng lực ngay trong buổi phỏng vấn. Hãy chuẩn bị các dự án thực tế minh họa cho các kỹ năng này.</p>
           </div>
         </div>

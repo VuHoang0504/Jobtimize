@@ -9,7 +9,11 @@
     "db:init": "node scripts/initDb.js",
     "seed:jobs": "node scripts/seedJobs.js",
     "check:smtp": "node scripts/check_smtp.js",
-    "test:otp": "node --test scripts/test_otp.js"
+    "test:otp": "node --test scripts/test_otp.js",
+    "cv:browser": "node ../scripts/installCVBrowser.mjs",
+    "seed:browse": "node scripts/seedBrowseJobs.js",
+    "test:ai": "node --test scripts/test_openai.js scripts/test_content_generation.js",
+    "check:ai": "node scripts/check_ai.js"
   },
   "keywords": [
     "recruitment",
@@ -33,7 +37,9 @@
     "mssql": "^10.0.4",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^10.0.10",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "playwright": "^1.64.1",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"
