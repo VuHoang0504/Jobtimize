@@ -32,6 +32,7 @@ router.post('/interviews', employerController.scheduleInterview);
 // 5. Subscription Packages & Payment (UC-E07)
 router.get('/packages', employerController.getSubscriptionPackages);
 router.get('/subscription', employerController.getEmployerSubscription);
+router.post('/subscription/switch', employerController.switchSubscriptionPackage);
 router.post('/checkout', employerController.createCheckout);
 router.post('/payment/confirm', employerController.confirmPayment);
 router.get('/payment/history', employerController.getPaymentHistory);
