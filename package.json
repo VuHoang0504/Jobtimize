@@ -15,6 +15,7 @@
     "test:cv:ui": "node --test server/scripts/test_cv_editor_ui.mjs",
     "seed:browse": "npm --prefix server run seed:browse",
     "test:ai": "npm --prefix server run test:ai",
+    "test:notifications": "npm --prefix server run test:notifications && npm --prefix client run test:notifications",
     "check:ai": "npm --prefix server run check:ai --"
   },
   "keywords": [

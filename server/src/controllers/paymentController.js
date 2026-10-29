@@ -81,6 +81,8 @@ const createPayOSOrder = async (req, res) => {
       });
     }
 
+    if (!payosService.isConfigured()) return res.status(503).json({ success: false, message: 'Thanh toán PayOS chưa được cấu hình. Vui lòng liên hệ quản trị viên.' });
+
     // Generate unique orderCode (6 to 9 digits integer)
     const timestampSlice = Date.now().toString().slice(-6);
     const randomSuffix = Math.floor(Math.random() * 899 + 100);
@@ -102,8 +104,9 @@ const createPayOSOrder = async (req, res) => {
 
     // Call PayOS Service to generate dynamic VietQR & checkout link
     const description = `JOBTIMIZE ${orderCode.toString().slice(-6)}`;
-    const returnUrl = `http://localhost:3000/employer/pricing?payment=success&orderCode=${orderCode}`;
-    const cancelUrl = `http://localhost:3000/employer/pricing?payment=cancel&orderCode=${orderCode}`;
+    const frontendUrl = new URL(process.env.FRONTEND_URL || 'http://127.0.0.1:3000').origin;
+    const returnUrl = `${frontendUrl}/employer/pricing?payment=success&orderCode=${orderCode}`;
+    const cancelUrl = `${frontendUrl}/employer/pricing?payment=cancel&orderCode=${orderCode}`;
 
     const payosResult = await payosService.createPaymentLink({
       orderCode,
@@ -151,17 +154,17 @@ const createPayOSOrder = async (req, res) => {
         rawQrCode: payosResult.rawQrCode,
         checkoutUrl: payosResult.checkoutUrl,
         bankInfo: {
-          bankName: process.env.BANK_NAME || 'MBBank (Ngân hàng Quân Đội)',
-          bin: payosResult.bin || process.env.BANK_BIN || '970422',
-          accountNumber: payosResult.accountNumber || process.env.BANK_ACCOUNT_NO || '0387887153',
-          accountHolder: payosResult.accountName || process.env.BANK_ACCOUNT_NAME || 'MAI XUAN QUY',
+          bankName: process.env.BANK_NAME || 'Theo mã QR PayOS',
+          bin: payosResult.bin || process.env.BANK_BIN || null,
+          accountNumber: payosResult.accountNumber || process.env.BANK_ACCOUNT_NO || null,
+          accountHolder: payosResult.accountName || process.env.BANK_ACCOUNT_NAME || null,
           memo: description
         }
       }
     });
   } catch (error) {
     console.error('createPayOSOrder error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Lỗi khi khởi tạo đơn hàng PayOS' });
+    return res.status(error.status || 500).json({ success: false, message: error.message || 'Lỗi khi khởi tạo đơn hàng PayOS' });
   }
 };
 
@@ -191,7 +194,7 @@ const handlePayOSWebhook = async (req, res) => {
 
     const { orderCode, amount, reference } = verifiedData;
 
-    if (!orderCode) {
+    if (!Number.isSafeInteger(Number(orderCode)) || Number(orderCode) < 1) {
       return res.status(400).json({ success: false, message: 'Dữ liệu webhook thiếu orderCode' });
     }
 
@@ -204,13 +207,13 @@ const handlePayOSWebhook = async (req, res) => {
     );
 
     if (!txnRes.recordset || txnRes.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: `Không tìm thấy đơn hàng #${orderCode}` });
+      return res.status(200).json({ success: true, ignored: true, message: 'Webhook đã xác thực; không có đơn hàng tương ứng để kích hoạt.' });
     }
 
     const txn = txnRes.recordset[0];
 
     // Check amount match
-    if (Number(amount) < Number(txn.Amount)) {
+    if (verifiedData.code !== '00' || !Number.isFinite(Number(amount)) || Number(amount) <= 0 || Number(amount) !== Number(txn.Amount)) {
       return res.status(400).json({
         success: false,
         message: `Số tiền thanh toán (${amount} đ) không khớp với giá trị đơn hàng (${txn.Amount} đ)`
@@ -243,7 +246,7 @@ const getPaymentStatus = async (req, res) => {
   try {
     const { orderCode } = req.params;
 
-    if (!orderCode) {
+    if (!Number.isSafeInteger(Number(orderCode)) || Number(orderCode) < 1) {
       return res.status(400).json({ success: false, message: 'Thiếu mã đơn hàng (orderCode)' });
     }
 
@@ -253,8 +256,8 @@ const getPaymentStatus = async (req, res) => {
               sp.PackageName, sp.DurationDays, sp.PostLimit, sp.SearchLimit
        FROM PaymentTransactions pt
        JOIN SubscriptionPackages sp ON pt.PackageID = sp.PackageID
-       WHERE pt.OrderCode = @OrderCode`,
-      { OrderCode: Number(orderCode) }
+       WHERE pt.OrderCode = @OrderCode AND EXISTS(SELECT 1 FROM Employers e WHERE e.EmployerID=pt.EmployerID AND e.UserID=@UserID)`,
+      { OrderCode: Number(orderCode), UserID: req.user.userId }
     );
 
     if (!txnRes.recordset || txnRes.recordset.length === 0) {
@@ -267,7 +270,7 @@ const getPaymentStatus = async (req, res) => {
     if (txn.Status === 'Pending') {
       try {
         const remoteInfo = await payosService.getPaymentInformation(orderCode);
-        if (remoteInfo && (remoteInfo.status === 'PAID' || remoteInfo.status === 'SUCCESS')) {
+        if (remoteInfo?.status === 'PAID' && Number(remoteInfo.orderCode) === Number(orderCode) && Number(remoteInfo.amount) === Number(txn.Amount) && Number(remoteInfo.amountPaid) >= Number(txn.Amount)) {
           await paymentService.activateSubscription({
             orderCode: Number(orderCode),
             gatewayTransactionNo: remoteInfo.id || `PAYOS_SYNC_${orderCode}`,

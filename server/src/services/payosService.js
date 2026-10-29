@@ -1,5 +1,4 @@
 const { PayOS } = require('@payos/node');
-const crypto = require('crypto');
 
 /**
  * PayOS Payment Gateway Service
@@ -52,19 +51,6 @@ class PayOSService {
   }
 
   /**
-   * Helper to verify HMAC signature of an object using SHA-256
-   */
-  createSignatureFromObj(data, checksumKey) {
-    const key = checksumKey || this.checksumKey;
-    if (!key) return null;
-    const sortedKeys = Object.keys(data).sort();
-    const queryString = sortedKeys
-      .map(k => `${k}=${data[k] === null || data[k] === undefined ? '' : data[k]}`)
-      .join('&');
-    return crypto.createHmac('sha256', key).update(queryString).digest('hex');
-  }
-
-  /**
    * Create a payment link on payOS
    * @param {Object} paymentData { orderCode, amount, description, returnUrl, cancelUrl, items }
    * @returns {Promise<Object>}
@@ -105,36 +91,15 @@ class PayOSService {
         checkoutUrl: response.checkoutUrl,
         qrCode: qrCodeUrl || response.qrCode,
         rawQrCode: response.qrCode,
-        accountName: response.accountName || process.env.BANK_ACCOUNT_NAME || 'MAI XUAN QUY',
-        accountNumber: response.accountNumber || process.env.BANK_ACCOUNT_NO || '0387887153',
-        bin: response.bin || process.env.BANK_BIN || '970422',
+        accountName: response.accountName || process.env.BANK_ACCOUNT_NAME || null,
+        accountNumber: response.accountNumber || process.env.BANK_ACCOUNT_NO || null,
+        bin: response.bin || process.env.BANK_BIN || null,
         status: response.status
       };
     } catch (error) {
       console.error(`Lỗi khi tạo payment link payOS cho orderCode ${orderCode}:`, error.message || error);
 
-      // Graceful fallback VietQR
-      const bankBin = process.env.BANK_BIN || '970422';
-      const bankAccount = process.env.BANK_ACCOUNT_NO || '0387887153';
-      const accountHolder = process.env.BANK_ACCOUNT_NAME || 'MAI XUAN QUY';
-      const transferMemo = `JOBTIMIZE ${orderCode}`;
-      const vietQrUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(transferMemo)}&accountName=${encodeURIComponent(accountHolder)}`;
-
-      return {
-        success: true,
-        isDevFallback: true,
-        orderCode,
-        amount: Number(amount),
-        description: transferMemo,
-        paymentLinkId: `DEV_LINK_${orderCode}`,
-        checkoutUrl: vietQrUrl,
-        qrCode: vietQrUrl,
-        accountName: accountHolder,
-        accountNumber: bankAccount,
-        bin: bankBin,
-        status: 'PENDING',
-        warning: 'Giao dịch được tạo thành công với mã VietQR tương thích payOS.'
-      };
+      throw Object.assign(new Error('Không thể kết nối PayOS. Vui lòng thử lại sau; giao dịch chưa được thanh toán.'), { status: 503 });
     }
   }
 
@@ -152,29 +117,10 @@ class PayOSService {
       throw new Error('Dữ liệu webhook không đúng định dạng (thiếu data).');
     }
 
-    if (!this.isConfigured() || !this.payos) {
-      return webhookBody.data;
-    }
-
-    // Try SDK verify method
-    if (this.payos && this.payos.webhooks && typeof this.payos.webhooks.verify === 'function') {
-      try {
-        const verified = await this.payos.webhooks.verify(webhookBody);
-        return verified;
-      } catch (sdkErr) {
-        // Fallback to manual verification
-      }
-    }
-
-    // Fallback HMAC verification
-    if (webhookBody.signature && this.checksumKey) {
-      const expectedSig = this.createSignatureFromObj(webhookBody.data, this.checksumKey);
-      if (expectedSig && expectedSig.toLowerCase() === webhookBody.signature.toLowerCase()) {
-        return webhookBody.data;
-      }
-    }
-
-    throw new Error('Chữ ký webhook payOS không hợp lệ hoặc dữ liệu bị thay đổi.');
+    if (!this.isConfigured() || !this.payos) throw new Error('PayOS chưa được cấu hình.');
+    if (webhookBody.code !== '00' || webhookBody.success !== true) throw new Error('Webhook không phải thanh toán thành công.');
+    // The official SDK verifies the canonical gateway payload. Fail closed.
+    return this.payos.webhooks.verify(webhookBody);
   }
 
   /**

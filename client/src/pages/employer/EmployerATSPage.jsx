@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
 import api from '../../services/api';
 import MatchScoreBadge from '../../components/common/MatchScoreBadge';
 import InterviewModal from '../../components/employer/InterviewModal';
@@ -23,6 +23,8 @@ import {
 
 export default function EmployerATSPage() {
   const { jobId } = useParams();
+  const location = useLocation();
+  const selectedId = Number(new URLSearchParams(location.search).get('applicationId'));
 
   const [job, setJob] = useState(null);
   const [applicants, setApplicants] = useState([]);
@@ -52,7 +54,11 @@ export default function EmployerATSPage() {
 
   useEffect(() => {
     fetchATS();
-  }, [jobId]);
+  }, [jobId, location.key]);
+
+  useEffect(() => {
+    if (!loading && selectedId) { setStatusFilter('ALL'); requestAnimationFrame(() => document.getElementById(`application-${selectedId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })); }
+  }, [loading, selectedId, location.key]);
 
   // Handle status update
   const handleStatusChange = async (applicationId, newStatus) => {
@@ -131,7 +137,7 @@ export default function EmployerATSPage() {
         ) : (
           filteredApplicants.map((applicant, idx) => (
             <div
-              key={applicant.ApplicationID}
+              key={applicant.ApplicationID} id={`application-${applicant.ApplicationID}`}
               className="bg-white rounded-3xl p-6 border border-gray-200/80 hover:border-brand-blue/40 shadow-card transition-all space-y-4"
             >
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

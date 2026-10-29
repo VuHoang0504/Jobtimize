@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import MatchScoreBadge from '../../components/common/MatchScoreBadge';
+import ReportJobButton from '../../components/common/ReportJobButton';
 import { getCompanyLogo, handleCompanyLogoError } from '../../utils/logoHelper';
 import { 
   Building2, 
@@ -27,6 +28,7 @@ export default function JobDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,7 @@ export default function JobDetailPage() {
 
   useEffect(() => {
     fetchJobDetail();
-  }, [id, user]);
+  }, [id, user, location.key]);
 
   const handleApply = async () => {
     if (!user) {
@@ -133,10 +135,11 @@ export default function JobDetailPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
       {/* Back link */}
-      <div>
+      <div className="flex flex-wrap justify-between gap-3">
         <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-brand-blue transition-colors">
           <ArrowLeft className="w-4 h-4" /> Quay lại danh sách việc làm
         </Link>
+        <ReportJobButton jobId={job.JobID} />
       </div>
 
       {/* Main Grid: 2 Columns */}

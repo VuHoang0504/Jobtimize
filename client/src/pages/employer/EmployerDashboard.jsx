@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import KYCModal from '../../components/employer/KYCModal';
@@ -31,6 +31,7 @@ import {
 export default function EmployerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [profile, setProfile] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -49,6 +50,13 @@ export default function EmployerDashboard() {
   const [deleteConfirmJob, setDeleteConfirmJob] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const jobId = Number(params.get('jobId'));
+    if (jobId > 0) { setStatusFilter('ALL'); if (!loading) requestAnimationFrame(() => document.getElementById(`job-${jobId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })); }
+    if (params.get('section') === 'kyc' && !loading) setKycModalOpen(true);
+  }, [location.search, location.key, loading]);
 
   const fetchData = async () => {
     try {
@@ -336,7 +344,7 @@ export default function EmployerDashboard() {
           <div className="space-y-4">
             {filteredJobs.map((job) => (
               <div
-                key={job.JobID}
+                key={job.JobID} id={`job-${job.JobID}`}
                 className="p-5 rounded-2xl border border-gray-200 hover:border-brand-blue/40 bg-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 transition-all"
               >
                 <div className="space-y-1.5 flex-1">

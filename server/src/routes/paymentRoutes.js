@@ -12,7 +12,7 @@ router.head('/payos-webhook', (req, res) => res.status(200).end());
 router.post('/payos-webhook', paymentController.handlePayOSWebhook);
 
 // 3. Check Order Payment Status (Polling endpoint for frontend)
-router.get('/:orderCode/status', paymentController.getPaymentStatus);
+router.get('/:orderCode/status', authenticate, paymentController.getPaymentStatus);
 
 module.exports = router;
 

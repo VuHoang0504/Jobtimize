@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import AdminReportPeriod from '../../components/common/AdminReportPeriod';
 import api from '../../services/api';
 import { getCompanyLogo, handleCompanyLogoError } from '../../utils/logoHelper';
 import {
@@ -31,7 +32,17 @@ import {
 } from 'lucide-react';
 
 export default function AdminAnalyticsDashboard() {
-  const [timeRange, setTimeRange] = useState('6m'); // '7d' | '30d' | '6m' | '1y'
+  const [periodFilter, setPeriodFilter] = useState({ timeRange: '6m' });
+  const [dataSource, setDataSource] = useState('payments');
+  const [refresh, setRefresh] = useState(0);
+  const requestVersion = useRef(0);
+  const txRequestVersion = useRef(0);
+  const [exporting, setExporting] = useState(false);
+  const [txData, setTxData] = useState({ transactions: [], pagination: { total: 0, totalPages: 0 } });
+  const [txPage, setTxPage] = useState(1);
+  const [txLoading, setTxLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const periodQuery = useMemo(() => new URLSearchParams({ ...periodFilter, dataSource }).toString(), [periodFilter, dataSource]);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -42,28 +53,28 @@ export default function AdminAnalyticsDashboard() {
   const [txSearch, setTxSearch] = useState('');
   const [txPaymentFilter, setTxPaymentFilter] = useState('all');
 
-  // Load analytics report
-  const fetchAnalytics = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const res = await api.get(`/admin/analytics?timeRange=${timeRange}`);
-      if (res.data?.success) {
-        setData(res.data.data);
-      } else {
-        setError(res.data?.message || 'Không thể tải dữ liệu báo cáo');
-      }
-    } catch (err) {
-      console.error('Fetch analytics failed:', err);
-      setError(err.response?.data?.message || 'Lỗi kết nối máy chủ khi lấy dữ liệu thống kê');
-    } finally {
-      setLoading(false);
-    }
-  }, [timeRange]);
-
+  const fetchAnalytics = () => setRefresh(value => value + 1);
   useEffect(() => {
-    fetchAnalytics();
-  }, [fetchAnalytics]);
+    const version = ++requestVersion.current;
+    const controller = new AbortController();
+    setLoading(true); setError(''); setData(null); setHoveredPoint(null);
+    api.get(`/admin/analytics?${periodQuery}`, { signal: controller.signal, timeout: 30000 })
+      .then(response => { if (version === requestVersion.current) setData(response.data.data); })
+      .catch(err => { if (!controller.signal.aborted) setError(err.response?.data?.message || 'Không thể tải báo cáo.'); })
+      .finally(() => { if (version === requestVersion.current) setLoading(false); });
+    return () => { ++requestVersion.current; controller.abort(); };
+  }, [periodQuery, refresh]);
+  useEffect(() => { const timer = setTimeout(() => { setSearchTerm(txSearch); setTxPage(1); }, 300); return () => clearTimeout(timer); }, [txSearch]);
+  useEffect(() => {
+    const version = ++txRequestVersion.current;
+    const controller = new AbortController();
+    setTxLoading(true); setTxData({ transactions: [], pagination: { total: 0, totalPages: 0 } });
+    api.get(`/admin/transactions?${periodQuery}&page=${txPage}&search=${encodeURIComponent(searchTerm)}&paymentMethod=${encodeURIComponent(txPaymentFilter)}`, { signal: controller.signal, timeout: 30000 })
+      .then(response => { if (version === txRequestVersion.current) setTxData(response.data.data); })
+      .catch(err => { if (!controller.signal.aborted) setError(err.response?.data?.message || 'Không thể tải giao dịch.'); })
+      .finally(() => { if (version === txRequestVersion.current) setTxLoading(false); });
+    return () => { ++txRequestVersion.current; controller.abort(); };
+  }, [periodQuery, txPage, searchTerm, txPaymentFilter, refresh]);
 
   // Format currency VNĐ
   const formatVND = (amount) => {
@@ -77,42 +88,23 @@ export default function AdminAnalyticsDashboard() {
     return num;
   };
 
-  // Filter recent transactions
-  const filteredTransactions = useMemo(() => {
-    if (!data?.recentTransactions) return [];
-    return data.recentTransactions.filter(tx => {
-      const matchSearch = txSearch === '' || 
-        tx.companyName?.toLowerCase().includes(txSearch.toLowerCase()) ||
-        tx.transactionCode?.toLowerCase().includes(txSearch.toLowerCase()) ||
-        tx.packageName?.toLowerCase().includes(txSearch.toLowerCase());
-      const matchPayment = txPaymentFilter === 'all' || tx.paymentMethod === txPaymentFilter;
-      return matchSearch && matchPayment;
-    });
-  }, [data?.recentTransactions, txSearch, txPaymentFilter]);
-
-  // Export report to CSV
-  const handleExportCSV = () => {
-    if (!data) return;
-    const headers = ['Mã Giao Dịch', 'Doanh Nghiệp', 'Gói Dịch Vụ', 'Số Tiền (VNĐ)', 'Phương Thức', 'Trạng Thái', 'Ngày Giao Dịch'];
-    const rows = (data.recentTransactions || []).map(tx => [
-      `"${tx.transactionCode || ''}"`,
-      `"${tx.companyName || ''}"`,
-      `"${tx.packageName || ''}"`,
-      tx.amount || 0,
-      `"${tx.paymentMethod || ''}"`,
-      `"${tx.paymentStatus === 'Completed' ? 'Thành công' : tx.paymentStatus}"`,
-      `"${new Date(tx.startDate).toLocaleDateString('vi-VN')}"`
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `jobtimize-revenue-report-${timeRange}-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const filteredTransactions = txData.transactions;
+  const handleExportCSV = async (kind = 'summary') => {
+    setExporting(true);
+    try {
+      const response = await api.get(`/admin/analytics/export?${periodQuery}&kind=${kind}&search=${encodeURIComponent(searchTerm)}&paymentMethod=${encodeURIComponent(txPaymentFilter)}`, { responseType: 'blob', timeout: 60000 });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      const filename = response.headers['content-disposition']?.match(/filename="([^"]+)"/)?.[1];
+      link.download = filename || `jobtimize-${kind}.csv`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      let message = err.response?.data?.message;
+      if (err.response?.data instanceof Blob) { try { message = JSON.parse(await err.response.data.text()).message; } catch {} }
+      setError(message || 'Không thể xuất báo cáo. Vui lòng thử lại.');
+    } finally { setExporting(false); }
   };
 
   // SVG Area Chart calculations for Revenue
@@ -179,7 +171,7 @@ export default function AdminAnalyticsDashboard() {
     const chartW = width - padX * 2;
     const chartH = height - padTop - padBottom;
     const groupW = chartW / timeline.length;
-    const barW = Math.max(8, Math.min(18, groupW * 0.32));
+    const barW = Math.max(1, Math.min(18, groupW * 0.32));
 
     const groups = timeline.map((d, i) => {
       const groupCenter = padX + groupW * i + groupW / 2;
@@ -239,82 +231,81 @@ export default function AdminAnalyticsDashboard() {
   }, [data?.timeline]);
 
   const kpi = data?.kpi || {};
+  const isDemo = dataSource === 'demo';
+  const matchScoreLabel = Number(kpi.periodApplications) > 0 && Number.isFinite(Number(kpi.avgMatchScore))
+    ? `${Number(kpi.avgMatchScore).toFixed(1).replace(/\.0$/, '')}%` : 'Chưa có dữ liệu';
 
   return (
     <div className="min-h-screen bg-slate-50/70 pb-16 pt-6">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
         {/* Top Header & Breadcrumbs */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-200/80 shadow-sm">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-brand-blue uppercase tracking-wider mb-1">
-              <ShieldCheck className="w-4 h-4" />
+        <section aria-label="Báo cáo và bộ lọc" className="min-w-0 space-y-5 rounded-2xl border border-gray-200/80 bg-white p-4 shadow-sm sm:p-6">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wider text-brand-blue">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
               <span>Jobtimize Executive Center</span>
               <span className="text-gray-300">•</span>
               <span className="text-gray-500 font-normal">Quản trị tài chính & Thống kê hệ thống</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
               <span>Báo Cáo Doanh Thu & Thống Kê Hệ Thống</span>
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Theo dõi biểu đồ tăng trưởng người dùng, việc làm và doanh số bán gói dịch vụ trong thời gian thực.
+              {data?.period && <span className="block font-semibold">Kỳ: {data.period.fromDate} → {data.period.toDate} (đến hết ngày) · Việt Nam</span>}
+              {isDemo ? 'Đang xem doanh thu mẫu có sẵn trong dự án; không dùng để đối soát thanh toán thực tế.' : 'Doanh thu từ giao dịch đã thanh toán thành công, tính theo ngày thanh toán.'} Biểu đồ và phân bố áp dụng cùng kỳ đã chọn, múi giờ Việt Nam.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            {/* Time filter selector */}
-            <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600">
-              {[
-                { id: '7d', label: '7 ngày' },
-                { id: '30d', label: '30 ngày' },
-                { id: '6m', label: '6 tháng' },
-                { id: '1y', label: '1 năm' }
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setTimeRange(item.id)}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
-                    timeRange === item.id 
-                      ? 'bg-white text-brand-blue font-bold shadow-sm' 
-                      : 'hover:text-gray-900'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+          <div className="grid min-w-0 gap-4 border-t border-gray-100 pt-4">
+            <label className="flex w-full min-w-0 max-w-md flex-col gap-1.5 text-xs font-medium text-gray-700">
+              <span>Nguồn doanh thu</span>
+              <select aria-label="Nguồn doanh thu" value={dataSource} onChange={event => { setTxPage(1); setDataSource(event.target.value); }} className="h-10 w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm">
+                <option value="payments">Thanh toán đã xác nhận</option>
+                <option value="demo">Dữ liệu mẫu có sẵn</option>
+              </select>
+            </label>
+            <AdminReportPeriod disabled={loading} onApply={value => { setTxPage(1); setPeriodFilter(value); }} />
+
+            <div role="group" aria-label="Thao tác báo cáo" className="flex min-w-0 flex-wrap items-center gap-2.5">
+              {/* Refresh Button */}
+              <button
+                onClick={fetchAnalytics}
+                disabled={loading}
+                className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors shadow-sm disabled:opacity-50"
+                title="Làm mới dữ liệu"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-brand-blue' : ''}`} />
+              </button>
+
+              {/* Export CSV Button */}
+              <button
+                onClick={() => handleExportCSV('summary')}
+                disabled={loading || !data || exporting}
+                className="inline-flex min-h-10 max-w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-600/20 transition-all hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                <span>Xuất Báo Cáo</span>
+              </button>
+
+              {/* Link to Admin Users Management */}
+              <Link
+                to="/admin/users"
+                className="inline-flex min-h-10 min-w-0 max-w-full items-center justify-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-700 transition-all hover:bg-indigo-100"
+              >
+                <Users className="w-4 h-4" />
+                <span>Quản lý Tài khoản & Duyệt tin</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-
-            {/* Refresh Button */}
-            <button
-              onClick={fetchAnalytics}
-              disabled={loading}
-              className="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors shadow-sm disabled:opacity-50"
-              title="Làm mới dữ liệu"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-brand-blue' : ''}`} />
-            </button>
-
-            {/* Export CSV Button */}
-            <button
-              onClick={handleExportCSV}
-              disabled={loading || !data}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all shadow-emerald-600/20 disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-              <span>Xuất Báo Cáo</span>
-            </button>
-
-            {/* Link to Admin Users Management */}
-            <Link
-              to="/admin/users"
-              className="flex items-center gap-1 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all border border-indigo-200"
-            >
-              <Users className="w-4 h-4" />
-              <span>Quản lý Tài khoản & Duyệt tin</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
-        </div>
+        </section>
+
+        {isDemo && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>DỮ LIỆU MẪU:</strong> Số liệu doanh thu, gói và giao dịch bên dưới lấy từ các bản ghi mẫu có sẵn. Người dùng, tin và ứng tuyển vẫn dùng dữ liệu hiện có. Không phải xác nhận thanh toán thực tế.</div>}
+        {!isDemo && data && !data.kpi.periodOrders && <div role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          <p>Chưa có giao dịch thanh toán đã xác nhận trong kỳ đã chọn nên biểu đồ doanh thu đang ở mức 0.</p>
+          {data.demoAvailable?.count > 0 && <p className="mt-2">Vẫn còn {data.demoAvailable.count} bản ghi doanh thu mẫu trong kỳ, tổng {formatVND(data.demoAvailable.amount)}. <button onClick={() => { setTxPage(1); setDataSource('demo'); }} className="font-bold underline">Xem dữ liệu mẫu</button></p>}
+        </div>}
 
         {/* Error Alert */}
         {error && (
@@ -334,7 +325,7 @@ export default function AdminAnalyticsDashboard() {
             <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-emerald-50 rounded-full group-hover:scale-125 transition-transform -z-0 opacity-80" />
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tổng Doanh Thu</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Doanh Thu Trong Kỳ</span>
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
                   <DollarSign className="w-5 h-5" />
                 </div>
@@ -343,21 +334,11 @@ export default function AdminAnalyticsDashboard() {
                 {formatVND(kpi.periodRevenue ?? kpi.totalRevenue)}
               </div>
               <div className="flex items-center gap-1.5 mt-2 text-xs">
-                {kpi.revenueGrowthRate >= 0 ? (
-                  <span className="flex items-center font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                    <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                    +{kpi.revenueGrowthRate}%
-                  </span>
-                ) : (
-                  <span className="flex items-center font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
-                    <ArrowDownRight className="w-3 h-3 mr-0.5" />
-                    {kpi.revenueGrowthRate}%
-                  </span>
-                )}
+                <GrowthBadge value={kpi.revenueGrowthRate} />
                 <span className="text-gray-400">so với kỳ trước</span>
               </div>
               <div className="mt-2 text-[11px] text-gray-500">
-                Toàn hệ thống: <strong className="text-gray-800">{formatVND(kpi.totalRevenue)}</strong> ({kpi.periodOrders || 0} đơn)
+                Toàn hệ thống: <strong className="text-gray-800">{formatVND(kpi.totalRevenue)}</strong> · Kỳ này: {kpi.periodOrders || 0} giao dịch
               </div>
             </div>
           </div>
@@ -373,13 +354,10 @@ export default function AdminAnalyticsDashboard() {
                 </div>
               </div>
               <div className="text-2xl font-black text-gray-900 tracking-tight">
-                +{kpi.periodNewUsers || kpi.totalUsers || 0}
+                +{kpi.periodNewUsers ?? 0}
               </div>
               <div className="flex items-center gap-1.5 mt-2 text-xs">
-                <span className="flex items-center font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                  <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                  +{kpi.userGrowthRate || 0}%
-                </span>
+                <GrowthBadge value={kpi.userGrowthRate} />
                 <span className="text-gray-400">tăng trưởng</span>
               </div>
               <div className="mt-2 text-[11px] text-gray-500 flex items-center gap-2">
@@ -404,10 +382,7 @@ export default function AdminAnalyticsDashboard() {
                 {kpi.periodNewJobs ?? kpi.totalJobs ?? 0} <span className="text-sm font-medium text-gray-400">tin</span>
               </div>
               <div className="flex items-center gap-1.5 mt-2 text-xs">
-                <span className="flex items-center font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                  <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                  +{kpi.jobGrowthRate || 0}%
-                </span>
+                <GrowthBadge value={kpi.jobGrowthRate} />
                 <span className="text-gray-400">kỳ này</span>
               </div>
               <div className="mt-2 text-[11px] text-gray-500">
@@ -432,12 +407,12 @@ export default function AdminAnalyticsDashboard() {
               <div className="flex items-center gap-1.5 mt-2 text-xs">
                 <span className="flex items-center font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
                   <Sparkles className="w-3 h-3 mr-0.5" />
-                  {kpi.avgMatchScore || 85}%
+                  {matchScoreLabel}
                 </span>
                 <span className="text-gray-500 font-medium">Điểm phù hợp TB</span>
               </div>
               <div className="mt-2 text-[11px] text-gray-500">
-                Trong kỳ: <strong className="text-gray-800">{kpi.periodApplications || kpi.totalApplications || 0} lượt nộp</strong>
+                Trong kỳ: <strong className="text-gray-800">{kpi.periodApplications ?? 0} lượt nộp</strong>
               </div>
             </div>
           </div>
@@ -476,7 +451,7 @@ export default function AdminAnalyticsDashboard() {
                   <TrendingUp className="w-4 h-4" />
                 </span>
                 <h2 className="text-lg font-bold text-gray-900 tracking-tight">
-                  Biểu Đồ Tăng Trưởng Doanh Thu
+                  Biểu Đồ Tăng Trưởng Doanh Thu{isDemo && <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">Dữ liệu mẫu</span>}
                 </h2>
               </div>
               <p className="text-xs text-gray-500 mt-1">
@@ -575,7 +550,7 @@ export default function AdminAnalyticsDashboard() {
                         fill={isHovered ? '#047857' : '#64748b'}
                         fontWeight={isHovered ? 'bold' : '500'}
                       >
-                        {pt.data.label}
+                        {idx % Math.max(1, Math.ceil(revenueChartConfig.points.length / 8)) === 0 || idx === revenueChartConfig.points.length - 1 ? pt.data.label : ''}
                       </text>
 
                       {/* Interactive Point Circle */}
@@ -714,7 +689,7 @@ export default function AdminAnalyticsDashboard() {
                             fill={isHovered ? '#0A66C2' : '#64748b'}
                             fontWeight={isHovered ? 'bold' : '500'}
                           >
-                            {grp.label}
+                            {idx % Math.max(1, Math.ceil(userGrowthConfig.groups.length / 6)) === 0 ? grp.label : ''}
                           </text>
                         </g>
                       );
@@ -846,7 +821,7 @@ export default function AdminAnalyticsDashboard() {
                             fill={isHovered ? '#9333ea' : '#64748b'}
                             fontWeight={isHovered ? 'bold' : '500'}
                           >
-                            {item.label}
+                            {idx % Math.max(1, Math.ceil(jobsAppsConfig.timeline.length / 6)) === 0 ? item.label : ''}
                           </text>
 
                           {/* Job Circle */}
@@ -910,8 +885,8 @@ export default function AdminAnalyticsDashboard() {
             </div>
 
             <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-              <span>Tỷ lệ phản hồi CV/Job: <strong className="text-gray-900">{kpi.totalJobs > 0 ? (kpi.totalApplications / kpi.totalJobs).toFixed(1) : 0} CV/tin</strong></span>
-              <span>Độ phù hợp trung bình: <strong className="text-purple-600 font-bold">{kpi.avgMatchScore || 85}%</strong></span>
+              <span>Tỷ lệ phản hồi CV/Job: <strong className="text-gray-900">{kpi.periodNewJobs > 0 ? (kpi.periodApplications / kpi.periodNewJobs).toFixed(1) : 0} CV/tin</strong></span>
+              <span>Độ phù hợp trung bình: <strong className="text-purple-600 font-bold">{matchScoreLabel}</strong></span>
             </div>
           </div>
 
@@ -992,7 +967,7 @@ export default function AdminAnalyticsDashboard() {
 
               <div className="space-y-3">
                 {(data?.jobsByCategory || []).map((cat, idx) => {
-                  const totalJobs = kpi.totalJobs || 1;
+                  const totalJobs = kpi.periodNewJobs || 1;
                   const pct = Math.round((cat.jobCount / totalJobs) * 100);
                   return (
                     <div key={cat.categoryId} className="space-y-1">
@@ -1036,7 +1011,7 @@ export default function AdminAnalyticsDashboard() {
 
               <div className="space-y-3.5">
                 {(data?.jobsByLocation || []).map(loc => {
-                  const totalJobs = kpi.totalJobs || 1;
+                  const totalJobs = kpi.periodNewJobs || 1;
                   const pct = Math.round((loc.jobCount / totalJobs) * 100);
                   const colors = {
                     'Hà Nội': 'bg-blue-600',
@@ -1108,17 +1083,18 @@ export default function AdminAnalyticsDashboard() {
 
               <select
                 value={txPaymentFilter}
-                onChange={(e) => setTxPaymentFilter(e.target.value)}
+                onChange={(e) => { setTxPage(1); setTxPaymentFilter(e.target.value); }}
                 className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
               >
                 <option value="all">Mọi cổng thanh toán</option>
+                <option value="PayOS">PayOS</option>
                 <option value="VNPay">VNPay</option>
                 <option value="MoMo">MoMo</option>
                 <option value="BankTransfer">Chuyển khoản NH</option>
               </select>
 
               <button
-                onClick={handleExportCSV}
+                onClick={() => handleExportCSV('transactions')} disabled={txLoading || exporting || !data || searchTerm !== txSearch}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
               >
                 <Download className="w-3.5 h-3.5 text-gray-500" />
@@ -1177,7 +1153,7 @@ export default function AdminAnalyticsDashboard() {
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>Thành công</span>
+                          <span>{isDemo ? 'Dữ liệu mẫu' : 'Thành công'}</span>
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-gray-500">
@@ -1201,9 +1177,10 @@ export default function AdminAnalyticsDashboard() {
           </div>
 
           <div className="p-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-            <span>Hiển thị <strong>{filteredTransactions.length}</strong> giao dịch gần nhất</span>
+            <span>{txLoading ? 'Đang tải...' : `Trang ${txPage} · ${filteredTransactions.length}/${txData.pagination.total} giao dịch trong kỳ`}</span>
             <div className="flex items-center gap-2">
-              <span className="text-gray-400">Dữ liệu được cập nhật tự động</span>
+              <button disabled={txLoading || txPage <= 1} onClick={() => setTxPage(page => page - 1)} className="px-2 py-1 border rounded disabled:opacity-40">Trước</button>
+              <button disabled={txLoading || txPage >= txData.pagination.totalPages} onClick={() => setTxPage(page => page + 1)} className="px-2 py-1 border rounded disabled:opacity-40">Sau</button>
             </div>
           </div>
         </div>
@@ -1213,3 +1190,7 @@ export default function AdminAnalyticsDashboard() {
   );
 }
 
+
+function GrowthBadge({ value }) {
+  return <span className={`font-bold px-1.5 py-0.5 rounded ${value == null ? 'text-gray-500 bg-gray-50' : value < 0 ? 'text-rose-700 bg-rose-50' : 'text-emerald-700 bg-emerald-50'}`}>{value == null ? 'Chưa có kỳ gốc' : `${value > 0 ? '+' : ''}${value}%`}</span>;
+}

@@ -27,7 +27,7 @@ const getPool = async () => {
     poolPromise = new sql.ConnectionPool(config)
       .connect()
       .then(async (pool) => {
-        console.log('✅ Connected to MS SQL Server [JobtimizeDB] successfully!');
+        console.log(`✅ Connected to MS SQL Server [${config.database}] successfully!`);
         try {
           await pool.request().query(`
             IF COL_LENGTH('CVs', 'CvType') IS NULL

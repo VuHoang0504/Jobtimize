@@ -51,6 +51,7 @@ import {
   Download
 } from 'lucide-react';
 import MockInterviewSection from '../../components/candidate/MockInterviewSection';
+import CandidateInvitations from '../../components/candidate/CandidateInvitations';
 import JobAlertModal from '../../components/candidate/JobAlertModal';
 import { getCompanyLogo, handleCompanyLogoError, getUserAvatar, handleUserAvatarError } from '../../utils/logoHelper';
 
@@ -605,6 +606,11 @@ export default function CandidateDashboard() {
               <span>Hồ sơ & CV</span>
             </button>
 
+            <Link to="/candidate/dashboard?tab=invitations"
+              className={`block w-full px-3.5 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'invitations' ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>
+              Lời mời ứng tuyển
+            </Link>
+
             <button
               onClick={() => setActiveTab('applications')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
@@ -684,6 +690,7 @@ export default function CandidateDashboard() {
 
         {/* Tab Content (3/4) */}
         <div className="lg:col-span-3 space-y-6">
+          {activeTab === 'invitations' && <CandidateInvitations />}
           
           {/* TAB 1: Profile & CV Manager */}
           {activeTab === 'profile' && (

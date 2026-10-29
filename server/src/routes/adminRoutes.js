@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const analyticsController = require('../controllers/adminAnalyticsController');
 const adminController = require('../controllers/adminController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 
@@ -8,8 +9,9 @@ router.use(authenticate, authorize(['Admin']));
 
 // 1. Thống kê tổng quan Dashboard & Báo cáo Doanh thu
 router.get('/stats', adminController.getDashboardStats);
-router.get('/analytics', adminController.getAnalyticsReport);
-router.get('/transactions', adminController.getTransactions);
+router.get('/analytics', analyticsController.getAnalyticsReport);
+router.get('/transactions', analyticsController.getTransactions);
+router.get('/analytics/export', analyticsController.exportReport);
 
 // 2. Quản lý Ứng viên (Candidates)
 router.get('/candidates', adminController.getCandidates);
@@ -46,10 +48,6 @@ router.delete('/skills/:id', adminController.deleteSkill);
 // 8. Quản lý Tài khoản chung (Khóa/Mở khóa & Cấp lại mật khẩu)
 router.patch('/users/:userId/status', adminController.updateUserStatus);
 router.patch('/users/:userId/reset-password', adminController.resetUserPassword);
-
-// 9. Xác minh thanh toán (Payment Verification - UC-E07)
-router.get('/payments/pending', adminController.getPendingPayments);
-router.post('/payments/:transactionRef/verify', adminController.verifyPaymentTransaction);
 
 module.exports = router;
 

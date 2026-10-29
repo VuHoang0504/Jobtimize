@@ -85,6 +85,9 @@ async function initDb() {
       console.log('✅ Nạp dữ liệu mẫu thành công!');
     }
 
+    await executeSqlFile(dbPool, path.resolve(__dirname, '../../database/notifications.sql'));
+    await executeSqlFile(dbPool, path.resolve(__dirname, '../../database/admin-enhancements.sql'));
+
     console.log('\n🎉 [HOÀN TẤT] Database đã sẵn sàng 100% để khởi chạy Jobtimize!\n');
     process.exit(0);
   } catch (err) {

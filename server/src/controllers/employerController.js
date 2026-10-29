@@ -1,3 +1,4 @@
+const { withTransaction, enqueue } = require('../services/notificationStore');
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
 
@@ -127,23 +128,27 @@ const submitKYC = async (req, res) => {
     const businessLicenseUrl = `/uploads/kyc/${businessLicenseFile.filename}`;
     const taxCertificateUrl = taxCertificateFile ? `/uploads/kyc/${taxCertificateFile.filename}` : null;
 
-    // Insert into KYCDocuments
-    await executeQuery(
-      `INSERT INTO KYCDocuments (EmployerID, BusinessLicenseUrl, TaxCertificateUrl, TaxCode, SubmittedAt, RejectionReason)
-       VALUES (@EmployerID, @BusinessLicenseUrl, @TaxCertificateUrl, @TaxCode, GETDATE(), NULL)`,
-      {
-        EmployerID: emp.EmployerID,
-        BusinessLicenseUrl: businessLicenseUrl,
-        TaxCertificateUrl: taxCertificateUrl,
-        TaxCode: taxCode.trim()
-      }
-    );
+    await withTransaction(async query => {
+      // Insert into KYCDocuments
+      const document = await query(
+        `INSERT INTO KYCDocuments (EmployerID, BusinessLicenseUrl, TaxCertificateUrl, TaxCode, SubmittedAt, RejectionReason)
+         OUTPUT INSERTED.DocumentID
+         VALUES (@EmployerID, @BusinessLicenseUrl, @TaxCertificateUrl, @TaxCode, GETDATE(), NULL)`,
+        {
+          EmployerID: emp.EmployerID,
+          BusinessLicenseUrl: businessLicenseUrl,
+          TaxCertificateUrl: taxCertificateUrl,
+          TaxCode: taxCode.trim()
+        }
+      );
 
-    // Update Employer KYCStatus to 'Pending'
-    await executeQuery(
-      `UPDATE Employers SET KYCStatus = 'Pending' WHERE EmployerID = @EmployerID`,
-      { EmployerID: emp.EmployerID }
-    );
+      // Update Employer KYCStatus to 'Pending'
+      await query(
+        `UPDATE Employers SET KYCStatus = 'Pending' WHERE EmployerID = @EmployerID`,
+        { EmployerID: emp.EmployerID }
+      );
+      await enqueue(query, 'kyc_submitted', { employerId: emp.EmployerID }, `kyc:submitted:${document.recordset[0].DocumentID}`);
+    });
 
     return res.status(200).json({
       success: true,
@@ -229,52 +234,56 @@ const postJob = async (req, res) => {
       }
     }
 
-    // Insert JobPosting (Mặc định ở trạng thái Chờ Admin Phê Duyệt)
-    const jobInsert = await executeQuery(
-      `INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status, CreatedAt)
-       OUTPUT INSERTED.JobID, INSERTED.Title, INSERTED.Status, INSERTED.CreatedAt
-       VALUES (@EmployerID, @CategoryID, @Title, @Description, @Requirements, @SalaryRange, @Location, 'PendingApproval', GETDATE())`,
-      {
-        EmployerID: emp.EmployerID,
-        CategoryID: categoryId ? parseInt(categoryId, 10) : null,
-        Title: title,
-        Description: description,
-        Requirements: requirements,
-        SalaryRange: salaryRange || 'Thỏa thuận',
-        Location: location || 'Hà Nội / TP.HCM'
-      }
-    );
+    const newJob = await withTransaction(async query => {
+      // Insert JobPosting (Mặc định ở trạng thái Chờ Admin Phê Duyệt)
+      const jobInsert = await query(
+        `INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status, CreatedAt)
+         OUTPUT INSERTED.JobID, INSERTED.Title, INSERTED.Status, INSERTED.CreatedAt
+         VALUES (@EmployerID, @CategoryID, @Title, @Description, @Requirements, @SalaryRange, @Location, 'PendingApproval', GETDATE())`,
+        {
+          EmployerID: emp.EmployerID,
+          CategoryID: categoryId ? parseInt(categoryId, 10) : null,
+          Title: title,
+          Description: description,
+          Requirements: requirements,
+          SalaryRange: salaryRange || 'Thỏa thuận',
+          Location: location || 'Hà Nội / TP.HCM'
+        }
+      );
 
-    const newJob = jobInsert.recordset[0];
-    const jobId = newJob.JobID;
+      const newJob = jobInsert.recordset[0];
+      const jobId = newJob.JobID;
 
-    // Insert JobSkillRequirements
-    if (Array.isArray(skills) && skills.length > 0) {
-      for (const skill of skills) {
-        const skillId = typeof skill === 'object' ? skill.skillId : skill;
-        const isMandatory = typeof skill === 'object' && skill.isMandatory !== undefined ? (skill.isMandatory ? 1 : 0) : 1;
+      // Insert JobSkillRequirements
+      if (Array.isArray(skills) && skills.length > 0) {
+        for (const skill of skills) {
+          const skillId = typeof skill === 'object' ? skill.skillId : skill;
+          const isMandatory = typeof skill === 'object' && skill.isMandatory !== undefined ? (skill.isMandatory ? 1 : 0) : 1;
 
-        if (skillId) {
-          await executeQuery(
-            `INSERT INTO JobSkillRequirements (JobID, SkillID, IsMandatory)
-             VALUES (@JobID, @SkillID, @IsMandatory)`,
-            {
-              JobID: jobId,
-              SkillID: skillId,
-              IsMandatory: isMandatory
-            }
-          );
+          if (skillId) {
+            await query(
+              `INSERT INTO JobSkillRequirements (JobID, SkillID, IsMandatory)
+               VALUES (@JobID, @SkillID, @IsMandatory)`,
+              {
+                JobID: jobId,
+                SkillID: skillId,
+                IsMandatory: isMandatory
+              }
+            );
+          }
         }
       }
-    }
 
-    // Deduct remaining posts if active subscription exists
-    await executeQuery(
-      `UPDATE EmployerSubscriptions
-       SET RemainingPosts = CASE WHEN RemainingPosts > 0 THEN RemainingPosts - 1 ELSE 0 END
-       WHERE EmployerID = @EmployerID AND EndDate >= GETDATE()`,
-      { EmployerID: emp.EmployerID }
-    );
+      // Deduct remaining posts if active subscription exists
+      await query(
+        `UPDATE EmployerSubscriptions
+         SET RemainingPosts = CASE WHEN RemainingPosts > 0 THEN RemainingPosts - 1 ELSE 0 END
+         WHERE EmployerID = @EmployerID AND EndDate >= GETDATE()`,
+        { EmployerID: emp.EmployerID }
+      );
+      await enqueue(query, 'job_status', { jobId, status: 'PendingApproval' }, `job:pending:${jobId}`);
+      return newJob;
+    });
 
     return res.status(201).json({
       success: true,
@@ -928,189 +937,9 @@ const getEmployerSubscription = async (req, res) => {
 };
 
 // Create Checkout & Payment URL / QR Code (VNPay Sandbox hoặc MoMo QR) (UC-E07)
-const createCheckout = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { packageId, paymentMethod = 'MoMo' } = req.body;
+const createCheckout = (req, res) => res.status(410).json({ success: false, message: 'Vui lòng sử dụng thanh toán PayOS tự động tại /api/payments/create.' });
 
-    const emp = await getEmployerId(userId);
-    if (!emp) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ nhà tuyển dụng' });
-    }
-
-    const packRes = await executeQuery(
-      'SELECT PackageID, PackageName, Price, DurationDays, PostLimit, SearchLimit FROM SubscriptionPackages WHERE PackageID = @PackageID',
-      { PackageID: packageId }
-    );
-    if (!packRes.recordset || packRes.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Gói dịch vụ không tồn tại' });
-    }
-
-    const pack = packRes.recordset[0];
-    const transactionRef = 'PAY' + Date.now() + Math.floor(1000 + Math.random() * 9000);
-
-    // If package is free (Starter 0 VND)
-    if (Number(pack.Price) === 0) {
-      // Record transaction as Success
-      await executeQuery(
-        `INSERT INTO PaymentTransactions (TransactionRef, EmployerID, PackageID, Amount, Status, PaymentMethod, GatewayTransactionNo, CreatedAt, PaidAt)
-         VALUES (@TransactionRef, @EmployerID, @PackageID, 0, 'Success', 'FreeTrial', 'TRIAL_AUTO', GETDATE(), GETDATE())`,
-        {
-          TransactionRef: transactionRef,
-          EmployerID: emp.EmployerID,
-          PackageID: pack.PackageID
-        }
-      );
-
-      // Create / Extend subscription
-      await executeQuery(
-        `INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches)
-         VALUES (@EmployerID, @PackageID, GETDATE(), DATEADD(day, @DurationDays, GETDATE()), @PostLimit, @SearchLimit)`,
-        {
-          EmployerID: emp.EmployerID,
-          PackageID: pack.PackageID,
-          DurationDays: pack.DurationDays,
-          PostLimit: pack.PostLimit,
-          SearchLimit: pack.SearchLimit
-        }
-      );
-
-      return res.json({
-        success: true,
-        directSuccess: true,
-        message: `Đã kích hoạt ${pack.PackageName} miễn phí thành công!`,
-        transactionRef
-      });
-    }
-
-    // Insert PaymentTransaction with Pending status
-    await executeQuery(
-      `INSERT INTO PaymentTransactions (TransactionRef, EmployerID, PackageID, Amount, Status, PaymentMethod, CreatedAt)
-       VALUES (@TransactionRef, @EmployerID, @PackageID, @Amount, 'Pending', @PaymentMethod, GETDATE())`,
-      {
-        TransactionRef: transactionRef,
-        EmployerID: emp.EmployerID,
-        PackageID: pack.PackageID,
-        Amount: pack.Price,
-        PaymentMethod: paymentMethod
-      }
-    );
-
-    const amount = Number(pack.Price);
-    const transferMemo = `JOBTIMIZE ${transactionRef}`;
-
-    const bankBin = process.env.BANK_BIN || '970422';
-    const bankAccount = process.env.BANK_ACCOUNT_NO || '0387887153';
-    const bankName = process.env.BANK_NAME || 'MBBank (Ngân hàng Quân Đội)';
-    const accountHolder = process.env.BANK_ACCOUNT_NAME || 'MAI XUAN QUY';
-
-    // VietQR Gateway Generation with dynamic amount and transfer memo
-    const qrCodeUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(transferMemo)}&accountName=${encodeURIComponent(accountHolder)}`;
-
-    // VNPay Sandbox Simulation Gateway URL
-    const vnpSandboxUrl = `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=${amount * 100}&vnp_Command=pay&vnp_CreateDate=${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}&vnp_CurrCode=VND&vnp_Locale=vn&vnp_OrderInfo=${encodeURIComponent(`Thanh toan ${pack.PackageName} Jobtimize`)}&vnp_OrderType=other&vnp_ReturnUrl=${encodeURIComponent('http://localhost:3000/employer/pricing?txn=' + transactionRef)}&vnp_TmnCode=JOBTIMIZE&vnp_TxnRef=${transactionRef}&vnp_Version=2.1.0`;
-
-    return res.json({
-      success: true,
-      data: {
-        transactionRef,
-        packageId: pack.PackageID,
-        packageName: pack.PackageName,
-        amount,
-        paymentMethod,
-        qrCodeUrl,
-        fallbackQrUrl: '/qr-bank.png',
-        vnpSandboxUrl,
-        bankInfo: {
-          bankName,
-          accountNumber: bankAccount,
-          accountHolder,
-          memo: transferMemo
-        }
-      }
-    });
-  } catch (error) {
-    console.error('createCheckout error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Confirm Payment (Callback / Webhook / Instant verification) (UC-E07)
-const confirmPayment = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { transactionRef, gatewayTransactionNo } = req.body;
-
-    if (!transactionRef) {
-      return res.status(400).json({ success: false, message: 'Thiếu mã tham chiếu giao dịch (transactionRef)' });
-    }
-
-    const emp = await getEmployerId(userId);
-    if (!emp) {
-      return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác' });
-    }
-
-    const txnRes = await executeQuery(
-      `SELECT pt.PaymentID, pt.TransactionRef, pt.EmployerID, pt.PackageID, pt.Amount, pt.Status, pt.PaymentMethod,
-              sp.PackageName, sp.DurationDays, sp.PostLimit, sp.SearchLimit
-       FROM PaymentTransactions pt
-       JOIN SubscriptionPackages sp ON pt.PackageID = sp.PackageID
-       WHERE pt.TransactionRef = @TransactionRef AND pt.EmployerID = @EmployerID`,
-      { TransactionRef: transactionRef, EmployerID: emp.EmployerID }
-    );
-
-    if (!txnRes.recordset || txnRes.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin giao dịch' });
-    }
-
-    const txn = txnRes.recordset[0];
-
-    if (txn.Status === 'Success') {
-      return res.json({
-        success: true,
-        message: 'Giao dịch này đã được xác nhận thanh toán trước đó!',
-        data: txn
-      });
-    }
-
-    // SECURITY ENFORCEMENT (UC-E07): Client request alone CANNOT mark transaction as 'Success'
-    // or activate packages/quotas. Real gateway signature verification or Admin verification is required.
-
-    // Gửi email tiếp nhận đơn hàng cho nhà tuyển dụng (Cơ chế bán tự động)
-    const empUserRes = await executeQuery(
-      `SELECT e.CompanyName, u.Email, u.FullName
-       FROM Employers e
-       JOIN Users u ON e.UserID = u.UserID
-       WHERE e.EmployerID = @EmployerID`,
-      { EmployerID: emp.EmployerID }
-    );
-    if (empUserRes.recordset && empUserRes.recordset.length > 0) {
-      const empUser = empUserRes.recordset[0];
-      await emailService.sendPaymentPendingEmail({
-        toEmail: empUser.Email,
-        companyName: empUser.CompanyName || empUser.FullName || 'Quý Doanh Nghiệp',
-        packageName: txn.PackageName,
-        amount: txn.Amount,
-        transactionRef: txn.TransactionRef
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      pendingVerification: true,
-      message: 'Yêu cầu thanh toán của bạn đã được gửi thành công! Hệ thống đang đối soát và sẽ kích hoạt gói trong ít phút.',
-      data: {
-        transactionRef: txn.TransactionRef,
-        status: txn.Status, // Keeps 'Pending'
-        amount: txn.Amount,
-        packageName: txn.PackageName
-      }
-    });
-  } catch (error) {
-    console.error('confirmPayment error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
+const confirmPayment = (req, res) => res.status(410).json({ success: false, message: 'Đã ngừng duyệt thanh toán thủ công. Gói được kích hoạt tự động sau khi PayOS xác nhận.' });
 
 // Payment History
 const getPaymentHistory = async (req, res) => {
@@ -1158,7 +987,7 @@ const searchCandidates = async (req, res) => {
       FROM CandidateProfiles cp
       JOIN Users u ON cp.UserID = u.UserID
       LEFT JOIN CVs cv ON cp.ProfileID = cv.ProfileID AND cv.IsPrimary = 1
-      WHERE cp.IsLookingForJob = 1
+      WHERE cp.IsLookingForJob = 1 AND u.Status='Active'
     `;
 
     const params = {};
@@ -1327,51 +1156,60 @@ const inviteCandidate = async (req, res) => {
       }
     }
 
-        // Check if already invited for this job (Cho phep gui lai nhieu lan loi moi theo yeu cau cua NTD)
-    const existingInv = await executeQuery(
-      'SELECT InvitationID FROM CandidateInvitations WHERE ProfileID = @ProfileID AND JobID = @JobID',
-      { ProfileID: profileId, JobID: jobId }
-    );
-    const isReinvite = existingInv.recordset && existingInv.recordset.length > 0;
-
-    const defaultMsg = `Chúng tôi nhận thấy hồ sơ của bạn rất phù hợp với vị trí ${jobTitle} và trân trọng mời bạn ứng tuyển!`;
-    const finalMsg = message && message.trim() ? message.trim() : defaultMsg;
-
-    if (isReinvite) {
-      // Cap nhat lai thoi gian va loi nhan moi cho loi moi hien co
-      await executeQuery(
-        `UPDATE CandidateInvitations
-         SET Message = @Message, Status = 'Sent', SentAt = GETDATE()
-         WHERE ProfileID = @ProfileID AND JobID = @JobID`,
-        {
-          ProfileID: profileId,
-          JobID: jobId,
-          Message: finalMsg
-        }
+    const { isReinvite, finalMsg } = await withTransaction(async query => {
+      // Check if already invited for this job (Cho phep gui lai nhieu lan loi moi theo yeu cau cua NTD)
+      const existingInv = await query(
+        'SELECT InvitationID FROM CandidateInvitations WHERE ProfileID = @ProfileID AND JobID = @JobID',
+        { ProfileID: profileId, JobID: jobId }
       );
-    } else {
-      // Tao moi loi moi vao bang CandidateInvitations
-      await executeQuery(
-        `INSERT INTO CandidateInvitations (EmployerID, ProfileID, JobID, Message, Status, SentAt)
-         VALUES (@EmployerID, @ProfileID, @JobID, @Message, 'Sent', GETDATE())`,
-        {
-          EmployerID: emp.EmployerID,
-          ProfileID: profileId,
-          JobID: jobId,
-          Message: finalMsg
-        }
-      );
+      const isReinvite = existingInv.recordset && existingInv.recordset.length > 0;
 
-      // Tru luot tim kiem trong goi dich vu neu la lan gui dau tien
-      if (activeSubRes.recordset && activeSubRes.recordset.length > 0) {
-        await executeQuery(
-          `UPDATE EmployerSubscriptions
-           SET RemainingSearches = RemainingSearches - 1
-           WHERE SubID = @SubID AND RemainingSearches > 0`,
-          { SubID: activeSubRes.recordset[0].SubID }
+      const defaultMsg = `Chúng tôi nhận thấy hồ sơ của bạn rất phù hợp với vị trí ${jobTitle} và trân trọng mời bạn ứng tuyển!`;
+      const finalMsg = message && message.trim() ? message.trim() : defaultMsg;
+
+      let invitationResult;
+      if (isReinvite) {
+        // Cap nhat lai thoi gian va loi nhan moi cho loi moi hien co
+        invitationResult = await query(
+          `UPDATE CandidateInvitations
+           SET Message = @Message, Status = 'Sent', SentAt = GETDATE()
+           OUTPUT INSERTED.InvitationID, INSERTED.SentAt
+           WHERE ProfileID = @ProfileID AND JobID = @JobID`,
+          {
+            ProfileID: profileId,
+            JobID: jobId,
+            Message: finalMsg
+          }
         );
+      } else {
+        // Tao moi loi moi vao bang CandidateInvitations
+        invitationResult = await query(
+          `INSERT INTO CandidateInvitations (EmployerID, ProfileID, JobID, Message, Status, SentAt)
+           OUTPUT INSERTED.InvitationID, INSERTED.SentAt
+           VALUES (@EmployerID, @ProfileID, @JobID, @Message, 'Sent', GETDATE())`,
+          {
+            EmployerID: emp.EmployerID,
+            ProfileID: profileId,
+            JobID: jobId,
+            Message: finalMsg
+          }
+        );
+
+        // Tru luot tim kiem trong goi dich vu neu la lan gui dau tien
+        if (activeSubRes.recordset && activeSubRes.recordset.length > 0) {
+          await query(
+            `UPDATE EmployerSubscriptions
+             SET RemainingSearches = RemainingSearches - 1
+             WHERE SubID = @SubID AND RemainingSearches > 0`,
+            { SubID: activeSubRes.recordset[0].SubID }
+          );
+        }
       }
-    }
+
+      const invitation = invitationResult.recordset[0];
+      await enqueue(query, 'invitation', { invitationId: invitation.InvitationID, message: finalMsg }, `invite:${invitation.InvitationID}:${invitation.SentAt.toISOString()}`);
+      return { isReinvite, finalMsg };
+    });
 
     // Send invitation email
     const emailRes = await emailService.sendInvitationEmail({
@@ -1379,7 +1217,7 @@ const inviteCandidate = async (req, res) => {
       candidateName: candidate.FullName,
       companyName: emp.CompanyName,
       jobTitle,
-      message
+      message: finalMsg
     });
 
     const emailNote = emailRes.success

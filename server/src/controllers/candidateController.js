@@ -1,4 +1,5 @@
 const { executeQuery } = require('../config/db');
+const { withTransaction } = require('../services/notificationStore');
 const fs = require('fs');
 const path = require('path');
 
@@ -198,13 +199,11 @@ const setPrimaryCV = async (req, res) => {
     }
     const profileId = candRes.recordset[0].ProfileID;
 
-    // Reset all to 0
-    await executeQuery('UPDATE CVs SET IsPrimary = 0 WHERE ProfileID = @ProfileID', { ProfileID: profileId });
-    
-    // Set target to 1
-    await executeQuery('UPDATE CVs SET IsPrimary = 1 WHERE CVID = @CVID AND ProfileID = @ProfileID', {
-      CVID: cvId,
-      ProfileID: profileId
+    await withTransaction(async query => {
+      await query('SELECT ProfileID FROM CandidateProfiles WITH(UPDLOCK,HOLDLOCK) WHERE ProfileID=@ProfileID', { ProfileID: profileId });
+      const target = await query('SELECT CVID FROM CVs WITH(UPDLOCK,HOLDLOCK) WHERE CVID=@CVID AND ProfileID=@ProfileID', { CVID: cvId, ProfileID: profileId });
+      if (!target.recordset.length) throw Object.assign(new Error('Không tìm thấy CV của bạn.'), { status: 404 });
+      await query('UPDATE CVs SET IsPrimary = CASE WHEN CVID=@CVID THEN 1 ELSE 0 END WHERE ProfileID=@ProfileID', { CVID: cvId, ProfileID: profileId });
     });
 
     return res.json({
@@ -213,7 +212,7 @@ const setPrimaryCV = async (req, res) => {
     });
   } catch (error) {
     console.error('setPrimaryCV error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 

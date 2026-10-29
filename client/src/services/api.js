@@ -37,7 +37,8 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       // Clear token if expired or unauthorized
-      if (localStorage.getItem('jobtimize_token')) {
+      const currentToken = localStorage.getItem('jobtimize_token');
+      if (currentToken && error.config?.headers?.Authorization === `Bearer ${currentToken}`) {
         localStorage.removeItem('jobtimize_token');
         localStorage.removeItem('jobtimize_user');
         window.dispatchEvent(new Event('auth-change'));

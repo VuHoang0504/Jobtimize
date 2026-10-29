@@ -285,14 +285,14 @@ export default function Navbar() {
           </div>
 
           {/* Right Action & User Profile */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="flex items-center gap-4">
             {user ? (
               <div className="flex items-center gap-3">
                 {/* Notification Bell & Dropdown */}
-                <NotificationDropdown />
+                <NotificationDropdown key={`${user.userId}:${user.role}`} />
 
                 {/* User Dropdown */}
-                <div className="relative">
+                <div className="relative hidden md:block">
                   <button
                     onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                     className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
@@ -428,7 +428,7 @@ export default function Navbar() {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="hidden md:flex items-center gap-3">
                 <Link
                   to="/login"
                   className="text-sm font-medium text-slate-700 hover:text-slate-900 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { getCompanyLogo, handleCompanyLogoError, handleUserAvatarError } from '../../utils/logoHelper';
 import { 
@@ -42,11 +42,11 @@ import {
   SlidersHorizontal,
   BookmarkCheck,
   AlertOctagon,
-  BarChart3,
-  CreditCard
+  BarChart3
 } from 'lucide-react';
 
 export default function AdminUserManagementPage() {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('employers'); // 'employers' | 'jobs' | 'reports' | 'taxonomy' | 'candidates'
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -95,11 +95,6 @@ export default function AdminUserManagementPage() {
   const [candPage, setCandPage] = useState(1);
   const [candPagination, setCandPagination] = useState({ totalCount: 0, totalPages: 1 });
 
-  // 6. Payments state (Duyệt giao dịch chuyển khoản VietQR - UC-E07)
-  const [pendingPayments, setPendingPayments] = useState([]);
-  const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [verifyingRef, setVerifyingRef] = useState(null);
-
   // Modals state
   const [statusModal, setStatusModal] = useState({ open: false, user: null, targetStatus: '' });
   const [resetPwdModal, setResetPwdModal] = useState({ open: false, user: null, newPassword: '', showPwd: false, error: '' });
@@ -112,14 +107,13 @@ export default function AdminUserManagementPage() {
   const [jobActionModal, setJobActionModal] = useState({ open: false, job: null, actionType: '', adminNote: '', loading: false, error: '' });
 
   // Report Resolution Modal
-  const [reportModal, setReportModal] = useState({ open: false, report: null, status: 'Resolved', adminNote: '', actionTaken: 'none', loading: false, error: '' });
+  const [reportModal, setReportModal] = useState({ open: false, report: null, status: 'Resolved', adminNote: '', loading: false, error: '' });
 
   // Taxonomy Modals
   const [catModal, setCatModal] = useState({ open: false, isEdit: false, categoryId: null, categoryName: '', description: '', loading: false, error: '' });
   const [catDeleteModal, setCatDeleteModal] = useState({ open: false, category: null, loading: false, error: '' });
   const [skillModal, setSkillModal] = useState({ open: false, isEdit: false, skillId: null, skillName: '', normalizedName: '', categoryId: '', loading: false, error: '' });
   const [skillDeleteModal, setSkillDeleteModal] = useState({ open: false, skill: null, loading: false, error: '' });
-  const [paymentModal, setPaymentModal] = useState({ open: false, payment: null });
 
   // Notifications
   const [notification, setNotification] = useState(null);
@@ -276,43 +270,10 @@ export default function AdminUserManagementPage() {
     }
   }, [candPage, candSearch, candStatus]);
 
-  // 6. Fetch Pending Payments (UC-E07)
-  const fetchPendingPayments = useCallback(async () => {
-    try {
-      setPaymentsLoading(true);
-      const res = await api.get('/admin/payments/pending');
-      if (res.data.success) {
-        setPendingPayments(res.data.data || []);
-      }
-    } catch (err) {
-      console.error('Fetch pending payments failed:', err);
-    } finally {
-      setPaymentsLoading(false);
-    }
-  }, []);
-
-  const handleVerifyPayment = async (transactionRef) => {
-    try {
-      setVerifyingRef(transactionRef);
-      const res = await api.post(`/admin/payments/${transactionRef}/verify`);
-      if (res.data.success) {
-        showNotification('success', res.data.message);
-        setPaymentModal({ open: false, payment: null });
-        await fetchPendingPayments();
-        fetchStats();
-      }
-    } catch (err) {
-      showNotification('error', err.response?.data?.message || 'Lỗi khi duyệt giao dịch thanh toán');
-    } finally {
-      setVerifyingRef(null);
-    }
-  };
-
   useEffect(() => {
     fetchStats();
     fetchCategoriesAdmin(); // prefetch categories for dropdowns
-    fetchPendingPayments(); // prefetch pending payments count
-  }, [fetchCategoriesAdmin, fetchPendingPayments]);
+  }, [fetchCategoriesAdmin]);
 
   useEffect(() => {
     if (activeTab === 'employers') {
@@ -324,12 +285,11 @@ export default function AdminUserManagementPage() {
     } else if (activeTab === 'taxonomy') {
       if (taxonomyTab === 'categories') fetchCategoriesAdmin();
       else fetchSkillsAdmin();
-    } else if (activeTab === 'payments') {
-      fetchPendingPayments();
+
     } else {
       fetchCandidates();
     }
-  }, [activeTab, taxonomyTab, fetchEmployers, fetchJobs, fetchReports, fetchCategoriesAdmin, fetchSkillsAdmin, fetchCandidates, fetchPendingPayments]);
+  }, [activeTab, taxonomyTab, fetchEmployers, fetchJobs, fetchReports, fetchCategoriesAdmin, fetchSkillsAdmin, fetchCandidates]);
 
   // Form Submits
   const handleEmpSearchSubmit = (e) => {
@@ -467,22 +427,24 @@ export default function AdminUserManagementPage() {
   // Report Resolution
   const handleResolveReportSubmit = async (e) => {
     e.preventDefault();
-    const { report, status, adminNote, actionTaken } = reportModal;
+    const { report, status, adminNote } = reportModal;
     if (!report) return;
 
     try {
       setReportModal(prev => ({ ...prev, loading: true, error: '' }));
       const res = await api.patch(`/admin/reports/${report.ReportID}`, {
         status,
-        adminNote,
-        actionTaken
+        adminNote
       });
 
       if (res.data.success) {
         showNotification('success', res.data.message);
-        setReportModal({ open: false, report: null, status: 'Resolved', adminNote: '', actionTaken: 'none', loading: false, error: '' });
+        setReportModal({ open: false, report: null, status: 'Resolved', adminNote: '', loading: false, error: '' });
         fetchStats();
         fetchReports();
+        fetchEmployers();
+        fetchCandidates();
+        fetchJobs();
       }
     } catch (err) {
       setReportModal(prev => ({ ...prev, loading: false, error: err.response?.data?.message || 'Lỗi xử lý báo cáo' }));
@@ -630,6 +592,29 @@ export default function AdminUserManagementPage() {
       setJobDetailModal({ open: false, job: null, loading: false });
     }
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (['employers', 'jobs', 'reports', 'taxonomy', 'candidates'].includes(tab)) setActiveTab(tab);
+    let active = true;
+    const id = name => { const value = Number(params.get(name)); return Number.isSafeInteger(value) && value > 0 ? value : null; };
+    if (tab === 'jobs' && id('jobId')) {
+      api.get(`/admin/jobs/${id('jobId')}`).then(res => { if (active) setJobDetailModal({ open: true, job: res.data.data, loading: false }); }).catch(() => { if (active) showNotification('error', 'Tin không còn tồn tại hoặc không thể mở.'); });
+    }
+    if (tab === 'employers' && id('employerId')) {
+      api.get(`/admin/employers/${id('employerId')}`).then(res => { if (active) setEmpDetailModal({ open: true, employer: res.data.data, loading: false }); }).catch(() => { if (active) showNotification('error', 'Không thể mở hồ sơ doanh nghiệp.'); });
+    }
+    if (tab === 'reports' && id('reportId')) {
+      api.get('/admin/reports', { params: { reportId: id('reportId'), limit: 1 } }).then(res => {
+        if (!active) return;
+        const report = res.data.data[0];
+        if (report) setReportModal({ open: true, report, status: report.Status === 'Dismissed' ? 'Dismissed' : 'Resolved', adminNote: report.AdminNote || '', loading: false, error: '' });
+        else showNotification('error', 'Báo cáo không còn tồn tại.');
+      }).catch(() => { if (active) showNotification('error', 'Không thể mở báo cáo.'); });
+    }
+    return () => { active = false; };
+  }, [location.search, location.key]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -893,23 +878,6 @@ export default function AdminUserManagementPage() {
             <span>Người Tìm Việc</span>
           </button>
 
-          {/* Tab 6: Duyệt Giao Dịch Gói (UC-E07) */}
-          <button
-            onClick={() => setActiveTab('payments')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
-              activeTab === 'payments'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Duyệt Thanh Toán Gói</span>
-            {pendingPayments.length > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950 animate-pulse">
-                {pendingPayments.length}
-              </span>
-            )}
-          </button>
         </div>
 
         {/* ======================================================== */}
@@ -1568,7 +1536,6 @@ export default function AdminUserManagementPage() {
                               report: rep,
                               status: rep.Status === 'Pending' ? 'Resolved' : rep.Status,
                               adminNote: rep.AdminNote || '',
-                              actionTaken: 'none',
                               loading: false,
                               error: ''
                             })}
@@ -2083,149 +2050,6 @@ export default function AdminUserManagementPage() {
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* TAB 6: DUYỆT THANH TOÁN GÓI DỊCH VỤ (VIETQR MBBANK)       */}
-        {/* ======================================================== */}
-        {activeTab === 'payments' && (
-          <div className="space-y-6">
-            {/* Header Banner & Bank Info */}
-            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-100 rounded-2xl p-5 sm:p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
-                    <CreditCard className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                      Đối Soát & Duyệt Chuyển Khoản Ngân Hàng (MBBank VietQR)
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                      Tài khoản nhận tiền: <span className="font-bold text-slate-900">MBBank - 0387887153</span> (Chủ TK: <span className="font-bold text-slate-900">MAI XUAN QUY</span>).
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Sau khi kiểm tra app MBBank thấy tiền vào đúng nội dung giao dịch, bấm <span className="font-semibold text-emerald-700">"Duyệt thanh toán"</span> để kích hoạt tức thì quyền lợi gói và gửi email kích hoạt cho NTD.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    onClick={fetchPendingPayments}
-                    disabled={paymentsLoading}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors shadow-sm disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${paymentsLoading ? 'animate-spin text-emerald-600' : ''}`} />
-                    <span>Làm mới ({pendingPayments.length})</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Payments Table */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200 text-xs uppercase tracking-wider">
-                    <th className="py-3.5 px-4">Mã Giao Dịch</th>
-                    <th className="py-3.5 px-4">Doanh Nghiệp / NTD</th>
-                    <th className="py-3.5 px-4">Gói Dịch Vụ</th>
-                    <th className="py-3.5 px-4">Số Tiền</th>
-                    <th className="py-3.5 px-4">Thời Gian Gửi</th>
-                    <th className="py-3.5 px-4">Trạng Thái</th>
-                    <th className="py-3.5 px-4 text-center">Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {paymentsLoading ? (
-                    <tr>
-                      <td colSpan="7" className="py-12 text-center text-slate-400">
-                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-600" />
-                        Đang tải danh sách giao dịch chờ duyệt...
-                      </td>
-                    </tr>
-                  ) : pendingPayments.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="py-12 text-center text-slate-500">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-                          <CheckCircle2 className="w-6 h-6" />
-                        </div>
-                        <div className="font-bold text-slate-800">Không có giao dịch nào đang chờ đối soát</div>
-                        <div className="text-xs text-slate-400 mt-1">Tất cả yêu cầu thanh toán chuyển khoản từ NTD đã được xử lý xong.</div>
-                      </td>
-                    </tr>
-                  ) : (
-                    pendingPayments.map((p) => (
-                      <tr key={p.PaymentID} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-4 px-4 font-mono font-bold text-slate-900 text-xs">
-                          <span className="px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 tracking-wider">
-                            {p.TransactionRef}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="font-bold text-slate-900">{p.CompanyName}</div>
-                          <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="truncate max-w-[200px]">{p.EmployerEmail}</span>
-                          </div>
-                          {p.Phone && (
-                            <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                              <Phone className="w-3 h-3 text-slate-400 shrink-0" /> {p.Phone}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <span>{p.PackageName}</span>
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            +{p.PostLimit} tin • +{p.SearchLimit} CV • {p.DurationDays} ngày
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="font-bold text-emerald-600 text-sm">
-                            {(p.Amount || 0).toLocaleString('vi-VN')} đ
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-xs text-slate-500">
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span>{p.CreatedAt ? new Date(p.CreatedAt).toLocaleString('vi-VN') : '—'}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                            Chờ đối soát
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-center">
-                          <button
-                            onClick={() => setPaymentModal({ open: true, payment: p })}
-                            disabled={verifyingRef === p.TransactionRef}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-sm shadow-emerald-600/20 transition-all disabled:opacity-50"
-                          >
-                            {verifyingRef === p.TransactionRef ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Đang duyệt...</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Duyệt</span>
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ======================================================== */}
@@ -2246,7 +2070,7 @@ export default function AdminUserManagementPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setReportModal({ open: false, report: null, status: 'Resolved', adminNote: '', actionTaken: 'none', loading: false, error: '' })}
+                onClick={() => setReportModal({ open: false, report: null, status: 'Resolved', adminNote: '', loading: false, error: '' })}
                 className="p-1 rounded-xl text-slate-400 hover:bg-slate-100"
               >
                 <X className="w-5 h-5" />
@@ -2278,41 +2102,33 @@ export default function AdminUserManagementPage() {
               </div>
             </div>
 
+            {reportModal.report?.Status !== 'Pending' && <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+              <p>Kết luận đã lưu bởi: {reportModal.report?.ResolvedByName || 'Admin'} · {reportModal.report?.ResolvedAt ? new Date(reportModal.report.ResolvedAt).toLocaleString('vi-VN') : '—'}</p>
+              {reportModal.report?.LockedUserID && <p>Tài khoản đã bị khóa khi xử lý: #{reportModal.report.LockedUserID}. Trạng thái hiện tại xem tại Quản lý tài khoản.</p>}
+            </div>}
+
             {/* Resolution Form */}
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Kết luận kiểm tra:</label>
                 <select
+                  disabled={reportModal.report?.Status !== 'Pending'}
                   value={reportModal.status}
                   onChange={(e) => setReportModal(prev => ({ ...prev, status: e.target.value }))}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white font-medium focus:ring-2 focus:ring-indigo-500/30"
                 >
-                  <option value="Resolved">✓ Chấp thuận vi phạm & Đã giải quyết (Resolved)</option>
+                  <option value="Resolved">Xác nhận vi phạm & tự động khóa tài khoản</option>
                   <option value="Dismissed">✕ Bác bỏ báo cáo (Không đủ bằng chứng / Sai sự thật)</option>
                 </select>
               </div>
 
-              {reportModal.status === 'Resolved' && (
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Hành động chế tài tức thì đối với đối tượng:</label>
-                  <select
-                    value={reportModal.actionTaken}
-                    onChange={(e) => setReportModal(prev => ({ ...prev, actionTaken: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white font-medium focus:ring-2 focus:ring-indigo-500/30"
-                  >
-                    <option value="none">Chỉ lưu biên bản xử lý (Không khóa tài khoản)</option>
-                    {reportModal.report?.TargetType === 'JobPosting' && (
-                      <option value="close_job">Đóng tin tuyển dụng vi phạm (Closed)</option>
-                    )}
-                    <option value="lock_target">Khóa đối tượng vi phạm (Từ chối tin hoặc Khóa tài khoản)</option>
-                  </select>
-                </div>
-              )}
+              {reportModal.status === 'Resolved' && <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs leading-relaxed">Khi xác nhận vi phạm, hệ thống tự động khóa tài khoản bị báo cáo. Với tin tuyển dụng, tài khoản nhà tuyển dụng sở hữu tin sẽ bị khóa và tất cả tin của họ sẽ đóng. Hãy xác minh bằng chứng trước khi kết luận.</div>}
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Ghi chú giải quyết của Admin:</label>
                 <textarea
-                  rows="3"
+                  rows="3" required minLength={10} maxLength={2000}
+                  disabled={reportModal.report?.Status !== 'Pending'}
                   value={reportModal.adminNote}
                   onChange={(e) => setReportModal(prev => ({ ...prev, adminNote: e.target.value }))}
                   placeholder="Ghi chú kết quả thẩm định, xác minh hoặc lý do bác bỏ..."
@@ -2324,17 +2140,17 @@ export default function AdminUserManagementPage() {
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setReportModal({ open: false, report: null, status: 'Resolved', adminNote: '', actionTaken: 'none', loading: false, error: '' })}
+                onClick={() => setReportModal({ open: false, report: null, status: 'Resolved', adminNote: '', loading: false, error: '' })}
                 className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50"
               >
                 Hủy bỏ
               </button>
               <button
                 type="submit"
-                disabled={reportModal.loading}
+                disabled={reportModal.loading || reportModal.report?.Status !== 'Pending'}
                 className="px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/30 disabled:opacity-50"
               >
-                {reportModal.loading ? 'Đang lưu...' : 'Lưu kết quả xử lý'}
+                {reportModal.report?.Status !== 'Pending' ? 'Báo cáo đã có kết luận' : reportModal.loading ? 'Đang lưu...' : reportModal.status === 'Resolved' ? 'Xác nhận vi phạm và khóa tài khoản' : 'Bác bỏ báo cáo'}
               </button>
             </div>
           </form>
@@ -3323,92 +3139,7 @@ export default function AdminUserManagementPage() {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL: DUYỆT THANH TOÁN CHUYỂN KHOẢN (UC-E07)             */}
       {/* ======================================================== */}
-      {paymentModal.open && paymentModal.payment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scaleUp">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Xác Nhận Duyệt Thanh Toán</h3>
-                  <p className="text-xs text-slate-500 font-mono">Đơn #{paymentModal.payment.TransactionRef}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPaymentModal({ open: false, payment: null })}
-                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 rounded-2xl p-4 text-xs space-y-2.5 border border-slate-100">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
-                <span className="text-slate-500 font-medium">Doanh nghiệp:</span>
-                <span className="font-bold text-slate-900">{paymentModal.payment.CompanyName}</span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
-                <span className="text-slate-500 font-medium">Email:</span>
-                <span className="font-semibold text-slate-700">{paymentModal.payment.EmployerEmail}</span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
-                <span className="text-slate-500 font-medium">Gói đăng ký:</span>
-                <span className="font-bold text-indigo-600">{paymentModal.payment.PackageName}</span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
-                <span className="text-slate-500 font-medium">Quyền lợi:</span>
-                <span className="text-slate-700">+{paymentModal.payment.PostLimit} tin • +{paymentModal.payment.SearchLimit} CV • {paymentModal.payment.DurationDays} ngày</span>
-              </div>
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-slate-500 font-medium">Số tiền chuyển khoản:</span>
-                <span className="text-base font-black text-emerald-600">
-                  {(paymentModal.payment.Amount || 0).toLocaleString('vi-VN')} đ
-                </span>
-              </div>
-            </div>
-
-            <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-              <p className="leading-relaxed">
-                Vui lòng kiểm tra app <strong>MBBank (0387887153)</strong> đã nhận được số tiền trên trước khi bấm xác nhận. Khi duyệt, hệ thống sẽ kích hoạt ngay quyền lợi và gửi email chúc mừng đến nhà tuyển dụng.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setPaymentModal({ open: false, payment: null })}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                disabled={verifyingRef === paymentModal.payment.TransactionRef}
-                onClick={() => handleVerifyPayment(paymentModal.payment.TransactionRef)}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/25 transition-all disabled:opacity-50"
-              >
-                {verifyingRef === paymentModal.payment.TransactionRef ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang kích hoạt...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Xác nhận & Kích hoạt</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

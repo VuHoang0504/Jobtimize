@@ -301,3 +301,11 @@ Lệnh `npm run check:ai` hiển thị cấu hình cả OpenAI và Gemini. `npm 
 ### Model đang dùng cho website
 
 Các chức năng soạn tin tuyển dụng, đọc CV và luyện phỏng vấn dùng cấu hình server: `AI_PROVIDER=gemini` và `GEMINI_MODEL=gemini-3-flash-preview`. Khởi động lại backend sau khi thay đổi cấu hình. Model được chọn rõ sẽ được sử dụng cho các chức năng này.
+
+## Chuông thông báo
+
+Chuông lưu thông báo thật theo tài khoản cho ứng tuyển, lời mời, duyệt tin, KYC, báo cáo vi phạm và đăng nhập Candidate. Gợi ý dùng CV mặc định, lấy tối đa 3 tin còn tuyển có mức khớp kỹ năng từ 70%. Có số chưa đọc, lọc, phân trang và đánh dấu đã đọc.
+
+Backend tự áp dụng migration bổ sung khi khởi động. Có thể chạy riêng `npm --prefix server run db:notifications`; chạy kiểm thử bằng `npm run test:notifications`. Xem [luồng nghiệp vụ, cơ chế outbox và hướng dẫn kiểm thử](docs/notifications.md).
+
+Admin date-filtered reports, CSV export, automatic Premium and confirmed-violation bans: [setup and verification](docs/admin-enhancements.md).

@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Common Components
 import Navbar from './components/common/Navbar';
+import AuthNotice from './components/common/AuthNotice';
 import Footer from './components/common/Footer';
 
 // Pages
@@ -60,6 +61,7 @@ export default function App() {
       <Router>
         <div className="min-h-screen flex flex-col justify-between">
           <Navbar />
+          <AuthNotice />
           
           <main className="flex-1">
             <Routes>

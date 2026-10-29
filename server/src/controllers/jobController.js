@@ -1,3 +1,4 @@
+const { withTransaction, enqueue } = require('../services/notificationStore');
 const { executeQuery } = require('../config/db');
 const AIMatchingService = require('../services/aiMatchingService');
 const browseGroups = require('../../../shared/jobBrowseGroups.json');
@@ -25,7 +26,7 @@ const getJobs = async (req, res) => {
       FROM JobPostings jp
       JOIN Employers e ON jp.EmployerID = e.EmployerID
       LEFT JOIN JobCategories jc ON jp.CategoryID = jc.CategoryID
-      WHERE jp.Status = 'Published'
+      WHERE jp.Status = 'Published' AND EXISTS(SELECT 1 FROM Users owner WHERE owner.UserID=e.UserID AND owner.Status='Active')
     `;
 
     const params = {};
@@ -130,7 +131,7 @@ const getJobById = async (req, res) => {
       FROM JobPostings jp
       JOIN Employers e ON jp.EmployerID = e.EmployerID
       LEFT JOIN JobCategories jc ON jp.CategoryID = jc.CategoryID
-      WHERE jp.JobID = @JobID
+      WHERE jp.JobID = @JobID AND EXISTS(SELECT 1 FROM Users owner WHERE owner.UserID=e.UserID AND owner.Status='Active')
     `;
 
     const jobRes = await executeQuery(jobQuery, { JobID: id });
@@ -274,6 +275,13 @@ const applyJob = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Bạn đã nộp đơn ứng tuyển cho công việc này rồi!' });
     }
 
+    const jobCheck = await executeQuery("SELECT JobID FROM JobPostings WHERE JobID=@JobID AND Status='Published' AND (ExpiresAt IS NULL OR ExpiresAt>GETDATE())", { JobID: jobId });
+    if (!jobCheck.recordset.length) return res.status(400).json({ success: false, message: 'Tin tuyển dụng không còn nhận hồ sơ.' });
+    if (cvId) {
+      const owned = await executeQuery('SELECT CVID FROM CVs WHERE CVID=@CVID AND ProfileID=@ProfileID', { CVID: cvId, ProfileID: profileId });
+      if (!owned.recordset.length) return res.status(400).json({ success: false, message: 'CV không thuộc hồ sơ của bạn.' });
+    }
+
     // Calculate AI Match Score
     const aiResult = await AIMatchingService.calculateMatchScore(profileId, jobId);
 
@@ -287,17 +295,26 @@ const applyJob = async (req, res) => {
     }
 
     // Insert JobApplication
-    const insertRes = await executeQuery(
-      `INSERT INTO JobApplications (JobID, ProfileID, CVID, MatchScore, Status, AppliedAt)
-       OUTPUT INSERTED.ApplicationID, INSERTED.MatchScore, INSERTED.Status, INSERTED.AppliedAt
-       VALUES (@JobID, @ProfileID, @CVID, @MatchScore, 'Applied', GETDATE())`,
-      {
-        JobID: jobId,
-        ProfileID: profileId,
-        CVID: targetCvId || null,
-        MatchScore: aiResult.matchScore
-      }
-    );
+    const insertRes = await withTransaction(async query => {
+      const activeCandidate = await query("SELECT UserID FROM Users WITH(HOLDLOCK,ROWLOCK) WHERE UserID=@ID AND Status='Active'", { ID: req.user.userId });
+      const activeOwner = await query("SELECT UserID FROM Users WITH(HOLDLOCK,ROWLOCK) WHERE Status='Active' AND UserID=(SELECT e.UserID FROM Employers e JOIN JobPostings j ON j.EmployerID=e.EmployerID WHERE j.JobID=@ID AND j.Status='Published' AND (j.ExpiresAt IS NULL OR j.ExpiresAt>GETDATE()))", { ID: jobId });
+      if (!activeCandidate.recordset.length || !activeOwner.recordset.length) throw Object.assign(new Error('Tài khoản hoặc tin tuyển dụng không còn nhận hồ sơ.'), { status: 409 });
+      const duplicate = await query('SELECT ApplicationID FROM JobApplications WITH(UPDLOCK,HOLDLOCK) WHERE JobID=@JobID AND ProfileID=@ProfileID', { JobID: jobId, ProfileID: profileId });
+      if (duplicate.recordset.length) throw Object.assign(new Error('Bạn đã nộp đơn ứng tuyển cho công việc này rồi!'), { status: 409 });
+      const insertRes = await query(
+        `INSERT INTO JobApplications (JobID, ProfileID, CVID, MatchScore, Status, AppliedAt)
+         OUTPUT INSERTED.ApplicationID, INSERTED.MatchScore, INSERTED.Status, INSERTED.AppliedAt
+         VALUES (@JobID, @ProfileID, @CVID, @MatchScore, 'Applied', GETDATE())`,
+        {
+          JobID: jobId,
+          ProfileID: profileId,
+          CVID: targetCvId || null,
+          MatchScore: aiResult.matchScore
+        }
+      );
+      await enqueue(query, 'application', { applicationId: insertRes.recordset[0].ApplicationID }, `application:${jobId}:${profileId}`);
+      return insertRes;
+    });
 
     return res.status(201).json({
       success: true,
@@ -309,7 +326,7 @@ const applyJob = async (req, res) => {
     });
   } catch (error) {
     console.error('applyJob error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 

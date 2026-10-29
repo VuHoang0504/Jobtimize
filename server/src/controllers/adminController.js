@@ -1,5 +1,20 @@
+const { withTransaction, enqueue } = require('../services/notificationStore');
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
+
+
+async function saveKYCReview(employerId, status, note) {
+  return withTransaction(async query => {
+    const emp = (await query('SELECT EmployerID,CompanyName,KYCStatus FROM Employers WITH(UPDLOCK,ROWLOCK) WHERE EmployerID=@ID', { ID: employerId })).recordset[0];
+    if (!emp) throw Object.assign(new Error('Không tìm thấy hồ sơ doanh nghiệp'), { status: 404 });
+    const doc = (await query('SELECT TOP 1 DocumentID,RejectionReason FROM KYCDocuments WHERE EmployerID=@ID ORDER BY SubmittedAt DESC,DocumentID DESC', { ID: employerId })).recordset[0];
+    const reason = status === 'Rejected' ? (typeof note === 'string' ? note.trim() : '') : '';
+    if (doc) await query('UPDATE KYCDocuments SET RejectionReason=@Note WHERE DocumentID=@ID', { Note: reason || null, ID: doc.DocumentID });
+    await query('UPDATE Employers SET KYCStatus=@Status WHERE EmployerID=@ID', { Status: status, ID: employerId });
+    if (emp.KYCStatus !== status || (doc?.RejectionReason || '') !== reason) await enqueue(query, 'kyc_reviewed', { employerId, status, note: reason });
+    return emp;
+  });
+}
 
 // 1. Review Employer KYC (Admin Only - UC-E04 / UC-A05)
 const reviewEmployerKYC = async (req, res) => {
@@ -12,34 +27,17 @@ const reviewEmployerKYC = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Trạng thái KYC không hợp lệ (Pending, Approved, Rejected)' });
     }
 
-    // Verify employer exists
-    const empCheck = await executeQuery('SELECT EmployerID, CompanyName FROM Employers WHERE EmployerID = @EmployerID', { EmployerID: employerId });
-    if (!empCheck.recordset || empCheck.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ doanh nghiệp' });
-    }
-
-    // Update Employers KYCStatus
-    await executeQuery(
-      `UPDATE Employers SET KYCStatus = @Status WHERE EmployerID = @EmployerID`,
-      { Status: status, EmployerID: employerId }
-    );
-
-    // Update KYCDocuments RejectionReason if provided
-    if (rejectionReason !== undefined) {
-      await executeQuery(
-        `UPDATE TOP (1) KYCDocuments SET RejectionReason = @RejectionReason WHERE EmployerID = @EmployerID ORDER BY SubmittedAt DESC`,
-        { RejectionReason: rejectionReason, EmployerID: employerId }
-      );
-    }
+    if (status === 'Rejected' && (typeof rejectionReason !== 'string' || !rejectionReason.trim())) return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do từ chối.' });
+    const employer = await saveKYCReview(employerId, status, rejectionReason);
 
     return res.json({
       success: true,
-      message: `Admin đã cập nhật trạng thái KYC của doanh nghiệp ${empCheck.recordset[0].CompanyName} thành "${status}"!`,
+      message: `Admin đã cập nhật trạng thái KYC của doanh nghiệp ${employer.CompanyName} thành "${status}"!`,
       data: { employerId, status }
     });
   } catch (error) {
     console.error('reviewEmployerKYC error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 
@@ -63,168 +61,6 @@ const getPendingKYCList = async (req, res) => {
     });
   } catch (error) {
     console.error('getPendingKYCList error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// 2b. Get list of pending payment transactions for Admin to verify (UC-E07)
-const getPendingPayments = async (req, res) => {
-  try {
-    const result = await executeQuery(
-      `SELECT pt.PaymentID, pt.TransactionRef, pt.EmployerID, pt.PackageID, pt.Amount, pt.Status, pt.PaymentMethod, pt.CreatedAt,
-              sp.PackageName, sp.DurationDays, sp.PostLimit, sp.SearchLimit,
-              e.CompanyName, u.Email AS EmployerEmail, u.FullName AS ContactPerson, u.Phone
-       FROM PaymentTransactions pt
-       JOIN SubscriptionPackages sp ON pt.PackageID = sp.PackageID
-       JOIN Employers e ON pt.EmployerID = e.EmployerID
-       JOIN Users u ON e.UserID = u.UserID
-       WHERE pt.Status = 'Pending'
-       ORDER BY pt.CreatedAt DESC`
-    );
-
-    return res.json({
-      success: true,
-      data: result.recordset || []
-    });
-  } catch (error) {
-    console.error('getPendingPayments error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// 3. Verify Payment & Grant Subscription (Admin Only - UC-E07)
-const verifyPaymentTransaction = async (req, res) => {
-  try {
-    const { transactionRef } = req.params;
-    const { gatewayTransactionNo } = req.body;
-
-    const txnRes = await executeQuery(
-      `SELECT pt.PaymentID, pt.TransactionRef, pt.EmployerID, pt.PackageID, pt.Amount, pt.Status, pt.PaymentMethod,
-              sp.PackageName, sp.DurationDays, sp.PostLimit, sp.SearchLimit,
-              e.CompanyName
-       FROM PaymentTransactions pt
-       JOIN SubscriptionPackages sp ON pt.PackageID = sp.PackageID
-       JOIN Employers e ON pt.EmployerID = e.EmployerID
-       WHERE pt.TransactionRef = @TransactionRef`,
-      { TransactionRef: transactionRef }
-    );
-
-    if (!txnRes.recordset || txnRes.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy giao dịch' });
-    }
-
-    const txn = txnRes.recordset[0];
-
-    if (txn.Status === 'Success') {
-      return res.json({
-        success: true,
-        message: 'Giao dịch này đã được xác nhận thanh toán trước đó!',
-        data: txn
-      });
-    }
-
-    const gwTxnNo = gatewayTransactionNo || `ADMIN_VERIFIED_${Date.now()}`;
-
-    // Update PaymentTransaction to Success
-    await executeQuery(
-      `UPDATE PaymentTransactions
-       SET Status = 'Success',
-           GatewayTransactionNo = @GatewayTransactionNo,
-           PaidAt = GETDATE()
-       WHERE TransactionRef = @TransactionRef`,
-      {
-        TransactionRef: transactionRef,
-        GatewayTransactionNo: gwTxnNo
-      }
-    );
-
-    // Credit employer subscription
-    const existingSub = await executeQuery(
-      `SELECT TOP 1 SubID, EndDate, RemainingPosts, RemainingSearches
-       FROM EmployerSubscriptions
-       WHERE EmployerID = @EmployerID
-       ORDER BY EndDate DESC`,
-      { EmployerID: txn.EmployerID }
-    );
-
-    if (existingSub.recordset && existingSub.recordset.length > 0) {
-      const currentSub = existingSub.recordset[0];
-      const isStillActive = new Date(currentSub.EndDate) > new Date();
-
-      if (isStillActive) {
-        await executeQuery(
-          `UPDATE EmployerSubscriptions
-           SET EndDate = DATEADD(day, @DurationDays, EndDate),
-               RemainingPosts = RemainingPosts + @PostLimit,
-               RemainingSearches = RemainingSearches + @SearchLimit
-           WHERE SubID = @SubID`,
-          {
-            DurationDays: txn.DurationDays,
-            PostLimit: txn.PostLimit,
-            SearchLimit: txn.SearchLimit,
-            SubID: currentSub.SubID
-          }
-        );
-      } else {
-        await executeQuery(
-          `INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches)
-           VALUES (@EmployerID, @PackageID, GETDATE(), DATEADD(day, @DurationDays, GETDATE()), @PostLimit, @SearchLimit)`,
-          {
-            EmployerID: txn.EmployerID,
-            PackageID: txn.PackageID,
-            DurationDays: txn.DurationDays,
-            PostLimit: txn.PostLimit,
-            SearchLimit: txn.SearchLimit
-          }
-        );
-      }
-    } else {
-      await executeQuery(
-        `INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches)
-         VALUES (@EmployerID, @PackageID, GETDATE(), DATEADD(day, @DurationDays, GETDATE()), @PostLimit, @SearchLimit)`,
-        {
-          EmployerID: txn.EmployerID,
-          PackageID: txn.PackageID,
-          DurationDays: txn.DurationDays,
-          PostLimit: txn.PostLimit,
-          SearchLimit: txn.SearchLimit
-        }
-      );
-    }
-
-    // Gửi email thông báo kích hoạt thành công cho doanh nghiệp
-    const empUserRes = await executeQuery(
-      `SELECT e.CompanyName, u.Email, u.FullName
-       FROM Employers e
-       JOIN Users u ON e.UserID = u.UserID
-       WHERE e.EmployerID = @EmployerID`,
-      { EmployerID: txn.EmployerID }
-    );
-    if (empUserRes.recordset && empUserRes.recordset.length > 0) {
-      const empUser = empUserRes.recordset[0];
-      await emailService.sendPaymentSuccessEmail({
-        toEmail: empUser.Email,
-        companyName: empUser.CompanyName || empUser.FullName || 'Quý Doanh Nghiệp',
-        packageName: txn.PackageName,
-        durationDays: txn.DurationDays,
-        postLimit: txn.PostLimit,
-        searchLimit: txn.SearchLimit,
-        transactionRef: txn.TransactionRef
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: `Admin đã xác nhận thanh toán thành công ${Number(txn.Amount).toLocaleString()} đ cho doanh nghiệp ${txn.CompanyName}! Gói ${txn.PackageName} đã được kích hoạt.`,
-      data: {
-        transactionRef,
-        status: 'Success',
-        gatewayTransactionNo: gwTxnNo,
-        packageName: txn.PackageName
-      }
-    });
-  } catch (error) {
-    console.error('verifyPaymentTransaction error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -622,41 +458,9 @@ const getEmployerDetail = async (req, res) => {
 // 6. Toggle/Update User Status (Active / Locked)
 const updateUserStatus = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const { status } = req.body;
-
-    if (!['Active', 'Locked'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Trạng thái chỉ có thể là "Active" hoặc "Locked"' });
-    }
-
-    // Do not allow current admin to lock their own account
-    if (parseInt(userId, 10) === req.user.userId) {
-      return res.status(400).json({ success: false, message: 'Bạn không thể tự khóa tài khoản Admin đang đăng nhập!' });
-    }
-
-    const result = await executeQuery(
-      `UPDATE Users 
-       SET Status = @Status, UpdatedAt = GETDATE()
-       WHERE UserID = @UserID`,
-      {
-        Status: status,
-        UserID: userId
-      }
-    );
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản người dùng' });
-    }
-
-    const actionText = status === 'Active' ? 'mở khóa' : 'khóa';
-    return res.json({
-      success: true,
-      message: `Đã ${actionText} tài khoản thành công!`
-    });
-  } catch (error) {
-    console.error('updateUserStatus error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi khi cập nhật trạng thái tài khoản' });
-  }
+    const data = await require('../services/adminModerationService').updateStatus(Number(req.params.userId), req.user.userId, req.body.status, req.body.reason);
+    return res.json({ success: true, data, message: req.body.status === 'Active' ? 'Đã mở khóa. Các tin đã đóng cần được xem xét trước khi đăng lại.' : 'Đã khóa tài khoản và đóng các tin tuyển dụng liên quan.' });
+  } catch (error) { return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Không thể cập nhật tài khoản.' }); }
 };
 
 // 7. Update Employer KYC Status (Approved / Rejected)
@@ -669,35 +473,11 @@ const updateEmployerKYC = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Trạng thái KYC không hợp lệ' });
     }
 
-    if (kycStatus === 'Rejected' && !rejectionReason) {
+    if (kycStatus === 'Rejected' && (typeof rejectionReason !== 'string' || !rejectionReason.trim())) {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp lý do từ chối xác thực KYC' });
     }
 
-    // Update Employer
-    await executeQuery(
-      `UPDATE Employers 
-       SET KYCStatus = @KYCStatus 
-       WHERE EmployerID = @EmployerID`,
-      {
-        KYCStatus: kycStatus,
-        EmployerID: employerId
-      }
-    );
-
-    // If rejection reason provided, update in latest KYC document
-    if (rejectionReason) {
-      await executeQuery(
-        `UPDATE KYCDocuments
-         SET RejectionReason = @RejectionReason
-         WHERE DocumentID = (
-           SELECT TOP 1 DocumentID FROM KYCDocuments WHERE EmployerID = @EmployerID ORDER BY SubmittedAt DESC
-         )`,
-        {
-          RejectionReason: rejectionReason,
-          EmployerID: employerId
-        }
-      );
-    }
+    await saveKYCReview(employerId, kycStatus, rejectionReason);
 
     const statusMap = {
       Approved: 'phê duyệt KYC',
@@ -711,7 +491,7 @@ const updateEmployerKYC = async (req, res) => {
     });
   } catch (error) {
     console.error('updateEmployerKYC error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi khi cập nhật trạng thái KYC doanh nghiệp' });
+    return res.status(error.status || 500).json({ success: false, message: 'Lỗi khi cập nhật trạng thái KYC doanh nghiệp' });
   }
 };
 
@@ -901,17 +681,28 @@ const moderateJob = async (req, res) => {
       });
     }
 
-    const result = await executeQuery(
-      `UPDATE JobPostings
-       SET Status = @Status,
-           AdminNote = @AdminNote
-       WHERE JobID = @JobID`,
-      {
-        Status: status,
-        AdminNote: adminNote ? adminNote.trim() : null,
-        JobID: jobId
+    const result = await withTransaction(async query => {
+      if (status === 'Published') {
+        const owner = (await query('SELECT u.Status FROM Users u WITH(UPDLOCK,ROWLOCK) WHERE u.UserID=(SELECT e.UserID FROM Employers e JOIN JobPostings j ON j.EmployerID=e.EmployerID WHERE j.JobID=@ID)', { ID: jobId })).recordset[0];
+        if (owner && owner.Status !== 'Active') throw Object.assign(new Error('Không thể đăng tin của tài khoản đã bị khóa.'), { status: 409 });
       }
-    );
+      const previous = (await query('SELECT Status,AdminNote FROM JobPostings WITH(UPDLOCK,ROWLOCK) WHERE JobID=@ID', { ID: jobId })).recordset[0];
+      const result = await query(
+        `UPDATE JobPostings
+         SET Status = @Status,
+             AdminNote = @AdminNote
+         WHERE JobID = @JobID`,
+        {
+          Status: status,
+          AdminNote: adminNote ? adminNote.trim() : null,
+          JobID: jobId
+        }
+      );
+      if (previous && (previous.Status !== status || (previous.AdminNote || '') !== (adminNote?.trim() || ''))) {
+        await enqueue(query, 'job_status', { jobId, status, note: adminNote?.trim() || '' });
+      }
+      return result;
+    });
 
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy tin tuyển dụng' });
@@ -929,7 +720,7 @@ const moderateJob = async (req, res) => {
     });
   } catch (error) {
     console.error('moderateJob error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi khi kiểm duyệt tin tuyển dụng' });
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Lỗi khi kiểm duyệt tin tuyển dụng' });
   }
 };
 
@@ -949,6 +740,12 @@ const getReports = async (req, res) => {
 
     let whereClause = `WHERE 1=1`;
     const params = {};
+    if (req.query.reportId !== undefined) {
+      const requestedId = Number(req.query.reportId);
+      if (!Number.isSafeInteger(requestedId) || requestedId < 1) return res.status(400).json({ success: false, message: 'Mã báo cáo không hợp lệ.' });
+      whereClause += ' AND ur.ReportID=@RequestedReportID';
+      params.RequestedReportID = requestedId;
+    }
 
     if (status) {
       whereClause += ` AND ur.Status = @Status`;
@@ -969,7 +766,8 @@ const getReports = async (req, res) => {
     const dataQuery = `
       SELECT 
         ur.ReportID, ur.ReporterUserID, ur.TargetType, ur.TargetID, ur.Reason,
-        ur.Status, ur.AdminNote, ur.ResolvedAt, ur.CreatedAt,
+        ur.Status, ur.AdminNote, ur.ResolvedAt, ur.CreatedAt, ur.ResolvedByUserID,
+        reviewer.FullName AS ResolvedByName,ma.TargetUserID AS LockedUserID,ma.Action AS ModerationAction,
         u.FullName AS ReporterName, u.Email AS ReporterEmail,
         CASE 
           WHEN ur.TargetType = 'JobPosting' THEN (SELECT jp.Title FROM JobPostings jp WHERE jp.JobID = ur.TargetID)
@@ -983,6 +781,8 @@ const getReports = async (req, res) => {
         END AS TargetSubInfo
       FROM UserReports ur
       LEFT JOIN Users u ON ur.ReporterUserID = u.UserID
+      LEFT JOIN Users reviewer ON reviewer.UserID=ur.ResolvedByUserID
+      LEFT JOIN AccountModerationActions ma ON ma.ReportID=ur.ReportID
       ${whereClause}
       ORDER BY 
         CASE WHEN ur.Status = 'Pending' THEN 0 ELSE 1 END,
@@ -1016,65 +816,9 @@ const getReports = async (req, res) => {
 
 const resolveReport = async (req, res) => {
   try {
-    const { reportId } = req.params;
-    const { status, adminNote, actionTaken } = req.body;
-
-    if (!['Resolved', 'Dismissed'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Trạng thái xử lý chỉ có thể là "Resolved" hoặc "Dismissed"' });
-    }
-
-    const checkRes = await executeQuery('SELECT ReportID, TargetType, TargetID FROM UserReports WHERE ReportID = @ReportID', { ReportID: reportId });
-    if (!checkRes.recordset || checkRes.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy báo cáo vi phạm' });
-    }
-
-    const report = checkRes.recordset[0];
-
-    await executeQuery(
-      `UPDATE UserReports
-       SET Status = @Status,
-           AdminNote = @AdminNote,
-           ResolvedAt = GETDATE()
-       WHERE ReportID = @ReportID`,
-      {
-        Status: status,
-        AdminNote: adminNote ? adminNote.trim() : null,
-        ReportID: reportId
-      }
-    );
-
-    if (actionTaken === 'close_job' && report.TargetType === 'JobPosting') {
-      await executeQuery(
-        `UPDATE JobPostings SET Status = 'Closed', AdminNote = @AdminNote WHERE JobID = @JobID`,
-        { JobID: report.TargetID, AdminNote: adminNote || 'Đã đóng do vi phạm chính sách theo báo cáo người dùng.' }
-      );
-    } else if (actionTaken === 'lock_target') {
-      if (report.TargetType === 'JobPosting') {
-        await executeQuery(
-          `UPDATE JobPostings SET Status = 'Rejected', AdminNote = @AdminNote WHERE JobID = @JobID`,
-          { JobID: report.TargetID, AdminNote: adminNote || 'Bị từ chối do vi phạm chính sách cộng đồng.' }
-        );
-      } else if (report.TargetType === 'Employer') {
-        await executeQuery(
-          `UPDATE Users SET Status = 'Locked' WHERE UserID = (SELECT UserID FROM Employers WHERE EmployerID = @EmployerID)`,
-          { EmployerID: report.TargetID }
-        );
-      } else if (report.TargetType === 'Candidate') {
-        await executeQuery(
-          `UPDATE Users SET Status = 'Locked' WHERE UserID = @UserID`,
-          { UserID: report.TargetID }
-        );
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: status === 'Resolved' ? 'Đã xử lý và giải quyết báo cáo vi phạm thành công!' : 'Đã bác bỏ báo cáo vi phạm.'
-    });
-  } catch (error) {
-    console.error('resolveReport error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi khi xử lý báo cáo vi phạm' });
-  }
+    const data = await require('../services/adminModerationService').resolveReport(Number(req.params.reportId), req.user.userId, req.body.status, req.body.adminNote);
+    return res.json({ success: true, data, message: req.body.status === 'Resolved' ? 'Đã xác nhận vi phạm, khóa tài khoản và đóng các tin liên quan.' : 'Đã bác bỏ báo cáo; tài khoản không bị khóa.' });
+  } catch (error) { return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Không thể xử lý báo cáo.' }); }
 };
 
 // ========================================================
@@ -1387,496 +1131,10 @@ const deleteSkill = async (req, res) => {
   }
 };
 
-// 9. Báo cáo Doanh thu & Thống kê tăng trưởng hệ thống (Analytics Dashboard)
-const getAnalyticsReport = async (req, res) => {
-  try {
-    const timeRange = req.query.timeRange || '6m'; // '7d', '30d', '6m', '1y'
-
-    // 1. Chuẩn bị các mốc thời gian liên tục (Continuous Intervals)
-    const now = new Date();
-    let intervals = [];
-    let isDaily = false;
-
-    if (timeRange === '7d') {
-      isDaily = true;
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        intervals.push({
-          key: `${yyyy}-${mm}-${dd}`,
-          label: `${dd}/${mm}`,
-          fullLabel: `${dd}/${mm}/${yyyy}`
-        });
-      }
-    } else if (timeRange === '30d') {
-      isDaily = true;
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        intervals.push({
-          key: `${yyyy}-${mm}-${dd}`,
-          label: `${dd}/${mm}`,
-          fullLabel: `${dd}/${mm}/${yyyy}`
-        });
-      }
-    } else {
-      // Monthly intervals: 6m or 1y
-      const monthCount = timeRange === '1y' ? 12 : 6;
-      for (let i = monthCount - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        intervals.push({
-          key: `${yyyy}-${mm}`,
-          label: `T${d.getMonth() + 1}`,
-          fullLabel: `Tháng ${d.getMonth() + 1}/${yyyy}`
-        });
-      }
-    }
-
-    // 2. Query dữ liệu Doanh thu theo thời gian
-    const revenueTimelineQuery = isDaily ? `
-      SELECT 
-        FORMAT(es.StartDate, 'yyyy-MM-dd') AS DateKey,
-        SUM(ISNULL(es.AmountPaid, sp.Price)) AS TotalRevenue,
-        COUNT(es.SubID) AS OrderCount
-      FROM EmployerSubscriptions es
-      JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
-      WHERE (es.PaymentStatus = 'Completed' OR es.PaymentStatus IS NULL)
-      GROUP BY FORMAT(es.StartDate, 'yyyy-MM-dd')
-    ` : `
-      SELECT 
-        FORMAT(es.StartDate, 'yyyy-MM') AS DateKey,
-        SUM(ISNULL(es.AmountPaid, sp.Price)) AS TotalRevenue,
-        COUNT(es.SubID) AS OrderCount
-      FROM EmployerSubscriptions es
-      JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
-      WHERE (es.PaymentStatus = 'Completed' OR es.PaymentStatus IS NULL)
-      GROUP BY FORMAT(es.StartDate, 'yyyy-MM')
-    `;
-
-    // 3. Query Tăng trưởng Người dùng (Candidates & Employers)
-    const usersTimelineQuery = isDaily ? `
-      SELECT 
-        FORMAT(u.CreatedAt, 'yyyy-MM-dd') AS DateKey,
-        SUM(CASE WHEN r.RoleName = 'Candidate' THEN 1 ELSE 0 END) AS CandidateCount,
-        SUM(CASE WHEN r.RoleName = 'Employer' THEN 1 ELSE 0 END) AS EmployerCount,
-        COUNT(u.UserID) AS TotalCount
-      FROM Users u
-      JOIN UserRoles ur ON u.UserID = ur.UserID
-      JOIN Roles r ON ur.RoleID = r.RoleID
-      WHERE r.RoleName IN ('Candidate', 'Employer')
-      GROUP BY FORMAT(u.CreatedAt, 'yyyy-MM-dd')
-    ` : `
-      SELECT 
-        FORMAT(u.CreatedAt, 'yyyy-MM') AS DateKey,
-        SUM(CASE WHEN r.RoleName = 'Candidate' THEN 1 ELSE 0 END) AS CandidateCount,
-        SUM(CASE WHEN r.RoleName = 'Employer' THEN 1 ELSE 0 END) AS EmployerCount,
-        COUNT(u.UserID) AS TotalCount
-      FROM Users u
-      JOIN UserRoles ur ON u.UserID = ur.UserID
-      JOIN Roles r ON ur.RoleID = r.RoleID
-      WHERE r.RoleName IN ('Candidate', 'Employer')
-      GROUP BY FORMAT(u.CreatedAt, 'yyyy-MM')
-    `;
-
-    // 4. Query Tin tuyển dụng theo thời gian
-    const jobsTimelineQuery = isDaily ? `
-      SELECT 
-        FORMAT(CreatedAt, 'yyyy-MM-dd') AS DateKey,
-        COUNT(JobID) AS JobCount
-      FROM JobPostings
-      GROUP BY FORMAT(CreatedAt, 'yyyy-MM-dd')
-    ` : `
-      SELECT 
-        FORMAT(CreatedAt, 'yyyy-MM') AS DateKey,
-        COUNT(JobID) AS JobCount
-      FROM JobPostings
-      GROUP BY FORMAT(CreatedAt, 'yyyy-MM')
-    `;
-
-    // 5. Query Lượt ứng tuyển theo thời gian
-    const appsTimelineQuery = isDaily ? `
-      SELECT 
-        FORMAT(AppliedAt, 'yyyy-MM-dd') AS DateKey,
-        COUNT(ApplicationID) AS ApplicationCount
-      FROM JobApplications
-      GROUP BY FORMAT(AppliedAt, 'yyyy-MM-dd')
-    ` : `
-      SELECT 
-        FORMAT(AppliedAt, 'yyyy-MM') AS DateKey,
-        COUNT(ApplicationID) AS ApplicationCount
-      FROM JobApplications
-      GROUP BY FORMAT(AppliedAt, 'yyyy-MM')
-    `;
-
-    // 6. Cơ cấu Doanh thu theo Gói dịch vụ
-    const packagesQuery = `
-      SELECT 
-        sp.PackageID,
-        sp.PackageName,
-        sp.Price,
-        COUNT(es.SubID) AS SubscriptionCount,
-        SUM(CASE WHEN (es.PaymentStatus = 'Completed' OR es.PaymentStatus IS NULL) THEN ISNULL(es.AmountPaid, sp.Price) ELSE 0 END) AS TotalRevenue
-      FROM SubscriptionPackages sp
-      LEFT JOIN EmployerSubscriptions es ON sp.PackageID = es.PackageID
-      GROUP BY sp.PackageID, sp.PackageName, sp.Price
-      ORDER BY TotalRevenue DESC
-    `;
-
-    // 7. Cơ cấu theo Phương thức thanh toán
-    const paymentsQuery = `
-      SELECT 
-        ISNULL(es.PaymentMethod, 'VNPay') AS PaymentMethod,
-        COUNT(es.SubID) AS TransactionCount,
-        SUM(ISNULL(es.AmountPaid, sp.Price)) AS TotalAmount
-      FROM EmployerSubscriptions es
-      JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
-      WHERE (es.PaymentStatus = 'Completed' OR es.PaymentStatus IS NULL)
-      GROUP BY ISNULL(es.PaymentMethod, 'VNPay')
-      ORDER BY TotalAmount DESC
-    `;
-
-    // 8. Phân bố Việc làm theo Ngành nghề
-    const categoriesQuery = `
-      SELECT TOP 8
-        c.CategoryID,
-        c.CategoryName,
-        COUNT(jp.JobID) AS JobCount
-      FROM JobCategories c
-      LEFT JOIN JobPostings jp ON c.CategoryID = jp.CategoryID
-      GROUP BY c.CategoryID, c.CategoryName
-      ORDER BY JobCount DESC
-    `;
-
-    // 9. Phân bố Việc làm theo Địa điểm
-    const locationsQuery = `
-      SELECT 
-        CASE 
-          WHEN Location LIKE N'%Hà Nội%' THEN N'Hà Nội'
-          WHEN Location LIKE N'%Hồ Chí Minh%' OR Location LIKE N'%TP.HCM%' THEN N'TP. Hồ Chí Minh'
-          WHEN Location LIKE N'%Đà Nẵng%' THEN N'Đà Nẵng'
-          ELSE N'Khác'
-        END AS LocationCity,
-        COUNT(JobID) AS JobCount
-      FROM JobPostings
-      GROUP BY 
-        CASE 
-          WHEN Location LIKE N'%Hà Nội%' THEN N'Hà Nội'
-          WHEN Location LIKE N'%Hồ Chí Minh%' OR Location LIKE N'%TP.HCM%' THEN N'TP. Hồ Chí Minh'
-          WHEN Location LIKE N'%Đà Nẵng%' THEN N'Đà Nẵng'
-          ELSE N'Khác'
-        END
-      ORDER BY JobCount DESC
-    `;
-
-    // 10. Giao dịch mới nhất
-    const recentTxQuery = `
-      SELECT TOP 10
-        es.SubID,
-        ISNULL(es.TransactionCode, CONCAT('TXN-', es.SubID, '-', FORMAT(es.StartDate, 'yyyyMMdd'))) AS TransactionCode,
-        e.EmployerID,
-        e.CompanyName,
-        e.CompanyLogoUrl,
-        sp.PackageID,
-        sp.PackageName,
-        ISNULL(es.AmountPaid, sp.Price) AS Amount,
-        ISNULL(es.PaymentMethod, 'VNPay') AS PaymentMethod,
-        ISNULL(es.PaymentStatus, 'Completed') AS PaymentStatus,
-        es.StartDate,
-        es.EndDate,
-        ISNULL(es.CreatedAt, es.StartDate) AS CreatedAt
-      FROM EmployerSubscriptions es
-      JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
-      JOIN Employers e ON es.EmployerID = e.EmployerID
-      ORDER BY es.StartDate DESC
-    `;
-
-    // Tổng hợp KPI tổng
-    const overallKpiQuery = `
-      SELECT 
-        (SELECT ISNULL(SUM(ISNULL(es.AmountPaid, sp.Price)), 0) 
-         FROM EmployerSubscriptions es 
-         JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID 
-         WHERE es.PaymentStatus = 'Completed' OR es.PaymentStatus IS NULL) AS TotalRevenue,
-        (SELECT COUNT(DISTINCT EmployerID) FROM EmployerSubscriptions WHERE AmountPaid > 0 OR PackageID IN (SELECT PackageID FROM SubscriptionPackages WHERE Price > 0)) AS PayingEmployers,
-        (SELECT COUNT(*) FROM Users u JOIN UserRoles ur ON u.UserID = ur.UserID JOIN Roles r ON ur.RoleID = r.RoleID WHERE r.RoleName = 'Candidate') AS TotalCandidates,
-        (SELECT COUNT(*) FROM Employers) AS TotalEmployers,
-        (SELECT COUNT(*) FROM JobPostings) AS TotalJobs,
-        (SELECT COUNT(*) FROM JobApplications) AS TotalApplications,
-        (SELECT ISNULL(AVG(MatchScore), 0) FROM JobApplications WHERE MatchScore IS NOT NULL) AS AvgMatchScore
-    `;
-
-    const [
-      revTimelineRes,
-      usersTimelineRes,
-      jobsTimelineRes,
-      appsTimelineRes,
-      packagesRes,
-      paymentsRes,
-      categoriesRes,
-      locationsRes,
-      recentTxRes,
-      kpiRes
-    ] = await Promise.all([
-      executeQuery(revenueTimelineQuery),
-      executeQuery(usersTimelineQuery),
-      executeQuery(jobsTimelineQuery),
-      executeQuery(appsTimelineQuery),
-      executeQuery(packagesQuery),
-      executeQuery(paymentsQuery),
-      executeQuery(categoriesQuery),
-      executeQuery(locationsQuery),
-      executeQuery(recentTxQuery),
-      executeQuery(overallKpiQuery)
-    ]);
-
-    // Map dữ liệu vào intervals liên tục
-    const revMap = new Map();
-    revTimelineRes.recordset.forEach(r => revMap.set(r.DateKey, { revenue: Number(r.TotalRevenue || 0), orders: Number(r.OrderCount || 0) }));
-
-    const usersMap = new Map();
-    usersTimelineRes.recordset.forEach(u => usersMap.set(u.DateKey, { candidates: Number(u.CandidateCount || 0), employers: Number(u.EmployerCount || 0), total: Number(u.TotalCount || 0) }));
-
-    const jobsMap = new Map();
-    jobsTimelineRes.recordset.forEach(j => jobsMap.set(j.DateKey, Number(j.JobCount || 0)));
-
-    const appsMap = new Map();
-    appsTimelineRes.recordset.forEach(a => appsMap.set(a.DateKey, Number(a.ApplicationCount || 0)));
-
-    let runningCandidates = 0;
-    let runningEmployers = 0;
-
-    const timeline = intervals.map(item => {
-      const revData = revMap.get(item.key) || { revenue: 0, orders: 0 };
-      const uData = usersMap.get(item.key) || { candidates: 0, employers: 0, total: 0 };
-      const jobCount = jobsMap.get(item.key) || 0;
-      const appCount = appsMap.get(item.key) || 0;
-
-      runningCandidates += uData.candidates;
-      runningEmployers += uData.employers;
-
-      return {
-        key: item.key,
-        label: item.label,
-        fullLabel: item.fullLabel,
-        revenue: revData.revenue,
-        orders: revData.orders,
-        newCandidates: uData.candidates,
-        newEmployers: uData.employers,
-        newUsers: uData.total,
-        cumulativeUsers: runningCandidates + runningEmployers,
-        jobs: jobCount,
-        applications: appCount
-      };
-    });
-
-    // Tính KPI tổng và tỷ lệ tăng trưởng trong kỳ so với kỳ trước
-    const kpiData = kpiRes.recordset[0] || {};
-    const totalRev = Number(kpiData.TotalRevenue || 0);
-    const payingEmployers = Number(kpiData.PayingEmployers || 0);
-    const arpu = payingEmployers > 0 ? Math.round(totalRev / payingEmployers) : 0;
-
-    // Tổng trong kỳ được chọn (period total)
-    const periodRevenue = timeline.reduce((acc, cur) => acc + cur.revenue, 0);
-    const periodOrders = timeline.reduce((acc, cur) => acc + cur.orders, 0);
-    const periodNewUsers = timeline.reduce((acc, cur) => acc + cur.newUsers, 0);
-    const periodNewJobs = timeline.reduce((acc, cur) => acc + cur.jobs, 0);
-    const periodApps = timeline.reduce((acc, cur) => acc + cur.applications, 0);
-
-    // Tính % tăng trưởng nửa sau kỳ so với nửa đầu kỳ
-    const half = Math.floor(timeline.length / 2);
-    const firstHalfRev = timeline.slice(0, half).reduce((acc, cur) => acc + cur.revenue, 0);
-    const secondHalfRev = timeline.slice(half).reduce((acc, cur) => acc + cur.revenue, 0);
-    const revenueGrowthRate = firstHalfRev > 0 ? Math.round(((secondHalfRev - firstHalfRev) / firstHalfRev) * 100) : (secondHalfRev > 0 ? 100 : 0);
-
-    const firstHalfUsers = timeline.slice(0, half).reduce((acc, cur) => acc + cur.newUsers, 0);
-    const secondHalfUsers = timeline.slice(half).reduce((acc, cur) => acc + cur.newUsers, 0);
-    const userGrowthRate = firstHalfUsers > 0 ? Math.round(((secondHalfUsers - firstHalfUsers) / firstHalfUsers) * 100) : (secondHalfUsers > 0 ? 100 : 0);
-
-    const firstHalfJobs = timeline.slice(0, half).reduce((acc, cur) => acc + cur.jobs, 0);
-    const secondHalfJobs = timeline.slice(half).reduce((acc, cur) => acc + cur.jobs, 0);
-    const jobGrowthRate = firstHalfJobs > 0 ? Math.round(((secondHalfJobs - firstHalfJobs) / firstHalfJobs) * 100) : (secondHalfJobs > 0 ? 100 : 0);
-
-    return res.json({
-      success: true,
-      data: {
-        timeRange,
-        kpi: {
-          totalRevenue: totalRev,
-          periodRevenue,
-          revenueGrowthRate,
-          periodOrders,
-          payingEmployers,
-          arpu,
-          totalUsers: Number(kpiData.TotalCandidates || 0) + Number(kpiData.TotalEmployers || 0),
-          totalCandidates: Number(kpiData.TotalCandidates || 0),
-          totalEmployers: Number(kpiData.TotalEmployers || 0),
-          periodNewUsers,
-          userGrowthRate,
-          totalJobs: Number(kpiData.TotalJobs || 0),
-          periodNewJobs,
-          jobGrowthRate,
-          totalApplications: Number(kpiData.TotalApplications || 0),
-          periodApplications: periodApps,
-          avgMatchScore: Math.round(Number(kpiData.AvgMatchScore || 0) * 10) / 10
-        },
-        timeline,
-        packagesBreakdown: packagesRes.recordset.map(p => ({
-          packageId: p.PackageID,
-          packageName: p.PackageName,
-          price: Number(p.Price || 0),
-          subscriptionCount: Number(p.SubscriptionCount || 0),
-          totalRevenue: Number(p.TotalRevenue || 0),
-          percentage: totalRev > 0 ? Math.round((Number(p.TotalRevenue || 0) / totalRev) * 100) : 0
-        })),
-        paymentMethodsBreakdown: paymentsRes.recordset.map(m => ({
-          method: m.PaymentMethod,
-          count: Number(m.TransactionCount || 0),
-          totalAmount: Number(m.TotalAmount || 0),
-          percentage: totalRev > 0 ? Math.round((Number(m.TotalAmount || 0) / totalRev) * 100) : 0
-        })),
-        jobsByCategory: categoriesRes.recordset.map(c => ({
-          categoryId: c.CategoryID,
-          categoryName: c.CategoryName,
-          jobCount: Number(c.JobCount || 0)
-        })),
-        jobsByLocation: locationsRes.recordset.map(l => ({
-          location: l.LocationCity,
-          jobCount: Number(l.JobCount || 0)
-        })),
-        recentTransactions: recentTxRes.recordset.map(tx => ({
-          subId: tx.SubID,
-          transactionCode: tx.TransactionCode,
-          employerId: tx.EmployerID,
-          companyName: tx.CompanyName,
-          companyLogoUrl: tx.CompanyLogoUrl,
-          packageId: tx.PackageID,
-          packageName: tx.PackageName,
-          amount: Number(tx.Amount || 0),
-          paymentMethod: tx.PaymentMethod,
-          paymentStatus: tx.PaymentStatus,
-          startDate: tx.StartDate,
-          endDate: tx.EndDate,
-          createdAt: tx.CreatedAt
-        }))
-      }
-    });
-  } catch (error) {
-    console.error('getAnalyticsReport error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi khi lấy dữ liệu báo cáo thống kê' });
-  }
-};
-
-// 10. Danh sách toàn bộ giao dịch / Đăng ký dịch vụ với phân trang & tìm kiếm
-const getTransactions = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const offset = (page - 1) * limit;
-    const search = req.query.search ? req.query.search.trim() : null;
-    const paymentMethod = req.query.paymentMethod && req.query.paymentMethod !== 'all' ? req.query.paymentMethod : null;
-
-    const safeOffset = Math.max(0, offset);
-    const safeLimit = Math.max(1, Math.min(100, limit));
-
-    let whereClauses = [];
-    let params = {};
-
-    if (search) {
-      whereClauses.push('(e.CompanyName LIKE @search OR es.TransactionCode LIKE @search)');
-      params.search = `%${search}%`;
-    }
-
-    if (paymentMethod) {
-      whereClauses.push('es.PaymentMethod = @paymentMethod');
-      params.paymentMethod = paymentMethod;
-    }
-
-    const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-
-    const countQuery = `
-      SELECT COUNT(*) AS total
-      FROM EmployerSubscriptions es
-      JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
-      JOIN Employers e ON es.EmployerID = e.EmployerID
-      ${whereSQL}
-    `;
-
-    const dataQuery = `
-      SELECT 
-        es.SubID,
-        ISNULL(es.TransactionCode, CONCAT('TXN-', es.SubID, '-', FORMAT(es.StartDate, 'yyyyMMdd'))) AS TransactionCode,
-        e.EmployerID,
-        e.CompanyName,
-        e.CompanyLogoUrl,
-        sp.PackageID,
-        sp.PackageName,
-        ISNULL(es.AmountPaid, sp.Price) AS Amount,
-        ISNULL(es.PaymentMethod, 'VNPay') AS PaymentMethod,
-        ISNULL(es.PaymentStatus, 'Completed') AS PaymentStatus,
-        es.StartDate,
-        es.EndDate,
-        ISNULL(es.CreatedAt, es.StartDate) AS CreatedAt
-      FROM EmployerSubscriptions es
-      JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
-      JOIN Employers e ON es.EmployerID = e.EmployerID
-      ${whereSQL}
-      ORDER BY es.StartDate DESC
-      OFFSET ${safeOffset} ROWS FETCH NEXT ${safeLimit} ROWS ONLY
-    `;
-
-    const [countRes, dataRes] = await Promise.all([
-      executeQuery(countQuery, params),
-      executeQuery(dataQuery, params)
-    ]);
-
-    const total = countRes.recordset[0]?.total || 0;
-
-    return res.json({
-      success: true,
-      data: {
-        transactions: dataRes.recordset.map(tx => ({
-          subId: tx.SubID,
-          transactionCode: tx.TransactionCode,
-          employerId: tx.EmployerID,
-          companyName: tx.CompanyName,
-          companyLogoUrl: tx.CompanyLogoUrl,
-          packageId: tx.PackageID,
-          packageName: tx.PackageName,
-          amount: Number(tx.Amount || 0),
-          paymentMethod: tx.PaymentMethod,
-          paymentStatus: tx.PaymentStatus,
-          startDate: tx.StartDate,
-          endDate: tx.EndDate,
-          createdAt: tx.CreatedAt
-        })),
-        pagination: {
-          page,
-          limit: safeLimit,
-          total,
-          totalPages: Math.ceil(total / safeLimit)
-        }
-      }
-    });
-  } catch (error) {
-    console.error('getTransactions error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi khi lấy danh sách giao dịch' });
-  }
-};
-
 module.exports = {
   // KYC & Payment routes
   reviewEmployerKYC,
   getPendingKYCList,
-  getPendingPayments,
-  verifyPaymentTransaction,
 
   // Admin portal routes
   getDashboardStats,
@@ -1900,7 +1158,5 @@ module.exports = {
   createSkill,
   updateSkill,
   deleteSkill,
-  getAnalyticsReport,
-  getTransactions
 };
 

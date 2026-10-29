@@ -26,6 +26,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const notificationService = require('./services/notificationService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -105,12 +106,15 @@ app.get('/api/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/candidate/invitations', require('./routes/candidateInvitationRoutes'));
 app.use('/api/candidate', candidateRoutes);
 app.use('/api/employer', employerRoutes);
 app.use('/api/metadata', categoryRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/reports', require('./routes/reportRoutes'));
 
 // Global Error Handler
 app.use((err, req, res, next) => {
@@ -331,4 +335,10 @@ app.listen(PORT, async () => {
   } catch (err) {
     console.warn('⚠️ Warning: MS SQL Server connection not ready yet. Please ensure SQL Server is running on port 1433 and JobtimizeDB database is created.');
   }
+  try {
+    await notificationService.initialize();
+    notificationService.startWorker();
+    console.log('Notification inbox and background worker ready.');
+  } catch (error) { console.error('Notification initialization failed:', error.message); }
+
 });
