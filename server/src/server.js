@@ -26,6 +26,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -111,6 +112,7 @@ app.use('/api/metadata', categoryRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
@@ -213,6 +215,25 @@ app.listen(PORT, async () => {
         );
       END
     `);
+
+    // Đảm bảo bảng Notifications tồn tại
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Notifications')
+      BEGIN
+        CREATE TABLE Notifications (
+          NotificationID INT IDENTITY(1,1) PRIMARY KEY,
+          UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE CASCADE,
+          Title NVARCHAR(255) NOT NULL,
+          Message NVARCHAR(MAX) NOT NULL,
+          Type NVARCHAR(50) NOT NULL,
+          RelatedID INT NULL,
+          LinkUrl NVARCHAR(500) NULL,
+          IsRead BIT NOT NULL DEFAULT 0,
+          CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
+        );
+      END
+    `);
+  
 
     // Seed dữ liệu doanh thu & gói dịch vụ mẫu cho 6 tháng gần nhất nếu chưa có
     await pool.request().query(`

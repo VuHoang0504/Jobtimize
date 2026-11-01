@@ -1,5 +1,6 @@
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
+const notificationService = require('../services/notificationService');
 
 // 1. Review Employer KYC (Admin Only - UC-E04 / UC-A05)
 const reviewEmployerKYC = async (req, res) => {
@@ -922,6 +923,52 @@ const moderateJob = async (req, res) => {
       Rejected: 'Đã từ chối tin tuyển dụng và lưu lý do phản hồi cho nhà tuyển dụng.',
       RequiresRevision: 'Đã gửi yêu cầu chỉnh sửa tin tuyển dụng đến doanh nghiệp.'
     };
+
+    
+    // Gửi thông báo đến Nhà tuyển dụng về kết quả kiểm duyệt tin
+    try {
+      const jobInfoRes = await executeQuery(
+        `SELECT jp.Title, e.UserID
+         FROM JobPostings jp
+         JOIN Employers e ON jp.EmployerID = e.EmployerID
+         WHERE jp.JobID = @JobID`,
+        { JobID: jobId }
+      );
+
+      if (jobInfoRes.recordset && jobInfoRes.recordset.length > 0) {
+        const jobInfo = jobInfoRes.recordset[0];
+        const jobTitle = jobInfo.Title || 'tin tuyển dụng';
+
+        let notifTitle = 'Cập nhật tin tuyển dụng';
+        let notifType = 'job_moderation';
+        let notifMessage = `Tin tuyển dụng "${jobTitle}" vừa được cập nhật trạng thái thành ${status}.`;
+
+        if (status === 'Published') {
+          notifTitle = 'Tin tuyển dụng đã được phê duyệt';
+          notifType = 'job_approved';
+          notifMessage = `Chúc mừng! Tin tuyển dụng "${jobTitle}" đã được Admin phê duyệt thành công và đang hiển thị công khai tới các ứng viên.`;
+        } else if (status === 'Rejected') {
+          notifTitle = 'Tin tuyển dụng bị từ chối';
+          notifType = 'job_rejected';
+          notifMessage = `Tin tuyển dụng "${jobTitle}" không được phê duyệt. Lý do: ${adminNote || 'Không đạt tiêu chuẩn kiểm duyệt.'}`;
+        } else if (status === 'RequiresRevision') {
+          notifTitle = 'Tin tuyển dụng cần chỉnh sửa';
+          notifType = 'job_revision';
+          notifMessage = `Tin tuyển dụng "${jobTitle}" cần bổ sung/chỉnh sửa nội dung. Phản hồi từ Admin: ${adminNote || 'Vui lòng kiểm tra lại thông tin.'}`;
+        }
+
+        await notificationService.createNotification({
+          userId: jobInfo.UserID,
+          title: notifTitle,
+          message: notifMessage,
+          type: notifType,
+          relatedId: parseInt(jobId, 10),
+          linkUrl: '/employer/dashboard'
+        });
+      }
+    } catch (notifErr) {
+      console.error('Không thể tạo thông báo kiểm duyệt tin cho NTD:', notifErr.message);
+    }
 
     return res.json({
       success: true,

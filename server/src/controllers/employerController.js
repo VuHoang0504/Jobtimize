@@ -1,5 +1,6 @@
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
+const notificationService = require('../services/notificationService');
 
 // Helper to get EmployerID from authenticated UserID
 const getEmployerId = async (userId) => {
@@ -707,7 +708,7 @@ const scheduleInterview = async (req, res) => {
     const appCheck = await executeQuery(
       `SELECT ja.ApplicationID, ja.JobID, ja.Status,
               jp.EmployerID, jp.Title AS JobTitle,
-              cp.ProfileID, u.FullName AS CandidateName, u.Email AS CandidateEmail,
+              cp.ProfileID, u.UserID AS CandidateUserID, u.FullName AS CandidateName, u.Email AS CandidateEmail,
               e.CompanyName
        FROM JobApplications ja
        JOIN JobPostings jp ON ja.JobID = jp.JobID
@@ -774,6 +775,18 @@ const scheduleInterview = async (req, res) => {
       emailMessage = emailResult.success
         ? 'Email thông báo đã được gửi thành công đến ứng viên!'
         : `Lưu ý: Không gửi được email (${emailResult.error || 'chưa cấu hình SMTP'}). Lịch phỏng vấn vẫn được lưu trên hệ thống.`;
+    }
+
+    // In-app Notification for Candidate
+    if (appInfo.CandidateUserID) {
+      notificationService.createNotification({
+        userId: appInfo.CandidateUserID,
+        title: `Lịch phỏng vấn: ${appInfo.JobTitle}`,
+        message: `${appInfo.CompanyName} đã gửi lịch phỏng vấn vị trí "${appInfo.JobTitle}" (${type === 'Online' ? 'Online' : 'Trực tiếp'}) vào lúc ${new Date(parsedDate).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Chi tiết đã được gửi tới email của bạn!`,
+        type: 'interview',
+        relatedId: applicationId,
+        linkUrl: '/candidate/dashboard?tab=applications'
+      }).catch(err => console.error('Lỗi gửi in-app notification phỏng vấn:', err));
     }
 
     return res.status(201).json({

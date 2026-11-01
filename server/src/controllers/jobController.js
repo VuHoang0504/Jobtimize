@@ -1,5 +1,6 @@
 const { executeQuery } = require('../config/db');
 const AIMatchingService = require('../services/aiMatchingService');
+const notificationService = require('../services/notificationService');
 const browseGroups = require('../../../shared/jobBrowseGroups.json');
 
 // Get all published jobs with search & filter
@@ -298,6 +299,36 @@ const applyJob = async (req, res) => {
         MatchScore: aiResult.matchScore
       }
     );
+
+    
+    // Gửi thông báo đến Nhà tuyển dụng khi có ứng viên mới nộp đơn
+    try {
+      const employerInfoRes = await executeQuery(
+        `SELECT jp.Title, e.UserID, u.FullName AS CandidateName
+         FROM JobPostings jp
+         JOIN Employers e ON jp.EmployerID = e.EmployerID
+         JOIN Users u ON u.UserID = @CandidateUserID
+         WHERE jp.JobID = @JobID`,
+        { JobID: jobId, CandidateUserID: userId }
+      );
+
+      if (employerInfoRes.recordset && employerInfoRes.recordset.length > 0) {
+        const empInfo = employerInfoRes.recordset[0];
+        const candidateName = empInfo.CandidateName || 'Một ứng viên';
+        const jobTitle = empInfo.Title || 'tin tuyển dụng';
+
+        await notificationService.createNotification({
+          userId: empInfo.UserID,
+          title: 'Hồ sơ ứng tuyển mới',
+          message: `${candidateName} vừa nộp hồ sơ ứng tuyển vào vị trí "${jobTitle}" (Độ khớp AI: ${Math.round(aiResult.matchScore)}%).`,
+          type: 'application',
+          relatedId: insertRes.recordset[0]?.ApplicationID,
+          linkUrl: `/employer/ats/${jobId}`
+        });
+      }
+    } catch (notifErr) {
+      console.error('Không thể tạo thông báo nộp đơn cho NTD:', notifErr.message);
+    }
 
     return res.status(201).json({
       success: true,

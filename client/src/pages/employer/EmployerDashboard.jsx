@@ -302,8 +302,9 @@ export default function EmployerDashboard() {
           <div className="flex items-center gap-2 flex-wrap">
             {[
               { id: 'ALL', label: 'Tất cả (' + jobs.length + ')' },
-              { id: 'Published', label: 'Đang mở (' + jobs.filter(j => j.Status === 'Published').length + ')' },
-              { id: 'PendingApproval', label: 'Chờ duyệt (' + jobs.filter(j => j.Status === 'PendingApproval').length + ')' },
+              { id: 'PendingApproval', label: 'Đang chờ duyệt (' + jobs.filter(j => j.Status === 'PendingApproval').length + ')' },
+              { id: 'Published', label: 'Thành công (Đã duyệt) (' + jobs.filter(j => j.Status === 'Published').length + ')' },
+              { id: 'Rejected', label: 'Thất bại (Từ chối) (' + jobs.filter(j => ['Rejected', 'RequiresRevision'].includes(j.Status)).length + ')' },
               { id: 'Closed', label: 'Đã đóng (' + jobs.filter(j => j.Status === 'Closed').length + ')' }
             ].map((tab) => (
               <button
