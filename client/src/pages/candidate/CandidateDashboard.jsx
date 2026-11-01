@@ -1,8 +1,9 @@
+import AccountPasswordForm from '../../components/common/AccountPasswordForm';
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-import { downloadCV } from '../../services/cv';
+import CVManager from '../../components/candidate/CVManager';
 import MatchScoreBadge from '../../components/common/MatchScoreBadge';
 import { validatePassword } from '../../utils/validation';
 import { 
@@ -21,13 +22,10 @@ import {
   Edit3, 
   Save, 
   Star,
-  ExternalLink,
   BookOpen,
   Camera,
-  Lock,
   KeyRound,
   Eye,
-  EyeOff,
   ShieldCheck,
   RefreshCw,
   Bot,
@@ -51,6 +49,7 @@ import {
   Download
 } from 'lucide-react';
 import MockInterviewSection from '../../components/candidate/MockInterviewSection';
+import { candidateApplicationLabels } from '../../components/common/RecruitmentUI';
 import CandidateInvitations from '../../components/candidate/CandidateInvitations';
 import JobAlertModal from '../../components/candidate/JobAlertModal';
 import { getCompanyLogo, handleCompanyLogoError, getUserAvatar, handleUserAvatarError } from '../../utils/logoHelper';
@@ -58,6 +57,8 @@ import { getCompanyLogo, handleCompanyLogoError, getUserAvatar, handleUserAvatar
 export default function CandidateDashboard() {
   const { user, refreshUser } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const selectTab = tab => { setActiveTab(tab); navigate(`/candidate/dashboard?tab=${tab}`); };
 
   // Tab state
   const queryParams = new URLSearchParams(location.search);
@@ -75,7 +76,6 @@ export default function CandidateDashboard() {
   const [profile, setProfile] = useState(null);
   const [applications, setApplications] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
-  const [skillGapData, setSkillGapData] = useState(null);
   const [jobAlerts, setJobAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -124,28 +124,11 @@ export default function CandidateDashboard() {
     additionalInfo: { projects: [], certifications: [], activities: [], references: [] }
   });
 
-  // CV upload state
-  const [cvTitle, setCvTitle] = useState('');
-  const [cvFile, setCvFile] = useState(null);
-  const [uploadingCv, setUploadingCv] = useState(false);
-  const [downloadingCv, setDownloadingCv] = useState(null);
-
   // Avatar upload state
   const fileInputRef = useRef(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarError, setAvatarError] = useState('');
-
-  // Password change state
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [passwordError, setPasswordError] = useState('');
 
   const fetchProfileData = async () => {
     try {
@@ -227,14 +210,7 @@ export default function CandidateDashboard() {
     }
   };
 
-  const fetchSkillGap = async () => {
-    try {
-      const res = await api.get('/candidate/skill-gap');
-      if (res.data.success) setSkillGapData(res.data.data);
-    } catch (err) {
-      console.error('Fetch skill gap error:', err);
-    }
-  };
+
 
   const fetchJobAlerts = async () => {
     try {
@@ -286,13 +262,17 @@ export default function CandidateDashboard() {
         fetchProfileData(), 
         fetchApplications(), 
         fetchSavedJobs(), 
-        fetchSkillGap(),
         fetchJobAlerts()
       ]);
       setLoading(false);
     };
     loadAll();
-  }, [user]);
+  }, [user, location.key]);
+
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('applicationId');
+    if (!loading && activeTab === 'applications' && id) document.getElementById('candidate-application-' + id)?.scrollIntoView({ block: 'center' });
+  }, [loading, activeTab, location.key]);
 
   // Handle Profile Update
   const handleSaveProfile = async (e) => {
@@ -326,65 +306,6 @@ export default function CandidateDashboard() {
       alert('Lỗi cập nhật hồ sơ: ' + (err.response?.data?.message || err.message));
     } finally {
       setSavingProfile(false);
-    }
-  };
-
-  // Handle CV Upload
-  const handleUploadCV = async (e) => {
-    e.preventDefault();
-    if (!cvFile) return alert('Vui lòng chọn file CV');
-
-    const formData = new FormData();
-    formData.append('cvFile', cvFile);
-    formData.append('title', cvTitle);
-
-    try {
-      setUploadingCv(true);
-      await api.post('/candidate/cv', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setCvTitle('');
-      setCvFile(null);
-      await fetchProfileData();
-    } catch (err) {
-      alert('Lỗi tải lên CV: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setUploadingCv(false);
-    }
-  };
-
-  const handleDownloadCV = async (cv) => {
-    setDownloadingCv(cv.CVID);
-    try {
-      const response = await api.get(`/candidate/cv/${cv.CVID}`);
-      const row = response.data.data;
-      await downloadCV({ title: row.Title || 'CV', template: row.Template || 'modern', cvData: row.CvData });
-    } catch (error) { alert(error.message || 'Không thể tải PDF. Vui lòng thử lại.'); }
-    finally { setDownloadingCv(null); }
-  };
-
-  // Set Primary CV
-  const handleSetPrimaryCV = async (cvId) => {
-    try {
-      await api.put(`/candidate/cv/${cvId}/primary`);
-      await fetchProfileData();
-    } catch (err) {
-      console.error('Set primary CV error:', err);
-    }
-  };
-
-  // Delete CV
-  const handleDeleteCV = async (cvId) => {
-    try {
-      await api.delete(`/candidate/cv/${cvId}`);
-      setProfile((prev) =>
-        prev ? { ...prev, cvs: (prev.cvs || []).filter((c) => c.CVID !== cvId) } : prev
-      );
-      await fetchProfileData();
-      await fetchSkillGap();
-    } catch (err) {
-      console.error('Delete CV error:', err);
-      alert('Không thể xóa CV: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -427,43 +348,6 @@ export default function CandidateDashboard() {
     }
   };
 
-  // Handle Change Password
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-    setPasswordError('');
-    setPasswordSuccess('');
-
-    const pwdErr = validatePassword(newPassword);
-    if (pwdErr) {
-      setPasswordError(pwdErr);
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setPasswordError('Mật khẩu mới và xác nhận mật khẩu không trùng khớp');
-      return;
-    }
-
-    setPasswordLoading(true);
-
-    try {
-      const res = await api.post('/auth/change-password', {
-        currentPassword,
-        newPassword
-      });
-      if (res.data.success) {
-        setPasswordSuccess('Đổi mật khẩu thành công!');
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmNewPassword('');
-      }
-    } catch (err) {
-      setPasswordError(err.response?.data?.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.');
-    } finally {
-      setPasswordLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center animate-pulse space-y-4">
@@ -476,6 +360,7 @@ export default function CandidateDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
+      {activeTab !== 'cvs' && (<>
       {/* Dashboard Top Banner */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-5 flex-1">
@@ -589,6 +474,7 @@ export default function CandidateDashboard() {
         </div>
       </div>
 
+      </>)}
       {/* Main Content Grid: Tabs Left & Panel Right */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         
@@ -596,23 +482,25 @@ export default function CandidateDashboard() {
         <div className="lg:col-span-1 space-y-2">
           <div className="bg-white rounded-xl p-2.5 border border-gray-200 shadow-xs space-y-1">
             <button
-              onClick={() => setActiveTab('profile')}
+              onClick={() => selectTab('profile')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'profile'
                   ? 'bg-blue-600 text-white font-semibold'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <span>Hồ sơ & CV</span>
+              <span>Hồ sơ cá nhân</span>
             </button>
+
+            <button onClick={() => selectTab('cvs')} className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium text-left ${activeTab === 'cvs' ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}><span>Quản lý CV</span><FileText className="h-4 w-4" /></button>
 
             <Link to="/candidate/dashboard?tab=invitations"
               className={`block w-full px-3.5 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'invitations' ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>
-              Lời mời ứng tuyển
+              Lời mời & lịch phỏng vấn
             </Link>
 
             <button
-              onClick={() => setActiveTab('applications')}
+              onClick={() => selectTab('applications')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'applications'
                   ? 'bg-blue-600 text-white font-semibold'
@@ -626,7 +514,7 @@ export default function CandidateDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab('saved')}
+              onClick={() => selectTab('saved')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'saved'
                   ? 'bg-blue-600 text-white font-semibold'
@@ -640,7 +528,7 @@ export default function CandidateDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab('alerts')}
+              onClick={() => selectTab('alerts')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'alerts'
                   ? 'bg-blue-600 text-white font-semibold'
@@ -654,7 +542,7 @@ export default function CandidateDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab('skillgap')}
+              onClick={() => selectTab('skillgap')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'skillgap'
                   ? 'bg-blue-600 text-white font-semibold'
@@ -665,7 +553,7 @@ export default function CandidateDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab('interview')}
+              onClick={() => selectTab('interview')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'interview'
                   ? 'bg-blue-600 text-white font-semibold'
@@ -676,7 +564,7 @@ export default function CandidateDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab('security')}
+              onClick={() => selectTab('security')}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                 activeTab === 'security'
                   ? 'bg-blue-600 text-white font-semibold'
@@ -690,6 +578,7 @@ export default function CandidateDashboard() {
 
         {/* Tab Content (3/4) */}
         <div className="lg:col-span-3 space-y-6">
+          {activeTab === 'cvs' && <CVManager onChange={fetchProfileData} />}
           {activeTab === 'invitations' && <CandidateInvitations />}
           
           {/* TAB 1: Profile & CV Manager */}
@@ -1156,168 +1045,6 @@ export default function CandidateDashboard() {
                 )}
               </div>
 
-              {/* CV Management Card (UC-C05, UC-C06) */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4 flex-wrap gap-3">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-brand-green" />
-                    <div>
-                      <h2 className="text-base font-bold text-gray-900">Quản lý & Thiết kế CV</h2>
-                      <p className="text-[11px] text-gray-400">Tạo CV trực tuyến với 3 mẫu chuẩn hoặc tải lên file PDF/DOCX</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Link
-                      to="/candidate/cv-builder"
-                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Thiết kế CV trực tuyến</span>
-                    </Link>
-                  </div>
-                </div>
-
-                {/* Upload Form */}
-                <form onSubmit={handleUploadCV} className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-3">
-                  <p className="text-xs font-bold text-gray-700 uppercase">Hoặc Tải lên file CV có sẵn (PDF, DOCX)</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Tên phiên bản CV (ví dụ: CV Frontend Senior - 2024)"
-                      value={cvTitle}
-                      onChange={(e) => setCvTitle(e.target.value)}
-                      className="p-2.5 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none"
-                    />
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={(e) => setCvFile(e.target.files[0])}
-                      className="text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-dark"
-                    />
-                  </div>
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="submit"
-                      disabled={uploadingCv}
-                      className="px-4 py-2 rounded-xl bg-brand-green text-white font-bold text-xs shadow-md shadow-brand-green/20 flex items-center gap-1.5"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {uploadingCv ? 'Đang tải lên...' : 'Tải lên CV'}
-                    </button>
-                  </div>
-                </form>
-
-                {/* CVs List */}
-                <div className="space-y-3">
-                  {profile?.cvs && profile.cvs.length > 0 ? (
-                    profile.cvs.map((cv) => (
-                      <div
-                        key={cv.CVID}
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border transition-all gap-4 ${
-                          cv.IsPrimary
-                            ? 'border-brand-blue/50 bg-blue-50/40 ring-1 ring-brand-blue/30'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 text-blue-600">
-                            <FileText className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-bold text-gray-900">{cv.Title}</p>
-                              {cv.IsPrimary && (
-                                <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-600 text-white rounded-full">
-                                  CV Mặc Định
-                                </span>
-                              )}
-                              {cv.CvType === 'OnlineBuilder' ? (
-                                <span className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 rounded-full border border-gray-200">
-                                  Mẫu trực tuyến ({cv.Template?.toUpperCase() || 'MODERN'})
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded-full">
-                                  File tải lên
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-gray-400 mt-0.5">
-                              {cv.CvType === 'OnlineBuilder' ? 'Chỉnh sửa gần nhất: ' : 'Tải lên ngày: '}
-                              {new Date(cv.UpdatedAt || cv.CreatedAt).toLocaleDateString('vi-VN')}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {cv.CvType === 'OnlineBuilder' ? (
-                            <>
-                              <Link
-                                to={`/candidate/cv-builder?id=${cv.CVID}`}
-                                className="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors flex items-center gap-1.5"
-                                title="Chỉnh sửa trực quan"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                                <span>Sửa CV</span>
-                              </Link>
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadCV(cv)}
-                                disabled={downloadingCv !== null}
-                                className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors flex items-center gap-1.5"
-                                title="Tải về PDF"
-                              >
-                                <Download className="w-3.5 h-3.5 text-gray-500" />
-                                <span>{downloadingCv === cv.CVID ? 'Đang tạo PDF…' : 'Tải về'}</span>
-                              </button>
-                            </>
-                          ) : (
-                            <a
-                              href={cv.FileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-blue hover:bg-gray-50 text-xs font-semibold"
-                              title="Xem file CV"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-
-                          {!cv.IsPrimary && (
-                            <button
-                              type="button"
-                              onClick={() => handleSetPrimaryCV(cv.CVID)}
-                              className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-blue-600 text-xs font-semibold hover:bg-blue-50 transition-colors cursor-pointer"
-                            >
-                              Đặt làm mặc định
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCV(cv.CVID)}
-                            className="p-2 rounded-lg border border-gray-200 text-slate-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
-                            title="Xóa CV"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 text-gray-500 text-xs space-y-2">
-                      <p className="font-semibold text-gray-600">Chưa có bản CV nào trên hệ thống.</p>
-                      <Link
-                        to="/candidate/cv-builder"
-                        className="inline-flex items-center gap-1.5 text-brand-blue font-bold hover:underline"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Tạo CV trực tuyến ngay bây giờ
-                      </Link>
-                    </div>
-                  )}
-                </div>
-
-              </div>
 
             </div>
           )}
@@ -1344,7 +1071,7 @@ export default function CandidateDashboard() {
                 <div className="space-y-4">
                   {applications.map((app) => (
                     <div
-                      key={app.ApplicationID}
+                      key={app.ApplicationID} id={`candidate-application-${app.ApplicationID}`}
                       className="p-5 rounded-2xl border border-gray-200 hover:border-brand-blue/40 bg-white space-y-3 transition-all"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1374,7 +1101,7 @@ export default function CandidateDashboard() {
                             app.Status === 'Interviewing' ? 'bg-purple-50 text-brand-purple' :
                             app.Status === 'Offered' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                           }`}>
-                            Trạng thái: {app.Status}
+                            Trạng thái: {candidateApplicationLabels[app.Status] || app.Status}
                           </span>
                         </div>
                       </div>
@@ -1577,117 +1304,12 @@ export default function CandidateDashboard() {
             </div>
           )}
 
-          {/* TAB 4: Skill Gap & Learning Paths */}
-          {activeTab === 'skillgap' && skillGapData && (
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-8">
-              
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">Phân tích kỹ năng & Gợi ý khóa học</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Đối chiếu kỹ năng hiện có với nhu cầu tuyển dụng và đề xuất lộ trình bổ sung</p>
-                </div>
-
-                <Link
-                  to="/candidate/skill-gap"
-                  className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-xs flex items-center gap-1.5 transition-colors shrink-0"
-                >
-                  <span>Xem báo cáo chi tiết</span>
-                  <ArrowUpRight className="w-4 h-4" />
-                </Link>
-              </div>
-
-              {/* Acquired Skills vs Market Demand */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Your Acquired Skills */}
-                <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
-                  <h3 className="text-xs font-bold text-emerald-800 uppercase flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Kỹ năng trong hồ sơ ({skillGapData.acquiredSkills?.length || 0})
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {skillGapData.acquiredSkills?.map((skill) => (
-                      <span key={skill.SkillID} className="px-3 py-1 bg-white text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200">
-                        {skill.SkillName}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Market Skill Trends */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-gray-200 space-y-3">
-                  <h3 className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
-                    Kỹ năng tuyển dụng phổ biến trên thị trường
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {skillGapData.marketSkillTrends?.map((trend) => (
-                      <span key={trend.SkillID} className="px-3 py-1 bg-white text-slate-800 text-xs font-medium rounded-lg border border-gray-200">
-                        {trend.SkillName} ({trend.DemandCount} việc làm)
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Rich Course Recommendations Connected to Database */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-blue-600" /> Khóa học đề xuất bổ sung kỹ năng
-                  </h3>
-                  <span className="text-xs text-slate-500 font-semibold">
-                    {skillGapData.recommendedCourses?.length || 0} khóa học phù hợp
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {skillGapData.recommendedCourses?.map((course) => (
-                    <div
-                      key={course.CourseID}
-                      className="group p-5 rounded-2xl border border-gray-200 hover:border-blue-300 bg-white shadow-xs transition-all space-y-3 flex flex-col justify-between"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-gray-200">
-                            Nền tảng: {course.Provider}
-                          </span>
-                          <span className="text-xs font-bold text-emerald-600">
-                            {course.IsFree ? 'Miễn phí' : (course.Price ? `${new Intl.NumberFormat('vi-VN').format(course.Price)} đ` : 'Liên hệ')}
-                          </span>
-                        </div>
-
-                        <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 mt-1 line-clamp-2">
-                          {course.Title}
-                        </h4>
-
-                        {course.CertificateName && (
-                          <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
-                            <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                            <span className="truncate">{course.CertificateName}</span>
-                          </div>
-                        )}
-
-                        <div className="pt-1 text-[11px] text-slate-500 flex items-center justify-between">
-                          <span>Kỹ năng: <b className="text-blue-600">{course.SkillName}</b></span>
-                          {course.Duration && <span>{course.Duration}</span>}
-                        </div>
-                      </div>
-
-                      <a
-                        href={course.Url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
-                      >
-                        <span>Đăng ký khóa học</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
+          {activeTab === 'skillgap' && (
+            <section className="rounded-xl border border-slate-200 bg-white p-8">
+              <h2 className="text-xl font-semibold text-slate-900">Tìm việc phù hợp với CV</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Chọn CV đã xác nhận để tìm việc đang tuyển, đối chiếu từng yêu cầu và xem khóa học cho kỹ năng cần bổ sung.</p>
+              <Link to="/candidate/skill-gap" className="mt-6 inline-block rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">Tìm việc từ CV</Link>
+            </section>
           )}
 
           {/* TAB 4: Security & Avatar Settings */}
@@ -1769,163 +1391,7 @@ export default function CandidateDashboard() {
                 </div>
               </div>
 
-              {/* Change Password Card */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
-                <div className="border-b border-gray-100 pb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-5 h-5 text-brand-blue" />
-                    <h2 className="text-base font-bold text-gray-900">Đổi mật khẩu tài khoản</h2>
-                  </div>
-                  <span className="text-xs text-gray-400 font-medium">Bảo mật thông tin đăng nhập</span>
-                </div>
-
-                {passwordSuccess && (
-                  <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700 font-medium flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                    <span>{passwordSuccess}</span>
-                  </div>
-                )}
-
-                {passwordError && (
-                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium">
-                    {passwordError}
-                  </div>
-                )}
-
-                <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                      Mật khẩu hiện tại *
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type={showCurrentPassword ? 'text' : 'password'}
-                        required
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pl-10 pr-11 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        tabIndex={-1}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1"
-                      >
-                        {showCurrentPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                      Mật khẩu mới (Tối thiểu 6 ký tự, 1 chữ hoa, 1 số) *
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        required
-                        minLength={6}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Ví dụ: Jobtimize@2025"
-                        className="w-full pl-10 pr-11 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        tabIndex={-1}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1"
-                      >
-                        {showNewPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                      </button>
-                    </div>
-
-                    {newPassword && (
-                      <div className="mt-2 p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-xs space-y-1">
-                        <div className={`flex items-center gap-1.5 ${newPassword.length >= 6 ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
-                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${newPassword.length >= 6 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
-                            {newPassword.length >= 6 ? '✓' : '•'}
-                          </span>
-                          <span>Tối thiểu 6 ký tự</span>
-                        </div>
-                        <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(newPassword) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
-                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[A-Z]/.test(newPassword) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
-                            {/[A-Z]/.test(newPassword) ? '✓' : '•'}
-                          </span>
-                          <span>Chứa ít nhất 1 chữ in hoa (A-Z)</span>
-                        </div>
-                        <div className={`flex items-center gap-1.5 ${/[0-9]/.test(newPassword) ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
-                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${/[0-9]/.test(newPassword) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`}>
-                            {/[0-9]/.test(newPassword) ? '✓' : '•'}
-                          </span>
-                          <span>Chứa ít nhất 1 chữ số (0-9)</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                      Xác nhận mật khẩu mới *
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type={showConfirmNewPassword ? 'text' : 'password'}
-                        required
-                        minLength={6}
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className={`w-full pl-10 pr-11 py-3 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 ${
-                          confirmNewPassword && confirmNewPassword !== newPassword
-                            ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
-                            : confirmNewPassword && confirmNewPassword === newPassword
-                            ? 'border-green-400 focus:border-green-500 focus:ring-green-100'
-                            : 'border-gray-200 focus:border-brand-blue focus:ring-brand-blue/20'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
-                        tabIndex={-1}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1"
-                      >
-                        {showConfirmNewPassword ? <EyeOff className="w-4 h-4 text-gray-600" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                      </button>
-                    </div>
-                    {confirmNewPassword && confirmNewPassword !== newPassword && (
-                      <p className="text-xs text-red-500 mt-1 font-medium">Mật khẩu xác nhận chưa khớp</p>
-                    )}
-                    {confirmNewPassword && confirmNewPassword === newPassword && (
-                      <p className="text-xs text-green-600 mt-1 font-medium">✓ Mật khẩu đã khớp</p>
-                    )}
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={passwordLoading}
-                      className="px-6 py-3 rounded-xl bg-brand-blue text-white text-xs font-bold hover:bg-brand-dark transition-all shadow-md shadow-brand-blue/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {passwordLoading ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Đang cập nhật...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-3.5 h-3.5" />
-                          <span>Cập nhật mật khẩu mới</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
+              <AccountPasswordForm />
 
             </div>
           )}

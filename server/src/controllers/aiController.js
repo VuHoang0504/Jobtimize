@@ -1,7 +1,5 @@
 const { executeQuery } = require('../config/db');
 const aiService = require('../services/aiService');
-const path = require('path');
-const fs = require('fs');
 
 /**
  * 1. AI JD Generator
@@ -43,79 +41,14 @@ const generateJD = async (req, res) => {
  * 2. AI CV Parser
  * POST /api/ai/parse-cv
  */
-const parseCV = async (req, res) => {
+const parseCV = async (req, res, next) => {
   try {
-    let parsedData = null;
-    let rawTextLength = 0;
-
-    // Fetch skills from SkillTaxonomy for reference
-    const skillsRes = await executeQuery('SELECT SkillName, NormalizedName FROM SkillTaxonomy');
-    const skillTaxonomyList = skillsRes.recordset || [];
-    const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
-
-    // Custom API Key & Model selection provided by user (optional)
-    const customApiKey = req.body.apiKey || req.headers['x-gemini-api-key'] || null;
-    const preferredModel = req.body.model || req.headers['x-gemini-model'] || null;
-
-    // 1. If a file was uploaded in this request
-    if (req.file) {
-      const filePath = req.file.path;
-      const ext = path.extname(req.file.originalname || filePath).toLowerCase();
-
-      if (imageExtensions.includes(ext)) {
-        const mimeType = req.file.mimetype || (ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg');
-        parsedData = await aiService.parseCVFromImage(filePath, mimeType, skillTaxonomyList, customApiKey, preferredModel);
-      } else {
-        const rawText = await aiService.extractTextFromFile(filePath);
-        rawTextLength = rawText.length;
-        parsedData = await aiService.parseCVWithAI(rawText, skillTaxonomyList, customApiKey, preferredModel);
-      }
-    } 
-    // 2. If rawText provided in body
-    else if (req.body.rawText) {
-      const rawText = req.body.rawText;
-      rawTextLength = rawText.length;
-      parsedData = await aiService.parseCVWithAI(rawText, skillTaxonomyList, customApiKey, preferredModel);
-    } 
-    // 3. If cvId from existing candidate CV in database
-    else if (req.body.cvId) {
-      const cvRes = await executeQuery('SELECT FileUrl FROM CVs WHERE CVID = @CVID', { CVID: req.body.cvId });
-      if (!cvRes.recordset || cvRes.recordset.length === 0) {
-        return res.status(404).json({ success: false, message: 'Không tìm thấy file CV' });
-      }
-      const fileUrl = cvRes.recordset[0].FileUrl;
-      const fullPath = path.join(__dirname, '../../', fileUrl);
-      const ext = path.extname(fullPath).toLowerCase();
-
-      if (imageExtensions.includes(ext)) {
-        const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
-        parsedData = await aiService.parseCVFromImage(fullPath, mimeType, skillTaxonomyList, customApiKey, preferredModel);
-      } else {
-        const rawText = await aiService.extractTextFromFile(fullPath);
-        rawTextLength = rawText.length;
-        parsedData = await aiService.parseCVWithAI(rawText, skillTaxonomyList, customApiKey, preferredModel);
-      }
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng đính kèm file CV (PDF, DOCX, DOC, ảnh PNG/JPG/WEBP hoặc TXT) hoặc cung cấp nội dung text.'
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        ...parsedData,
-        rawTextLength
-      }
-    });
-  } catch (error) {
-    console.error('parseCV error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Chưa đọc được nội dung CV. Vui lòng kiểm tra tệp và thử lại.'
-    });
-  }
+    const service = require('../services/cvAnalysisService');
+    if (!req.body.cvId) return res.status(400).json({ success: false, message: 'Tải CV trong Quản lý CV để đọc và kiểm tra nội dung.' });
+    const cv = await service.ownedCV(req.body.cvId, req.user.userId);
+    const version = await service.ensureVersion(cv);
+    return res.json({ success: true, data: service.publicVersion(version, true) });
+  } catch (error) { next(error); }
 };
 
 /**

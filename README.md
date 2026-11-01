@@ -2,6 +2,16 @@
 
 Nền tảng tuyển dụng thông minh tích hợp AI (lấy cảm hứng từ TopCV & LinkedIn), hỗ trợ tính toán tự động **Match Score (%)** giữa CV và JD, phát hiện **Lỗ hổng kỹ năng (Skill Gap)** và đề xuất **Lộ trình khóa học (Courses)** bù đắp thiếu hụt.
 
+## Quản lý CV và đối chiếu kỹ năng
+
+- Hồ sơ cá nhân và **Quản lý CV** là hai mục riêng. Vào `/candidate/dashboard?tab=cvs` để tải file, xem trạng thái, đối chiếu bản gốc, sửa thông tin nhận diện, xác nhận, đổi tên, chọn CV chính, tải phiên bản mới, xem lịch sử hoặc xóa khỏi danh sách.
+- Nhận PDF, DOCX, PNG/JPG/WebP đúng định dạng, tối đa 10 MB; PDF tối đa 20 trang. PDF có chữ và DOCX được trích văn bản trực tiếp. Ảnh, PDF scan hoặc PDF có trang thiếu chữ được gửi tới dịch vụ nhận diện đã cấu hình phía server. Không cam kết nhận diện tuyệt đối chính xác: người dùng phải kiểm tra trước khi sử dụng. Không hỗ trợ `.doc` cũ hoặc PDF bị khóa; cần xuất lại PDF/DOCX.
+- Trạng thái lưu trong SQL: `Queued → Processing → NeedsReview → Ready`, hoặc `Failed` với thao tác đọc lại/nhập thủ công. Worker chạy cùng API; công việc dở dang có lease để phục hồi sau khi khởi động lại. Cần cấu hình `AI_PROVIDER` và khóa tương ứng trong `server/.env` để đọc file; CV tạo bằng trình thiết kế dùng trực tiếp dữ liệu có cấu trúc.
+- Bằng chứng kỹ năng phải xuất hiện trong văn bản trích xuất; chuẩn hóa theo SkillTaxonomy và kiểm tra ranh giới từ/phủ định. Không thêm kỹ năng từ chức danh hay hồ sơ khác. Kết quả trích xuất và kết quả người dùng xác nhận được lưu riêng. Điểm dùng đúng CV được chọn (hoặc CV chính), kỹ năng bắt buộc có trọng số 2, ưu tiên có trọng số 1. Chưa xác nhận, lỗi đọc hoặc thiếu tiêu chí hiển thị chưa đủ dữ liệu; điểm không đại diện xác suất tuyển dụng.
+- File mới lưu ở `server/private/cv-documents/` (đã ignore), chỉ tải qua API có kiểm tra chủ sở hữu/quyền xem. Không phục vụ công khai upload CV cũ. CV tải lên cũ được chuyển riêng tư khi truy cập; file ngoài hệ thống/không còn tồn tại phải tải lại. Sao lưu thư mục private cùng database.
+- API tự áp dụng cấu trúc phiên bản CV trong `database/schema.sql`. Hồ sơ ứng tuyển mới giữ `CVVersionID` và kết quả đối chiếu tại thời điểm gửi; sửa/xóa CV sau đó không thay đổi bản đã gửi. Với hồ sơ cũ chưa có phiên bản, hệ thống giữ bản đầu tiên còn khả dụng khi chuyển đổi; không thể khôi phục bản đã bị ghi đè trước đó.
+- Kiểm thử: `npm run test:cv-analysis` (tự tạo/dọn database SQL riêng qua Windows sqlcmd), `npm run test:cv-manager:ui`, `npm run test:cv`, `npm run test:cv:ui`. Kiểm thử UI cần Vite đang chạy; dùng `CV_UI_BASE` nếu khác `http://127.0.0.1:3000`. Kiểm thử tích hợp dùng file tổng hợp và mock dịch vụ nhận diện, không gửi CV thật ra ngoài.
+
 ---
 
 ## 1. Cấu trúc Dự án (Monorepo)
@@ -89,11 +99,13 @@ npm run db:init
 ```
 
 #### 👉 Cách C: Khởi tạo thủ công bằng SSMS
-1. Mở SSMS, đăng nhập tài khoản: `sa` / `123`.
-2. Mở file [database/schema.sql](file:///c:/Users/duong/Desktop/Jobtimize/database/schema.sql) và nhấn **Execute (F5)**.
-3. Mở file [database/seed.sql](file:///c:/Users/duong/Desktop/Jobtimize/database/seed.sql) và nhấn **Execute (F5)**.
+1. Mở SSMS, kết nối SQL Server bằng tài khoản đã cấu hình.
+2. Mở `database/schema.sql` và nhấn **Execute (F5)** để tạo toàn bộ cấu trúc (bao gồm CV, thông báo, thanh toán và phỏng vấn).
+3. Mở `database/seed.sql` và nhấn **Execute (F5)** để nạp dữ liệu khởi tạo và dữ liệu mẫu.
 
 ---
+
+Để chỉ tạo/cập nhật cấu trúc, chạy `npm run db:init -- --schema-only`. Kiểm thử độc lập bằng `npm run test:db` (tự tạo và dọn database thử nghiệm). Xem [database/README.md](database/README.md).
 
 ### Bước 3: Cài đặt Dependencies & Khởi chạy Toàn bộ Dự án
 
@@ -286,7 +298,7 @@ OPENAI_TIMEOUT_MS=60000
 OPENAI_MAX_OUTPUT_TOKENS=8000
 ```
 
-Khởi động lại API sau khi thay đổi cấu hình. OpenAI được nối vào soạn mô tả tuyển dụng, đọc CV dạng văn bản/tài liệu/hình ảnh, tạo câu hỏi và nhận xét phỏng vấn. Các chức năng đối chiếu kỹ năng, điểm phù hợp và gợi ý khóa học vẫn dùng dữ liệu/kỹ năng của hệ thống, không gọi mô hình cho từng tin tuyển dụng. Giao diện không hiển thị tên nhà cung cấp.
+Khởi động lại API sau khi thay đổi cấu hình. OpenAI được nối vào soạn mô tả tuyển dụng, đọc CV dạng văn bản/tài liệu/hình ảnh, tạo câu hỏi và nhận xét phỏng vấn. Điểm kỹ năng và danh sách việc làm dùng dữ liệu hệ thống; nhận xét AI cho tin đang chọn chạy riêng như mô tả bên dưới. Giao diện không hiển thị tên nhà cung cấp.
 
 `AI_PROVIDER=auto` ưu tiên OpenAI nếu có khóa, tiếp theo Gemini, cuối cùng xử lý cục bộ khi không có khóa. `gemini` và `local` cho phép chọn rõ dịch vụ. Lỗi OpenAI được báo về chức năng thay vì trả kết quả mẫu hoặc chuyển CV sang nhà cung cấp khác. Model được chọn ở server qua `OPENAI_MODEL`.
 
@@ -302,6 +314,28 @@ Lệnh `npm run check:ai` hiển thị cấu hình cả OpenAI và Gemini. `npm 
 
 Các chức năng soạn tin tuyển dụng, đọc CV và luyện phỏng vấn dùng cấu hình server: `AI_PROVIDER=gemini` và `GEMINI_MODEL=gemini-3-flash-preview`. Khởi động lại backend sau khi thay đổi cấu hình. Model được chọn rõ sẽ được sử dụng cho các chức năng này.
 
+## Tìm việc từ CV và nhận xét AI
+
+Trang `/candidate/skill-gap` dùng phiên bản CV đã xác nhận, không đọc lại file. Danh sách hiển thị 24 việc mỗi trang (có thể chọn 12 hoặc 48), bao gồm việc liên quan ngành nghề hoặc chức danh dù khớp kỹ năng 0%. Tin thiếu tiêu chí được ghi “Chưa chấm điểm”; tin đóng/hết hạn hoặc doanh nghiệp không hoạt động được loại bỏ. Có bộ lọc để mở rộng toàn bộ việc đang tuyển.
+
+- `POST /api/candidate/skill-gap`: nhận `cvId`, `jobId` tùy chọn, `keyword`, `categoryId`, `location`, `scope=all` tùy chọn. Điểm vẫn dựa trên kỹ năng đã xác nhận, trọng số bắt buộc/ưu tiên 2/1.
+- `POST /api/candidate/skill-gap/insights`: nhận `cvId`, `jobId`, `cvVersionId`, `criteriaHash`. Dùng `AI_PROVIDER` và model đã cấu hình để nhận xét phần kỹ năng, kinh nghiệm đã lưu cùng nội dung tin. Không gửi họ tên, email hay điện thoại từ mục thông tin cá nhân.
+- Bằng chứng AI phải có trong dữ liệu đã lưu; nhận định chưa đủ căn cứ được tách thành “Cần xác nhận thêm”. AI không tự sửa CV hoặc điểm kỹ năng. Khóa học lấy từ danh mục hiện có và nguồn học đã kiểm tra, không dùng URL do mô hình tự tạo.
+- Cache tối đa 200 kết quả trong bộ nhớ, thời hạn 6 giờ; khóa theo tài khoản, nội dung/phiên bản CV, tin tuyển dụng và model. Yêu cầu trùng đang xử lý dùng chung một lần gọi AI. CV hoặc tiêu chí đổi trả trạng thái `Stale` để giao diện tải lại.
+- AI lỗi hoặc chưa cấu hình trả `Unavailable`; danh sách việc, điểm đối chiếu và nguồn học cơ bản vẫn dùng được. Không cần migration bổ sung cho nhận xét AI.
+
+Kiểm thử: `npm run test:skill-gap`, `npm run test:cv-analysis` (SQL Server cục bộ, database kiểm thử riêng), `npm run test:skill-gap:ui` (Vite cổng 3000, có thể đặt `SKILL_UI_BASE`). Các suite tự động giả lập mô hình, không gửi CV thật.
+
+## Hồ sơ và bảo mật nhà tuyển dụng
+
+Mở “Hồ sơ & bảo mật” từ dashboard hoặc menu tài khoản nhà tuyển dụng (`/employer/settings`). Có thể cập nhật người liên hệ, điện thoại, tên công ty, website, quy mô, địa chỉ, logo và giới thiệu doanh nghiệp. `PUT /api/employer/profile` chỉ cập nhật tài khoản đang đăng nhập, kiểm tra dữ liệu và lưu thông tin người dùng/doanh nghiệp trong cùng giao dịch; trạng thái KYC không được sửa qua API hồ sơ.
+
+Tài khoản tuyển dụng mới qua OTP hoặc Google có `KYCStatus=Pending`, hiển thị “Chưa xác thực” khi chưa nộp hồ sơ pháp lý. Admin duyệt KYC mới chuyển sang `Approved`; không tự thay đổi các quyết định xác thực đã có.
+
+`GET /api/auth/me` và phản hồi đăng nhập có `hasPassword`. Với tài khoản Google chưa có mật khẩu, `POST /api/auth/change-password` nhận `newPassword` để tạo lần đầu; khi đã có mật khẩu phải gửi thêm `currentPassword`. Tạo mật khẩu không hủy liên kết Google. Ứng viên dùng cùng biểu mẫu trong tab bảo mật. Không cần thay đổi schema.
+
+Kiểm thử: `npm run test:employer-account` (database SQL kiểm thử riêng, Google giả lập), `npm run test:employer-account:ui` (Vite cổng 3000, có thể đặt `ACCOUNT_UI_BASE`). Không dùng tài khoản Google hoặc mật khẩu thật trong kiểm thử.
+
 ## Chuông thông báo
 
 Chuông lưu thông báo thật theo tài khoản cho ứng tuyển, lời mời, duyệt tin, KYC, báo cáo vi phạm và đăng nhập Candidate. Gợi ý dùng CV mặc định, lấy tối đa 3 tin còn tuyển có mức khớp kỹ năng từ 70%. Có số chưa đọc, lọc, phân trang và đánh dấu đã đọc.
@@ -309,3 +343,23 @@ Chuông lưu thông báo thật theo tài khoản cho ứng tuyển, lời mời
 Backend tự áp dụng migration bổ sung khi khởi động. Có thể chạy riêng `npm --prefix server run db:notifications`; chạy kiểm thử bằng `npm run test:notifications`. Xem [luồng nghiệp vụ, cơ chế outbox và hướng dẫn kiểm thử](docs/notifications.md).
 
 Admin date-filtered reports, CSV export, automatic Premium and confirmed-violation bans: [setup and verification](docs/admin-enhancements.md).
+
+### Thiết lập PayOS trên máy local
+
+SDK `@payos/node` đã khai báo trong backend; sau khi pull chạy `npm --prefix server install`. Tạo tài khoản và kênh thanh toán tại https://my.payos.vn rồi điền vào `server/.env`:
+
+```env
+PAYOS_CLIENT_ID=
+PAYOS_API_KEY=
+PAYOS_CHECKSUM_KEY=
+FRONTEND_URL=http://localhost:3000
+PAYOS_WEBHOOK_URL=https://your-backend-domain/api/payments/payos-webhook
+```
+
+Ba khóa lấy từ cùng một kênh thanh toán; giữ ở server. `FRONTEND_URL` là địa chỉ giao diện nhận người dùng quay về sau thanh toán. `PAYOS_WEBHOOK_URL` phải là endpoint backend công khai qua HTTPS. Khi demo local cần domain/tunnel HTTPS trỏ vào cổng 5000; chỉ localhost không nhận webhook từ PayOS được. Đăng ký URL này trong kênh PayOS; việc thêm biến môi trường không tự đăng ký webhook.
+
+- `npm run check:payos`: kiểm tra SDK và cấu hình, không in khóa.
+- `npm run check:payos -- --db --local`: kiểm tra thêm schema và route backend local, chỉ đọc dữ liệu.
+- `npm run test:payos`: kiểm thử SDK/chữ ký bằng dữ liệu giả lập, không tạo đơn hay chuyển tiền.
+
+Khởi động lại backend sau khi điền khóa. `BANK_*` chỉ là thông tin hiển thị dự phòng; dữ liệu ngân hàng chính lấy từ PayOS. Tham khảo [SDK chính thức](https://payos.vn/docs/sdks/back-end/node/) và [cấu hình webhook](https://payos.vn/docs/api/).

@@ -48,7 +48,7 @@ test('direct editing, IME, design, history, persistence, PDF and mobile drawer',
       } else data = { success: true, data: [] };
       await route.fulfill({ status: 200, json: data });
     });
-    await page.goto('http://127.0.0.1:3000/candidate/cv-builder');
+    await page.goto(`${process.env.CV_UI_BASE || 'http://127.0.0.1:3000'}/candidate/cv-builder`);
     const frame = page.frameLocator('iframe[title^="CV"]');
     await frame.locator('html[data-ready="true"]').waitFor();
     const field = key => frame.locator(`[data-path="${key}"]`).first();
@@ -97,7 +97,7 @@ test('direct editing, IME, design, history, persistence, PDF and mobile drawer',
     assert.ok((await frame.locator('.cv-avatar').getAttribute('src')).startsWith('data:image/'));
     await field('personal.phone').fill('0900123456');
     page.once('dialog', dialog => dialog.dismiss());
-    await page.getByRole('link', { name: 'Quay lại hồ sơ', exact: true }).click();
+    await page.getByRole('link', { name: 'Quay lại Quản lý CV', exact: true }).click();
     assert.ok(page.url().includes('/cv-builder'));
     failSave = true;
     await page.getByRole('button', { name: 'Lưu CV', exact: true }).click();

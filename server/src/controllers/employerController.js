@@ -23,6 +23,7 @@ const getEmployerProfile = async (req, res) => {
     const empRes = await executeQuery(
       `SELECT e.EmployerID, e.UserID, e.CompanyName, e.CompanyLogoUrl, e.Website, e.CompanySize,
               e.Address, e.Description, e.KYCStatus,
+              CASE WHEN EXISTS(SELECT 1 FROM KYCDocuments d WHERE d.EmployerID=e.EmployerID) THEN 1 ELSE 0 END AS HasKycDocument,
               u.FullName, u.Email, u.Phone
        FROM Employers e
        JOIN Users u ON e.UserID = u.UserID
@@ -47,51 +48,22 @@ const getEmployerProfile = async (req, res) => {
 // Update Employer Profile
 const updateEmployerProfile = async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const { companyName, companyLogoUrl, website, companySize, address, description, fullName, phone } = req.body;
-
-    // Update Users
-    await executeQuery(
-      `UPDATE Users
-       SET FullName = COALESCE(@FullName, FullName),
-           Phone = COALESCE(@Phone, Phone),
-           UpdatedAt = GETDATE()
-       WHERE UserID = @UserID`,
-      {
-        UserID: userId,
-        FullName: fullName || null,
-        Phone: phone || null
-      }
-    );
-
-    // Update Employers
-    await executeQuery(
-      `UPDATE Employers
-       SET CompanyName = COALESCE(@CompanyName, CompanyName),
-           CompanyLogoUrl = COALESCE(@CompanyLogoUrl, CompanyLogoUrl),
-           Website = COALESCE(@Website, Website),
-           CompanySize = COALESCE(@CompanySize, CompanySize),
-           Address = COALESCE(@Address, Address),
-           Description = COALESCE(@Description, Description)
-       WHERE UserID = @UserID`,
-      {
-        UserID: userId,
-        CompanyName: companyName || null,
-        CompanyLogoUrl: companyLogoUrl || null,
-        Website: website || null,
-        CompanySize: companySize || null,
-        Address: address || null,
-        Description: description || null
-      }
-    );
-
-    return res.json({
-      success: true,
-      message: 'Cập nhật thông tin doanh nghiệp thành công!'
+    const values = require('../services/employerProfile').profileFields(req.body);
+    await withTransaction(async query => {
+      const employer = (await query('SELECT EmployerID FROM Employers WITH(UPDLOCK,HOLDLOCK) WHERE UserID=@UserID', { UserID: req.user.userId })).recordset[0];
+      if (!employer) throw Object.assign(new Error('Không tìm thấy hồ sơ doanh nghiệp.'), { status: 404 });
+      await query(`UPDATE Users SET FullName=COALESCE(@FullName,FullName),Phone=COALESCE(@Phone,Phone),UpdatedAt=GETDATE() WHERE UserID=@UserID`, {
+        UserID: req.user.userId, FullName: values.fullName, Phone: values.phone
+      });
+      await query(`UPDATE Employers SET CompanyName=COALESCE(@CompanyName,CompanyName),CompanyLogoUrl=COALESCE(@Logo,CompanyLogoUrl),
+        Website=COALESCE(@Website,Website),CompanySize=COALESCE(@Size,CompanySize),Address=COALESCE(@Address,Address),Description=COALESCE(@Description,Description)
+        WHERE EmployerID=@EmployerID`, { EmployerID: employer.EmployerID, CompanyName: values.companyName, Logo: values.companyLogoUrl,
+        Website: values.website, Size: values.companySize, Address: values.address, Description: values.description });
     });
+    return getEmployerProfile(req, res);
   } catch (error) {
-    console.error('updateEmployerProfile error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    if (!error.status) console.error('updateEmployerProfile failed:', error.code || error.name);
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Chưa lưu được hồ sơ. Vui lòng thử lại.' });
   }
 };
 
@@ -491,6 +463,7 @@ const deleteJob = async (req, res) => {
     }
 
     // Delete related child records cleanly before deleting job
+    await executeQuery('DELETE FROM Interviews WHERE InvitationID IN (SELECT InvitationID FROM CandidateInvitations WHERE JobID=@JobID)', { JobID: jobId });
     await executeQuery('DELETE FROM CandidateInvitations WHERE JobID = @JobID', { JobID: jobId });
     await executeQuery('DELETE FROM SavedJobs WHERE JobID = @JobID', { JobID: jobId });
     await executeQuery('DELETE FROM JobSkillRequirements WHERE JobID = @JobID', { JobID: jobId });
@@ -527,6 +500,7 @@ const getMyJobPostings = async (req, res) => {
       SELECT jp.JobID, jp.Title, jp.SalaryRange, jp.Location, jp.Status, jp.AdminNote, jp.CreatedAt,
              jc.CategoryName,
              (SELECT COUNT(*) FROM JobApplications WHERE JobID = jp.JobID) AS TotalApplicants,
+             (SELECT COUNT(*) FROM JobApplications WHERE JobID = jp.JobID AND Status='Applied') AS NewApplicants,
              (SELECT COUNT(*) FROM JobApplications WHERE JobID = jp.JobID AND Status = 'Interviewing') AS TotalInterviewing
       FROM JobPostings jp
       LEFT JOIN JobCategories jc ON jp.CategoryID = jc.CategoryID
@@ -571,12 +545,12 @@ const getJobApplicantsATS = async (req, res) => {
     const jobInfo = jobCheck.recordset[0];
 
     const applicantsQuery = `
-      SELECT ja.ApplicationID, ja.JobID, ja.ProfileID, ja.CVID, ja.MatchScore, ja.Status, ja.AppliedAt,
+      SELECT ja.ApplicationID, ja.JobID, ja.ProfileID, ja.CVID, ja.MatchDetailsJson, ja.MatchScore, ja.Status, ja.AppliedAt,
              cp.Headline, cp.DesiredSalary, cp.CurrentLocation, cp.Bio,
              u.FullName, u.Email, u.Phone, u.AvatarUrl,
              cv.Title AS CVTitle, cv.FileUrl AS CVFileUrl,
              (
-               SELECT TOP 1 iv.InterviewID, iv.InterviewDate, iv.InterviewType, iv.LocationOrLink, iv.Notes
+               SELECT TOP 1 iv.InterviewID, iv.InterviewDate, iv.InterviewType, iv.LocationOrLink, iv.Notes, iv.Status, iv.Version, iv.RespondedAt
                FROM Interviews iv
                WHERE iv.ApplicationID = ja.ApplicationID
                ORDER BY iv.InterviewID DESC
@@ -601,6 +575,8 @@ const getJobApplicantsATS = async (req, res) => {
       }
       return {
         ...a,
+        CVTitle: (() => { try { return JSON.parse(a.MatchDetailsJson)?.cvTitle || a.CVTitle; } catch { return a.CVTitle; } })(),
+        CVFileUrl: a.CVID ? `/api/cv-documents/applications/${a.ApplicationID}/file` : null,
         interview,
         InterviewJson: undefined
       };
@@ -619,217 +595,7 @@ const getJobApplicantsATS = async (req, res) => {
   }
 };
 
-// Update Application Status (Applied, Screening, Interviewing, Offered, Rejected)
-const updateApplicationStatus = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const emp = await getEmployerId(userId);
-    if (!emp) {
-      return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này' });
-    }
-
-    const { applicationId } = req.params;
-    const { status } = req.body;
-
-    const validStatuses = ['Applied', 'Screening', 'Interviewing', 'Offered', 'Rejected'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ success: false, message: 'Trạng thái tuyển dụng không hợp lệ' });
-    }
-
-    // Verify application exists and belongs to a job posted by the authenticated employer
-    const checkApp = await executeQuery(
-      `SELECT ja.ApplicationID, ja.JobID, jp.EmployerID, ja.Status
-       FROM JobApplications ja
-       JOIN JobPostings jp ON ja.JobID = jp.JobID
-       WHERE ja.ApplicationID = @ApplicationID`,
-      { ApplicationID: applicationId }
-    );
-
-    if (!checkApp.recordset || checkApp.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn ứng tuyển' });
-    }
-
-    if (checkApp.recordset[0].EmployerID !== emp.EmployerID) {
-      return res.status(403).json({
-        success: false,
-        message: 'Bạn không có quyền thao tác trên đơn ứng tuyển của doanh nghiệp khác'
-      });
-    }
-
-    await executeQuery(
-      `UPDATE JobApplications
-       SET Status = @Status
-       WHERE ApplicationID = @ApplicationID`,
-      {
-        Status: status,
-        ApplicationID: applicationId
-      }
-    );
-
-    return res.json({
-      success: true,
-      message: `Đã chuyển trạng thái ứng viên sang "${status}"!`
-    });
-  } catch (error) {
-    console.error('updateApplicationStatus error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Schedule Interview & Send Automated Email Notification (UC-E10)
-const scheduleInterview = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const emp = await getEmployerId(userId);
-    if (!emp) {
-      return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này' });
-    }
-
-    const { applicationId, interviewDate, interviewType = 'Online', locationOrLink, notes } = req.body;
-
-    if (!applicationId || !interviewDate || !locationOrLink || !locationOrLink.trim()) {
-      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp ngày phỏng vấn và địa điểm / link họp' });
-    }
-
-    // Parse and validate interviewDate from input (handles ISO string from datetime-local cleanly)
-    const parsedDate = new Date(interviewDate);
-    if (isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ success: false, message: 'Định dạng ngày giờ phỏng vấn không hợp lệ' });
-    }
-
-    if (parsedDate < new Date()) {
-      return res.status(400).json({ success: false, message: 'Thời gian phỏng vấn không thể ở trong quá khứ' });
-    }
-
-    // Prevent duplicate interview at the exact same minute for the same application
-    const dupCheck = await executeQuery(
-      `SELECT TOP 1 InterviewID FROM Interviews 
-       WHERE ApplicationID = @ApplicationID 
-         AND DATEDIFF(minute, InterviewDate, @InterviewDate) = 0`,
-      { ApplicationID: applicationId, InterviewDate: parsedDate }
-    );
-    if (dupCheck.recordset && dupCheck.recordset.length > 0) {
-      return res.status(400).json({ success: false, message: 'Đã có lịch phỏng vấn vào cùng thời điểm này cho ứng viên' });
-    }
-
-    // Verify application exists and belongs to a job posted by the authenticated employer
-    const appCheck = await executeQuery(
-      `SELECT ja.ApplicationID, ja.JobID, ja.Status,
-              jp.EmployerID, jp.Title AS JobTitle,
-              cp.ProfileID, u.FullName AS CandidateName, u.Email AS CandidateEmail,
-              e.CompanyName
-       FROM JobApplications ja
-       JOIN JobPostings jp ON ja.JobID = jp.JobID
-       JOIN Employers e ON jp.EmployerID = e.EmployerID
-       JOIN CandidateProfiles cp ON ja.ProfileID = cp.ProfileID
-       JOIN Users u ON cp.UserID = u.UserID
-       WHERE ja.ApplicationID = @ApplicationID`,
-      { ApplicationID: applicationId }
-    );
-
-    if (!appCheck.recordset || appCheck.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn ứng tuyển' });
-    }
-
-    const appInfo = appCheck.recordset[0];
-    // Verify job ownership: jp.EmployerID = emp.EmployerID
-    if (appInfo.EmployerID !== emp.EmployerID) {
-      return res.status(403).json({
-        success: false,
-        message: 'Bạn không có quyền lên lịch phỏng vấn cho đơn ứng tuyển của doanh nghiệp khác'
-      });
-    }
-
-    const type = interviewType === 'Offline' ? 'Offline' : 'Online';
-
-    // Insert interview record with properly parsed DATETIME parameter
-    const insertRes = await executeQuery(
-      `INSERT INTO Interviews (ApplicationID, InterviewDate, InterviewType, LocationOrLink, Notes)
-       OUTPUT INSERTED.InterviewID, INSERTED.InterviewDate, INSERTED.InterviewType, INSERTED.LocationOrLink, INSERTED.Notes
-       VALUES (@ApplicationID, @InterviewDate, @InterviewType, @LocationOrLink, @Notes)`,
-      {
-        ApplicationID: applicationId,
-        InterviewDate: parsedDate,
-        InterviewType: type,
-        LocationOrLink: locationOrLink.trim(),
-        Notes: notes ? notes.trim() : null
-      }
-    );
-
-    const interviewData = insertRes.recordset[0];
-
-    // Update application status to 'Interviewing'
-    await executeQuery(
-      `UPDATE JobApplications SET Status = 'Interviewing' WHERE ApplicationID = @ApplicationID`,
-      { ApplicationID: applicationId }
-    );
-
-    // Send automated notification email to candidate
-    let emailSent = false;
-    let emailMessage = '';
-
-    if (appInfo.CandidateEmail) {
-      const emailResult = await emailService.sendInterviewEmail({
-        toEmail: appInfo.CandidateEmail,
-        candidateName: appInfo.CandidateName,
-        companyName: appInfo.CompanyName,
-        jobTitle: appInfo.JobTitle,
-        interviewDate: parsedDate,
-        interviewType: type,
-        locationOrLink: locationOrLink.trim(),
-        notes: notes ? notes.trim() : null
-      });
-      emailSent = emailResult.success;
-      emailMessage = emailResult.success
-        ? 'Email thông báo đã được gửi thành công đến ứng viên!'
-        : `Lưu ý: Không gửi được email (${emailResult.error || 'chưa cấu hình SMTP'}). Lịch phỏng vấn vẫn được lưu trên hệ thống.`;
-    }
-
-    return res.status(201).json({
-      success: true,
-      message: `Đã lên lịch phỏng vấn thành công! ${emailMessage}`,
-      data: interviewData,
-      emailSent
-    });
-  } catch (error) {
-    console.error('scheduleInterview error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Get all scheduled interviews for employer
-const getScheduledInterviews = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const emp = await getEmployerId(userId);
-    if (!emp) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const interviewsRes = await executeQuery(
-      `SELECT iv.InterviewID, iv.InterviewDate, iv.InterviewType, iv.LocationOrLink, iv.Notes,
-              ja.ApplicationID, ja.MatchScore, ja.Status AS ApplicationStatus,
-              jp.JobID, jp.Title AS JobTitle,
-              u.FullName AS CandidateName, u.Email AS CandidateEmail, u.Phone AS CandidatePhone, u.AvatarUrl AS CandidateAvatar
-       FROM Interviews iv
-       JOIN JobApplications ja ON iv.ApplicationID = ja.ApplicationID
-       JOIN JobPostings jp ON ja.JobID = jp.JobID
-       JOIN CandidateProfiles cp ON ja.ProfileID = cp.ProfileID
-       JOIN Users u ON cp.UserID = u.UserID
-       WHERE jp.EmployerID = @EmployerID
-       ORDER BY iv.InterviewDate ASC`,
-      { EmployerID: emp.EmployerID }
-    );
-
-    return res.json({
-      success: true,
-      data: interviewsRes.recordset
-    });
-  } catch (error) {
-    console.error('getScheduledInterviews error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
+const { updateApplicationStatus, scheduleInterview, listInterviews: getScheduledInterviews } = require('./recruitmentController');
 
 // ==========================================
 // 5. THANH TOÁN & GÓI DỊCH VỤ (UC-E07)
@@ -986,7 +752,7 @@ const searchCandidates = async (req, res) => {
              cv.CVID AS PrimaryCVID, cv.Title AS CVTitle, cv.FileUrl AS CVFileUrl
       FROM CandidateProfiles cp
       JOIN Users u ON cp.UserID = u.UserID
-      LEFT JOIN CVs cv ON cp.ProfileID = cv.ProfileID AND cv.IsPrimary = 1
+      LEFT JOIN CVs cv ON cp.ProfileID = cv.ProfileID AND cv.IsPrimary = 1 AND cv.IsArchived=0
       WHERE cp.IsLookingForJob = 1 AND u.Status='Active'
     `;
 
@@ -1036,6 +802,7 @@ const searchCandidates = async (req, res) => {
 
       return {
         ...c,
+        CVFileUrl: c.PrimaryCVID ? `/api/cv-documents/talent/${c.ProfileID}/file` : null,
         bioText,
         skills: { hardSkills, softSkills }
       };
@@ -1094,7 +861,7 @@ const inviteCandidate = async (req, res) => {
     const userId = req.user.userId;
     const { profileId, jobId, message } = req.body;
 
-    if (!profileId || !jobId) {
+    if (!Number.isSafeInteger(Number(profileId)) || Number(profileId)<1 || !Number.isSafeInteger(Number(jobId)) || Number(jobId)<1 || (message != null && (typeof message !== 'string' || message.length > 2000))) {
       return res.status(400).json({ success: false, message: 'Vui lòng chọn ứng viên và vị trí công việc cần mời' });
     }
 
@@ -1105,14 +872,14 @@ const inviteCandidate = async (req, res) => {
 
     // Verify job belongs to employer and is currently Published
     const jobCheck = await executeQuery(
-      'SELECT JobID, Title, Status FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID',
+      'SELECT JobID, Title, Status, ExpiresAt FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID',
       { JobID: jobId, EmployerID: emp.EmployerID }
     );
     if (!jobCheck.recordset || jobCheck.recordset.length === 0) {
       return res.status(404).json({ success: false, message: 'Tin tuyển dụng không tồn tại hoặc bạn không sở hữu tin này' });
     }
     const job = jobCheck.recordset[0];
-    if (job.Status !== 'Published') {
+    if (job.Status !== 'Published' || (job.ExpiresAt && new Date(job.ExpiresAt) <= new Date())) {
       return res.status(400).json({ success: false, message: 'Chỉ có thể mời ứng viên vào tin tuyển dụng đang mở (Published)' });
     }
     const jobTitle = job.Title;
@@ -1156,14 +923,15 @@ const inviteCandidate = async (req, res) => {
       }
     }
 
-    const { isReinvite, finalMsg } = await withTransaction(async query => {
+    const { isReinvite, finalMsg, invitationId } = await withTransaction(async query => {
       // Check if already invited for this job (Cho phep gui lai nhieu lan loi moi theo yeu cau cua NTD)
       const existingInv = await query(
-        'SELECT InvitationID FROM CandidateInvitations WHERE ProfileID = @ProfileID AND JobID = @JobID',
+        'SELECT InvitationID, Status FROM CandidateInvitations WITH(UPDLOCK,HOLDLOCK) WHERE ProfileID = @ProfileID AND JobID = @JobID',
         { ProfileID: profileId, JobID: jobId }
       );
       const isReinvite = existingInv.recordset && existingInv.recordset.length > 0;
 
+      if (existingInv.recordset[0]?.Status === 'Accepted') throw Object.assign(new Error('Ứng viên đã quan tâm. Vui lòng hẹn phỏng vấn trong Lời mời đã gửi.'), { status: 409 });
       const defaultMsg = `Chúng tôi nhận thấy hồ sơ của bạn rất phù hợp với vị trí ${jobTitle} và trân trọng mời bạn ứng tuyển!`;
       const finalMsg = message && message.trim() ? message.trim() : defaultMsg;
 
@@ -1172,8 +940,8 @@ const inviteCandidate = async (req, res) => {
         // Cap nhat lai thoi gian va loi nhan moi cho loi moi hien co
         invitationResult = await query(
           `UPDATE CandidateInvitations
-           SET Message = @Message, Status = 'Sent', SentAt = GETDATE()
-           OUTPUT INSERTED.InvitationID, INSERTED.SentAt
+           SET Message = @Message, Status = 'Sent', SentAt = GETDATE(), RespondedAt=NULL, Version=Version+1
+           OUTPUT INSERTED.InvitationID, INSERTED.SentAt, INSERTED.Version
            WHERE ProfileID = @ProfileID AND JobID = @JobID`,
           {
             ProfileID: profileId,
@@ -1185,7 +953,7 @@ const inviteCandidate = async (req, res) => {
         // Tao moi loi moi vao bang CandidateInvitations
         invitationResult = await query(
           `INSERT INTO CandidateInvitations (EmployerID, ProfileID, JobID, Message, Status, SentAt)
-           OUTPUT INSERTED.InvitationID, INSERTED.SentAt
+           OUTPUT INSERTED.InvitationID, INSERTED.SentAt, INSERTED.Version
            VALUES (@EmployerID, @ProfileID, @JobID, @Message, 'Sent', GETDATE())`,
           {
             EmployerID: emp.EmployerID,
@@ -1207,8 +975,8 @@ const inviteCandidate = async (req, res) => {
       }
 
       const invitation = invitationResult.recordset[0];
-      await enqueue(query, 'invitation', { invitationId: invitation.InvitationID, message: finalMsg }, `invite:${invitation.InvitationID}:${invitation.SentAt.toISOString()}`);
-      return { isReinvite, finalMsg };
+      await enqueue(query, 'invitation', { invitationId: invitation.InvitationID, message: finalMsg }, `invite:${invitation.InvitationID}:v${invitation.Version}`);
+      return { isReinvite, finalMsg, invitationId: invitation.InvitationID };
     });
 
     // Send invitation email
@@ -1217,12 +985,13 @@ const inviteCandidate = async (req, res) => {
       candidateName: candidate.FullName,
       companyName: emp.CompanyName,
       jobTitle,
-      message: finalMsg
+      message: finalMsg,
+      invitationId
     });
 
     const emailNote = emailRes.success
       ? 'Hệ thống đã tự động gửi email thông báo trực tiếp đến hòm thư của ứng viên.'
-      : 'Lời mời đã được ghi nhận vào hệ thống của ứng viên.';
+      : 'Chưa gửi được email; lời mời vẫn được lưu và ứng viên có thể phản hồi trên website.';
 
         return res.status(200).json({
       success: true,
@@ -1234,7 +1003,7 @@ const inviteCandidate = async (req, res) => {
     });
   } catch (error) {
     console.error('inviteCandidate error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 
@@ -1248,14 +1017,15 @@ const getCandidateInvitations = async (req, res) => {
     }
 
     const invRes = await executeQuery(
-      `SELECT ci.InvitationID, ci.Message, ci.Status, ci.SentAt,
+      `SELECT ci.InvitationID, ci.Message, ci.Status, ci.SentAt, ci.RespondedAt, ci.Version,
               jp.JobID, jp.Title AS JobTitle,
               u.FullName AS CandidateName, u.Email AS CandidateEmail, u.AvatarUrl AS CandidateAvatar,
-              cp.ProfileID, cp.Headline
+              cp.ProfileID, cp.Headline, iv.InterviewID, iv.InterviewDate, iv.InterviewType, iv.LocationOrLink, iv.Notes, iv.Status AS InterviewStatus, iv.Version AS InterviewVersion
        FROM CandidateInvitations ci
        JOIN JobPostings jp ON ci.JobID = jp.JobID
        JOIN CandidateProfiles cp ON ci.ProfileID = cp.ProfileID
        JOIN Users u ON cp.UserID = u.UserID
+       OUTER APPLY (SELECT TOP 1 * FROM Interviews WHERE InvitationID=ci.InvitationID ORDER BY InterviewID DESC) iv
        WHERE ci.EmployerID = @EmployerID
        ORDER BY ci.SentAt DESC`,
       { EmployerID: emp.EmployerID }

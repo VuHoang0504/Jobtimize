@@ -4,7 +4,7 @@
 
 | Sự kiện | Người nhận | Màn hình đích |
 | --- | --- | --- |
-| Candidate đăng nhập bằng mật khẩu hoặc Google | Chính Candidate đó | Tài khoản và bảo mật |
+| Đăng nhập bằng mật khẩu hoặc Google | Toast tự ẩn sau 6 giây, không lưu lịch sử | Trang vừa đăng nhập |
 | Đăng xuất | Toast ở trang chủ, không lưu vào chuông khi đã thoát | Trang chủ |
 | CV mặc định hoặc danh sách tin hợp lệ thay đổi | Candidate đang bật tìm việc | Tối đa 3 việc có điểm kỹ năng từ 70% |
 | Ứng tuyển thành công | Chủ doanh nghiệp của tin | Đúng đơn ứng tuyển trong ATS |
@@ -18,11 +18,11 @@
 
 ## Dữ liệu và tính nhất quán
 
-`database/notifications.sql` là migration bổ sung, có thể chạy lại. Nó tạo `NotificationOutbox`, `Notifications`, `NotificationRecommendationState` và chỉ mục tra cứu đơn ứng tuyển; đồng thời đảm bảo các cột kiểm duyệt mà server hiện có đã dùng. Không reset hay thay schema của các bảng nghiệp vụ.
+`database/schema.sql` là migration bổ sung, có thể chạy lại. Nó tạo `NotificationOutbox`, `Notifications`, `NotificationRecommendationState` và chỉ mục tra cứu đơn ứng tuyển; đồng thời đảm bảo các cột kiểm duyệt mà server hiện có đã dùng. Không reset hay thay schema của các bảng nghiệp vụ.
 
 Các thao tác đăng tin, ứng tuyển, gửi lời mời, nộp/duyệt KYC và xử lý báo cáo ghi dữ liệu cùng outbox trong một SQL transaction. Lỗi trước commit sẽ rollback cả hai. Worker mỗi 5 giây xử lý tối đa 50 sự kiện, khóa từng sự kiện và ghi thông báo cùng trạng thái đã xử lý trong một transaction. Khóa duy nhất `(UserID, EventKey)` ngăn thông báo trùng khi thử lại. Lỗi được lưu vào outbox, thử lại với thời gian chờ tăng dần tới 120 giây.
 
-Đăng nhập không phụ thuộc khả năng ghi thông báo: client gửi sự kiện sau khi nhận phiên hợp lệ, tự thử lại mỗi 15 giây nếu chưa thành công. Backend lấy người nhận từ JWT, dùng hash phiên làm khóa chống trùng và không nhận UserID tùy ý từ client. Chuông dừng nhận phản hồi cũ khi đổi tài khoản, hủy request và dọn timer khi unmount.
+Đăng nhập chỉ hiển thị toast một lần, không tạo bản ghi trong chuông. Thông báo đăng nhập cũ được dọn khi khởi động worker. Chuông ưu tiên thông báo chưa đọc; Candidate ưu tiên lời mời và việc làm theo CV, Employer ưu tiên đơn ứng tuyển và kết quả duyệt tin.
 
 Chuông cập nhật mỗi 30 giây khi tab hoạt động, khi mở chuông hoặc quay lại tab. Có bộ lọc tất cả/chưa đọc, 20 mục mỗi trang và đánh dấu đã đọc từng mục hoặc tất cả. API luôn lọc UserID và vai trò thực tế từ database.
 

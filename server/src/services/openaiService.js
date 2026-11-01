@@ -21,6 +21,9 @@ const generateJSON = async (promptOrParts) => {
   const parts = Array.isArray(promptOrParts) ? promptOrParts : [promptOrParts];
   const content = parts.map(part => {
     if (typeof part === 'string') return { type: 'input_text', text: part };
+    if (part?.inlineData?.mimeType === 'application/pdf' && part.inlineData.data) {
+      return { type: 'input_file', filename: 'CV.pdf', file_data: `data:application/pdf;base64,${part.inlineData.data}` };
+    }
     if (part?.inlineData?.data && /^image\/(png|jpeg|webp)$/.test(part.inlineData.mimeType)) {
       return { type: 'input_image', image_url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` };
     }

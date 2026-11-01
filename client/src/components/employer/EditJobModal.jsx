@@ -7,7 +7,6 @@ import {
   Layers, 
   DollarSign, 
   MapPin, 
-  Sparkles, 
   AlertCircle,
   CheckCircle2,
   Tag
@@ -138,7 +137,7 @@ export default function EditJobModal({ isOpen, onClose, jobId, onJobUpdated }) {
             </div>
             <div>
               <h2 className="text-lg font-black text-gray-900 tracking-tight">
-                Chỉnh Sửa Tin Tuyển Dụng (UC-E06)
+                Chỉnh Sửa Tin Tuyển Dụng
               </h2>
               <p className="text-xs text-gray-500">
                 Cập nhật nội dung tuyển dụng, mức lương, quyền lợi và yêu cầu kỹ năng.

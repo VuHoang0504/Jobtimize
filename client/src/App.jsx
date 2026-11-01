@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Common Components
@@ -16,6 +16,7 @@ import CandidateDashboard from './pages/candidate/CandidateDashboard';
 import SkillGapAnalysisPage from './pages/candidate/SkillGapAnalysisPage';
 import CVBuilderPage from './pages/candidate/CVBuilderPage';
 import EmployerDashboard from './pages/employer/EmployerDashboard';
+import EmployerSettingsPage from './pages/employer/EmployerSettingsPage';
 import PostJobPage from './pages/employer/PostJobPage';
 import EmployerATSPage from './pages/employer/EmployerATSPage';
 import EmployerPricingPage from './pages/employer/EmployerPricingPage';
@@ -32,9 +33,10 @@ const ProtectedAdminRoute = ({ children }) => {
 };
 
 const ProtectedCandidateRoute = ({ children }) => {
+  const location = useLocation();
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (!user || user.role !== 'Candidate') return <Navigate to="/login" replace />;
+  if (!user || user.role !== 'Candidate') return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   return children;
 };
 
@@ -55,12 +57,19 @@ const DashboardRedirect = () => {
   return <Navigate to="/" replace />;
 };
 
+const InvitationRedirect = () => { const { id } = useParams(); return <Navigate to={`/candidate/dashboard?tab=invitations&invitationId=${encodeURIComponent(id)}`} replace />; };
+
+const SiteChrome = ({ children }) => {
+  const { pathname } = useLocation();
+  return pathname === '/login' ? null : children;
+};
+
 export default function App() {
   return (
     <AuthProvider>
       <Router>
         <div className="min-h-screen flex flex-col justify-between">
-          <Navbar />
+          <SiteChrome><Navbar /></SiteChrome>
           <AuthNotice />
           
           <main className="flex-1">
@@ -70,7 +79,7 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/jobs/:id" element={<JobDetailPage />} />
-              <Route path="/invitations/:id" element={<Navigate to="/candidate/dashboard?tab=applications" replace />} />
+              <Route path="/invitations/:id" element={<InvitationRedirect />} />
               <Route path="/applications/:id" element={<Navigate to="/candidate/dashboard?tab=applications" replace />} />
               <Route path="/dashboard" element={<DashboardRedirect />} />
 
@@ -101,6 +110,7 @@ export default function App() {
               />
 
               {/* Employer Routes */}
+              <Route path="/employer/settings" element={<ProtectedEmployerRoute><EmployerSettingsPage /></ProtectedEmployerRoute>} />
               <Route
                 path="/employer/dashboard"
                 element={
@@ -174,7 +184,7 @@ export default function App() {
             </Routes>
           </main>
 
-          <Footer />
+          <SiteChrome><Footer /></SiteChrome>
         </div>
       </Router>
     </AuthProvider>

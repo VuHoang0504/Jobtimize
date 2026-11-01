@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, Mail, ArrowRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2, RefreshCw, X } from 'lucide-react';
@@ -8,6 +8,8 @@ import { validatePassword } from '../../utils/validation';
 export default function LoginPage() {
   const { login, googleLogin, forgotPassword, verifyResetOtp, resetPassword } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.from;
 
   // Login form state
   const [email, setEmail] = useState('');
@@ -69,7 +71,9 @@ export default function LoginPage() {
 
     try {
       const data = await login(email, password);
-      if (data.user.role === 'Admin') {
+      if (data.user.role === 'Candidate' && typeof returnTo === 'string' && returnTo.startsWith('/candidate/')) {
+        navigate(returnTo, { replace: true });
+      } else if (data.user.role === 'Admin') {
         navigate('/admin/users');
       } else if (data.user.role === 'Employer') {
         navigate('/employer/dashboard');
@@ -92,7 +96,9 @@ export default function LoginPage() {
         roleName: 'Candidate' // Default role if new user
       });
 
-      if (data.user.role === 'Employer') {
+      if (data.user.role === 'Candidate' && typeof returnTo === 'string' && returnTo.startsWith('/candidate/')) {
+        navigate(returnTo, { replace: true });
+      } else if (data.user.role === 'Employer') {
         navigate('/employer/dashboard');
       } else {
         navigate('/');
@@ -244,7 +250,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div
+      className="min-h-[100svh] flex items-center justify-center bg-[#e7f1f8] bg-cover bg-center bg-no-repeat py-6 px-4 sm:py-10 sm:px-6 lg:px-8"
+      style={{ backgroundImage: "url('/login-background.jpg')" }}
+    >
       <div className="max-w-md w-full space-y-8 bg-white p-8 sm:p-10 rounded-3xl shadow-xl border border-gray-100">
         
         {/* Header */}

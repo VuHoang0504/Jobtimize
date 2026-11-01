@@ -182,13 +182,22 @@ test('old account responses are discarded after switching account; failed reques
   } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
 });
 
-test('login/logout notices survive navigation and notification retries do not break authentication', async () => {
+test('login success appears once, expires, never enters the inbox and does not return after reload', async () => {
   const env = globals(); let mounted, auth, deliveries = 0;
+  const realTimeout = global.setTimeout, realClearTimeout = global.clearTimeout;
+  let expireNotice;
+  const noticeTimer = {};
+  global.setTimeout = (fn, delay, ...args) => {
+    if (delay === 6000) { expireNotice = fn; return noticeTimer; }
+    return realTimeout(fn, delay, ...args);
+  };
+  global.clearTimeout = timer => { if (timer !== noticeTimer) realClearTimeout(timer); };
   const storage = () => {
     const values = new Map();
     return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
   };
   global.localStorage = storage(); global.sessionStorage = storage(); window.location = { href: '/login' };
+  sessionStorage.setItem('jobtimize_pending_login_notice', '1');
   notificationTestApi = {
     get: async () => ({ data: { success: true, data: candidate } }),
     post: async url => {
@@ -203,15 +212,26 @@ test('login/logout notices survive navigation and notification retries do not br
     await renderer.act(async () => { mounted = renderer.create(create()); });
     await renderer.act(async () => { await auth.login('candidate@example.org', 'test'); });
     assert.equal(auth.user.userId, 1); assert.equal(auth.authNotice, 'Đăng nhập thành công!');
-    assert.equal(sessionStorage.getItem('jobtimize_pending_login_notice'), '1');
+    assert.equal(sessionStorage.getItem('jobtimize_pending_login_notice'), null);
+    assert.equal(sessionStorage.getItem('jobtimize_auth_notice'), null);
+    renderer.act(() => expireNotice());
+    assert.equal(auth.authNotice, '');
     await renderer.act(async () => { for (const tick of env.timers.values()) await tick(); });
-    assert.equal(deliveries, 2); assert.equal(sessionStorage.getItem('jobtimize_pending_login_notice'), null);
+    assert.equal(deliveries, 0);
+    renderer.act(() => mounted.unmount());
+    await renderer.act(async () => { mounted = renderer.create(create()); });
+    assert.equal(auth.user.userId, 1); assert.equal(auth.authNotice, '');
+    await renderer.act(async () => { await auth.googleLogin({ credential: 'test' }); });
+    assert.equal(auth.authNotice, 'Đăng nhập thành công!'); assert.equal(deliveries, 0);
     renderer.act(() => auth.logout()); assert.equal(window.location.href, '/'); assert.equal(localStorage.getItem('jobtimize_token'), null);
     assert.equal(sessionStorage.getItem('jobtimize_auth_notice'), 'Đăng xuất thành công!');
     renderer.act(() => mounted.unmount());
     await renderer.act(async () => { mounted = renderer.create(create()); });
     assert.equal(auth.authNotice, 'Đăng xuất thành công!'); assert.equal(auth.user, null);
-  } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
+  } finally {
+    if (mounted) renderer.act(() => mounted.unmount());
+    global.setTimeout = realTimeout; global.clearTimeout = realClearTimeout; env.restore();
+  }
 });
 
 test('a failed mark-read request keeps the user on the current route with unread state intact', async () => {

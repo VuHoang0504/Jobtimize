@@ -14,7 +14,7 @@ if (!process.env.NOTIFICATION_TEST_DB) {
   const login = process.env.DB_USER;
   if (!/^[a-zA-Z0-9_]+$/.test(login)) throw new Error('Provision a disposable test database manually for this login name.');
   execFileSync('sqlcmd', ['-S', 'localhost', '-E', '-C', '-b', '-Q', `CREATE DATABASE [${database}];`]);
-  execFileSync('sqlcmd', ['-S', 'localhost', '-E', '-C', '-b', '-d', database, '-Q', `CREATE USER [${login}] FOR LOGIN [${login}]; ALTER ROLE db_owner ADD MEMBER [${login}];`]);
+  if (login !== 'sa') execFileSync('sqlcmd', ['-S', 'localhost', '-E', '-C', '-b', '-d', database, '-Q', `CREATE USER [${login}] FOR LOGIN [${login}]; ALTER ROLE db_owner ADD MEMBER [${login}];`]);
   created = true;
 }
 process.env.DB_NAME = database;
@@ -53,7 +53,22 @@ test('notification workflows on an isolated SQL Server database', { timeout: 180
     const source = (await fs.readFile(path.resolve(__dirname, '../../database', name), 'utf8')).replace(/\bJobtimizeDB\b/g, database);
     for (const batch of source.split(/^\s*GO\s*$/im).filter(s => s.trim())) await pool.request().query(batch);
   }
-  await worker.initialize(); await worker.initialize(); // Repeatable schema and pending-work backfill.
+  await t.test('migration upgrades legacy Interviews without InterviewType and remains repeatable', async () => {
+    // Reproduce the older deployed schema inside this disposable test database only.
+    await pool.request().query(`DECLARE @constraint SYSNAME, @dropSQL NVARCHAR(MAX);
+      SELECT @constraint=d.name FROM sys.default_constraints d
+      JOIN sys.columns c ON c.object_id=d.parent_object_id AND c.column_id=d.parent_column_id
+      WHERE d.parent_object_id=OBJECT_ID('Interviews') AND c.name='InterviewType';
+      IF @constraint IS NOT NULL
+      BEGIN
+        SET @dropSQL='ALTER TABLE Interviews DROP CONSTRAINT '+QUOTENAME(@constraint);
+        EXEC(@dropSQL);
+      END;
+      ALTER TABLE Interviews DROP COLUMN InterviewType;`);
+    await worker.initialize(); await worker.initialize();
+    const column = (await pool.request().query("SELECT COL_LENGTH('Interviews','InterviewType') AS Size")).recordset[0];
+    assert.equal(column.Size, 40);
+  });
   const seeded = (await executeQuery("SELECT UserID,Email FROM Users WHERE Email IN ('admin@jobtimize.vn','hr@fpt-software.com')")).recordset;
   admin = seeded.find(u => u.Email.startsWith('admin')).UserID; employer = seeded.find(u => u.Email.startsWith('hr')).UserID;
   tokens.set(admin, jwt.sign({ userId: admin }, process.env.JWT_SECRET)); tokens.set(employer, jwt.sign({ userId: employer }, process.env.JWT_SECRET));
@@ -78,12 +93,28 @@ test('notification workflows on an isolated SQL Server database', { timeout: 180
   server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
 
-  await t.test('login history is idempotent, JWT-owned, private, and read state persists', async () => {
+  await t.test('login success never enters inbox history, including legacy clients and queued events', async () => {
     assert.equal((await call('GET', '/notifications')).status, 401);
     assert.equal((await call('POST', '/notifications/session', candidate, { userId: otherCandidate })).status, 200);
     await call('POST', '/notifications/session', candidate, {});
     await Promise.all([worker.drainOutbox(), worker.drainOutbox()]);
-    const list = await inbox(candidate); assert.equal(list.data.filter(n => n.type === 'login').length, 1);
+    assert.equal((await inbox(candidate)).total, 0);
+    assert.equal((await executeQuery("SELECT COUNT(*) n FROM NotificationOutbox WHERE EventType='login'")).recordset[0].n, 0);
+    await store.withTransaction(async query => {
+      await store.enqueue(query, 'login', { userId: candidate }, 'test:legacy-login');
+      await store.putNotification(query, { userId: candidate, role: 'Candidate', key: 'test:old-login', type: 'login', title: 'Legacy login', body: 'Old login', href: '/' });
+    });
+    assert.equal((await inbox(candidate)).total, 0, 'Legacy login rows are excluded from counts and items');
+    await worker.drainOutbox();
+    assert.equal((await executeQuery("SELECT COUNT(*) n FROM Notifications WHERE Type='login'")).recordset[0].n, 1, 'Queued login cannot create another item');
+    await worker.initialize();
+    assert.equal((await executeQuery("SELECT COUNT(*) n FROM Notifications WHERE Type='login'")).recordset[0].n, 0);
+    assert.equal((await executeQuery("SELECT COUNT(*) n FROM NotificationOutbox WHERE EventType='login'")).recordset[0].n, 0);
+  });
+
+  await t.test('recruitment notices are JWT-owned, private, and read state persists', async () => {
+    await store.withTransaction(query => store.putNotification(query, { userId: candidate, role: 'Candidate', key: 'test:private', type: 'invitation', title: 'Test invitation', body: 'Private', href: '/candidate/dashboard?tab=invitations' }));
+    const list = await inbox(candidate);
     assert.equal((await inbox(otherCandidate)).total, 0);
     const id = list.data[0].id;
     assert.equal((await call('PATCH', `/notifications/${id}/read`, otherCandidate)).status, 404);
@@ -92,6 +123,27 @@ test('notification workflows on an isolated SQL Server database', { timeout: 180
     assert.equal((await inbox(candidate)).data[0].id, id);
     assert.equal((await call('GET', '/notifications?page=-1', candidate)).status, 400);
     assert.equal((await call('PATCH', '/notifications/1%20OR%201=1/read', candidate)).status, 400);
+    await executeQuery("DELETE FROM Notifications WHERE EventKey='test:private'");
+  });
+
+  await t.test('unread and role priorities apply before pagination, with newest first inside each group', async () => {
+    const cases = [
+      [candidate, 'Candidate', ['invitation', 'invitation', 'application_status'], ['invitation', 'invitation', 'application_status']],
+      [employer, 'Employer', ['application', 'job_status', 'invitation_response'], ['job_status', 'application', 'invitation_response']]
+    ];
+    for (const [userId, role, types, expected] of cases) {
+      await store.withTransaction(async query => {
+        for (const [index, type] of types.entries()) await store.putNotification(query, { userId, role, key: `test:priority:${role}:${index}`, type, title: 'Priority test', body: 'Test', href: '/' });
+      });
+      const list = await inbox(userId);
+      assert.deepEqual(list.data.map(n => n.type), expected);
+      if (role === 'Candidate') assert.ok(list.data[0].id > list.data[1].id, 'Newest invitation leads its priority group');
+      await call('PATCH', `/notifications/${list.data[0].id}/read`, userId);
+      const updated = await inbox(userId);
+      assert.equal(updated.data.at(-1).id, list.data[0].id, 'Read items follow all unread items');
+      assert.equal((await inbox(userId, '?filter=unread')).data.length, 2);
+      await executeQuery("DELETE FROM Notifications WHERE UserID=@ID AND EventKey LIKE 'test:priority:%'", { ID: userId });
+    }
   });
 
   const jobBody = { title: 'Notification React Role', description: 'React Node.js SQL Server', requirements: 'React Node.js SQL Server', location: 'Hà Nội', skills: [] };
@@ -152,8 +204,10 @@ test('notification workflows on an isolated SQL Server database', { timeout: 180
     await executeQuery('UPDATE JobPostings SET ExpiresAt=NULL WHERE JobID=@ID', { ID: jobId });
     const originalCV = (await executeQuery('SELECT CvData,FileUrl FROM CVs WHERE CVID=@ID', { ID: cvId })).recordset[0];
     await executeQuery("UPDATE CVs SET CvData=NULL,FileUrl='/uploads/nonexistent-notification-test.pdf' WHERE CVID=@ID", { ID: cvId });
+    await require('../src/services/cvAnalysisService').capture((await executeQuery('SELECT * FROM CVs WHERE CVID=@ID', { ID: cvId })).recordset[0]);
     await recommendations.refreshRecommendations(); assert.equal((await inbox(candidate)).data.filter(n => n.type === 'job_match').length, 0);
     await executeQuery('UPDATE CVs SET CvData=@Data,FileUrl=@Url WHERE CVID=@ID', { Data: originalCV.CvData, Url: originalCV.FileUrl, ID: cvId });
+    await require('../src/services/cvAnalysisService').capture((await executeQuery('SELECT * FROM CVs WHERE CVID=@ID', { ID: cvId })).recordset[0]);
     await recommendations.refreshRecommendations(); assert.ok((await inbox(candidate)).data.some(n => n.type === 'job_match'), 'A corrected CV must bypass the failed-source backoff');
   });
 
@@ -183,6 +237,103 @@ test('notification workflows on an isolated SQL Server database', { timeout: 180
     assert.equal((await call('GET', '/candidate/invitations', employer)).status, 403);
   });
 
+  await t.test('recruitment: invitation responses, interview confirmation, rescheduling, review emails and ownership', async () => {
+    const invites = await call('GET', '/employer/invitations', employer);
+    assert.equal(invites.status, 200, JSON.stringify(invites.body));
+    assert.ok(invites.body.data.some(i => i.InvitationID === invitationId));
+    assert.ok((await inbox(employer)).data.some(n => n.type === 'invitation' && n.href.includes(`invitationId=${invitationId}`)), 'Sender also sees the sent invitation');
+    let invitation = (await call('GET', `/candidate/invitations?id=${invitationId}`, candidate)).body.data[0];
+    assert.equal((await call('PATCH', `/candidate/invitations/${invitationId}/respond`, candidate, { status: 'Declined', version: invitation.Version })).status, 200);
+    assert.equal((await call('POST', '/employer/invite-candidate', employer, { profileId, jobId, message: 'Lời mời mới sau khi trao đổi lại.' })).status, 200);
+    assert.equal((await call('PATCH', `/candidate/invitations/${invitationId}/respond`, candidate, { status: 'Accepted', version: invitation.Version })).status, 409, 'Resent invitation invalidates old responses');
+    invitation = (await call('GET', `/candidate/invitations?id=${invitationId}`, candidate)).body.data[0];
+    assert.equal(invitation.RespondedAt, null); assert.equal(invitation.Version, 2);
+    const reply = { status: 'Accepted', version: invitation.Version };
+    assert.equal((await call('PATCH', `/candidate/invitations/${invitationId}/respond`, otherCandidate, reply)).status, 404);
+    const schedule = { invitationId, interviewDate: new Date(Date.now() + 86400000).toISOString(), interviewType: 'Online', locationOrLink: 'https://example.org/interview', notes: 'Liên hệ hr@example.org để hẹn lại.' };
+    assert.equal((await call('POST', '/employer/interviews', employer, schedule)).status, 409, 'Interest is required');
+    const responses = await Promise.all([call('PATCH', `/candidate/invitations/${invitationId}/respond`, candidate, reply), call('PATCH', `/candidate/invitations/${invitationId}/respond`, candidate, reply)]);
+    assert.deepEqual(responses.map(r => r.status).sort(), [200, 409]);
+    assert.equal((await call('POST', '/employer/invite-candidate', employer, { profileId, jobId })).status, 409, 'Do not erase accepted interest on resend');
+    const foreignEmployer = await seedUser('recruitment-employer@example.org', 'Employer');
+    await executeQuery("INSERT Employers(UserID,CompanyName,KYCStatus) VALUES(@ID,N'Other company','Approved')", { ID: foreignEmployer });
+    assert.equal((await call('POST', '/employer/interviews', foreignEmployer, schedule)).status, 404);
+    assert.equal((await call('POST', '/employer/interviews', employer, { ...schedule, interviewType: 'Other' })).status, 400);
+    assert.equal((await call('POST', '/employer/interviews', employer, { ...schedule, locationOrLink: 'javascript:alert(1)' })).status, 400);
+    assert.equal((await call('POST', '/employer/interviews', employer, { ...schedule, interviewDate: '2020-01-01T10:00:00Z' })).status, 400);
+    let created = await call('POST', '/employer/interviews', employer, schedule);
+    assert.equal(created.status, 201, JSON.stringify(created.body)); assert.equal(created.body.emailSent, false, 'No simulated email success');
+    const interviewId = created.body.data.InterviewID;
+    assert.equal((await call('GET', '/candidate/interviews', otherCandidate)).body.data.length, 0);
+    assert.equal((await call('GET', '/employer/interviews', foreignEmployer)).body.data.length, 0);
+    assert.ok((await call('GET', '/candidate/interviews', candidate)).body.data.some(i => i.InterviewID === interviewId && i.EmployerEmail));
+    assert.equal((await call('PATCH', `/candidate/interviews/${interviewId}/respond`, otherCandidate, { status: 'Confirmed', version: 1 })).status, 409);
+    assert.equal((await call('PATCH', `/candidate/interviews/${interviewId}/respond`, candidate, { status: 'Confirmed', version: 1 })).status, 200);
+    assert.equal((await call('PATCH', `/candidate/interviews/${interviewId}/respond`, candidate, { status: 'Declined', version: 1 })).status, 409);
+    assert.equal((await call('POST', '/employer/interviews', employer, schedule)).status, 409, 'Concurrent scheduler cannot overwrite');
+    created = await call('POST', '/employer/interviews', employer, { ...schedule, version: 1, interviewType: 'Offline', locationOrLink: 'Phòng 201, văn phòng công ty' });
+    assert.equal(created.status, 201, JSON.stringify(created.body)); assert.equal(created.body.data.InterviewID, interviewId); assert.equal(created.body.data.Version, 2); assert.equal(created.body.data.Status, 'Pending'); assert.equal(created.body.data.RespondedAt, null);
+    assert.equal((await call('PATCH', `/candidate/interviews/${interviewId}/respond`, candidate, { status: 'Confirmed', version: 1 })).status, 409, 'Stale email/page cannot confirm new schedule');
+    assert.equal((await call('PATCH', `/candidate/interviews/${interviewId}/respond`, candidate, { status: 'Declined', version: 2 })).status, 200);
+    await worker.drainOutbox();
+    const employerInbox = await inbox(employer);
+    assert.ok(employerInbox.data.some(n => n.type === 'invitation_response'));
+    assert.ok(employerInbox.data.some(n => n.type === 'interview_response'));
+    assert.ok((await inbox(candidate)).data.some(n => n.type === 'interview_scheduled' && n.href.includes(`interviewId=${interviewId}`)));
+    assert.equal((await call('GET', `/employer/jobs/${jobId}/ats`, employer)).body.data.applicants.length, 1, 'Interest never creates an application');
+    const review = await call('PATCH', `/employer/applications/${applicationId}/status`, employer, { status: 'Screening' });
+    assert.equal(review.status, 200, JSON.stringify(review.body)); assert.equal(review.body.emailSent, false);
+    assert.equal((await call('PATCH', `/employer/applications/${applicationId}/status`, foreignEmployer, { status: 'Rejected' })).status, 404);
+    const applicationSchedule = await call('POST', '/employer/interviews', employer, { ...schedule, invitationId: undefined, applicationId });
+    assert.equal(applicationSchedule.status, 201, JSON.stringify(applicationSchedule.body));
+    assert.equal((await call('GET', '/employer/jobs', employer)).body.data.find(j => j.JobID === jobId).TotalApplicants, 1);
+    const ats = await call('GET', `/employer/jobs/${jobId}/ats`, employer);
+    assert.equal(ats.body.data.applicants[0].interview.Status, 'Pending'); assert.equal(ats.body.data.applicants[0].interview.Version, 1);
+    assert.equal((await call('PATCH', `/employer/applications/${applicationId}/status`, employer, { status: 'Rejected' })).status, 200);
+    assert.equal((await call('PATCH', `/candidate/interviews/${applicationSchedule.body.data.InterviewID}/respond`, candidate, { status: 'Confirmed', version: 1 })).status, 409, 'Rejected applications cancel pending interviews');
+    assert.equal((await call('PATCH', `/employer/applications/${applicationId}/status`, employer, { status: 'Screening' })).status, 409);
+    await worker.drainOutbox();
+    assert.ok((await inbox(candidate)).data.some(n => n.type === 'application_status' && n.title.includes('phù hợp')));
+  });
+
+  await t.test('follow-up email is limited to confirmed applications and their owning employer', async () => {
+    const service = require('../src/services/emailService');
+    const original = service.sendApplicationNoticeEmail;
+    const sent = [];
+    let mailSuccess = true;
+    service.sendApplicationNoticeEmail = async payload => { sent.push(payload); return { success: mailSuccess }; };
+    const confirmed = (await executeQuery(`INSERT JobApplications(JobID,ProfileID,Status)
+      OUTPUT INSERTED.ApplicationID SELECT TOP 1 j.JobID,@ProfileID,'Offered' FROM JobPostings j
+      JOIN Employers e ON e.EmployerID=j.EmployerID WHERE e.UserID=@UserID AND j.JobID<>@JobID
+      AND NOT EXISTS(SELECT 1 FROM JobApplications a WHERE a.JobID=j.JobID AND a.ProfileID=@ProfileID)`,
+    { ProfileID: profileId, UserID: employer, JobID: jobId })).recordset[0];
+    assert.ok(confirmed);
+    const url = `/employer/applications/${confirmed.ApplicationID}/email`;
+    const body = { subject: 'Các bước tiếp theo', message: 'Vui lòng liên hệ công ty.' };
+    try {
+      assert.equal((await call('POST', url, candidate, body)).status, 403);
+      assert.equal((await call('POST', url, secondAdmin, body)).status, 403);
+      const foreign = (await executeQuery("SELECT UserID FROM Users WHERE Email='recruitment-employer@example.org'")).recordset[0].UserID;
+      assert.equal((await call('POST', url, foreign, body)).status, 404);
+      assert.equal((await call('POST', `/employer/applications/${applicationId}/email`, employer, body)).status, 409);
+      for (const invalid of [{ ...body, subject: ' ' }, { ...body, subject: 'Header\r\nInjected' }, { ...body, message: ' ' }, { ...body, message: 'x'.repeat(5001) }]) {
+        assert.equal((await call('POST', url, employer, invalid)).status, 400);
+      }
+      assert.equal(sent.length, 0);
+      const result = await call('POST', url, employer, { ...body, toEmail: 'wrong@example.org' });
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      const recipient = (await executeQuery('SELECT Email FROM Users WHERE UserID=@ID', { ID: candidate })).recordset[0].Email;
+      assert.equal(sent[0].toEmail, recipient, 'Recipient must come from the application, never the request');
+      assert.equal(sent[0].subject, body.subject); assert.equal(sent[0].message, body.message);
+      assert.ok(sent[0].employerEmail);
+      mailSuccess = false;
+      assert.equal((await call('POST', url, employer, body)).status, 502, 'Failed SMTP must not report success');
+    } finally {
+      service.sendApplicationNoticeEmail = original;
+      await executeQuery('DELETE FROM JobApplications WHERE ApplicationID=@ID', { ID: confirmed.ApplicationID });
+    }
+  });
+
   await t.test('KYC submission and both review endpoints notify and save rejection reason', async () => {
     const form = new FormData(); form.append('taxCode', '1234567890'); form.append('businessLicense', new Blob([Buffer.from('%PDF-1.4\nnotification test')], { type: 'application/pdf' }), 'test.pdf');
     const r = await fetch(`${base}/employer/kyc`, { method: 'POST', headers: { Authorization: headers(employer).Authorization }, body: form });
@@ -210,7 +361,7 @@ test('notification workflows on an isolated SQL Server database', { timeout: 180
   });
 
   await t.test('pagination, read all, role changes and login regression', async () => {
-    await store.withTransaction(async query => { for (let i = 0; i < 23; i++) await store.putNotification(query, { userId: otherCandidate, role: 'Candidate', key: `pagination:${i}`, type: 'login', title: 'Thông báo thử nghiệm', body: 'Test', href: '/candidate/dashboard' }); });
+    await store.withTransaction(async query => { for (let i = 0; i < 23; i++) await store.putNotification(query, { userId: otherCandidate, role: 'Candidate', key: `pagination:${i}`, type: 'invitation', title: 'Thông báo thử nghiệm', body: 'Test', href: '/candidate/dashboard' }); });
     assert.equal((await inbox(otherCandidate)).data.length, 20); assert.equal((await inbox(otherCandidate, '?page=2')).data.length, 3);
     await call('PATCH', '/notifications/read-all', otherCandidate); assert.equal((await inbox(otherCandidate)).unread, 0);
     assert.ok((await inbox(candidate)).total > 0);

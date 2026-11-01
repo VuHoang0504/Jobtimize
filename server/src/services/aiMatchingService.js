@@ -1,215 +1,67 @@
 const { executeQuery } = require('../config/db');
+const cvAnalysis = require('./cvAnalysisService');
+const { canonicalSkill, aliases, fold, positiveMention, hash } = require('./cvNormalization');
 
-/**
- * Matching Engine for Jobtimize
- * Analyzes candidate profile & CV skills against job requirements.
- * Strictly returns 0% when no skills match.
- */
+const unavailable = (summary, status = 'NotReady') => ({ matchScore: null, status, matchedSkills: [], missingSkills: [], recommendedCourses: [], summary });
 class AIMatchingService {
-  /**
-   * Extract skills array from text / bio / CV title
-   */
-  static extractSkillsFromText(text = '', skillTaxonomyList = []) {
-    if (!text) return [];
-    const normalizedText = text.toLowerCase();
-    const matchedSkills = [];
-
-    for (const skill of skillTaxonomyList) {
-      const sName = (skill.SkillName || '').toLowerCase();
-      const sNorm = (skill.NormalizedName || '').toLowerCase();
-      if (!sName) continue;
-
-      const pattern = new RegExp(`\\b(${sName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${sNorm ? `|${sNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` : ''})\\b`, 'i');
-      if (pattern.test(normalizedText) || normalizedText.includes(sName) || (sNorm && normalizedText.includes(sNorm))) {
-        matchedSkills.push(skill);
-      }
-    }
-    return matchedSkills;
+  static hasSkill(text, skill) {
+    return aliases(skill.SkillName).some(term => positiveMention(text, term)) || (skill.NormalizedName && positiveMention(text, skill.NormalizedName));
   }
-
-  /**
-   * Check whether candidate text contains a given skill (with common aliases)
-   */
-  static hasSkill(candidateText, skill) {
-    if (!candidateText || !skill) return false;
-    const sName = (skill.SkillName || '').toLowerCase();
-    const sNorm = (skill.NormalizedName || '').toLowerCase();
-
-    const terms = new Set([sName, sNorm].filter(Boolean));
-    if (sName.includes('react')) { terms.add('react'); terms.add('reactjs'); terms.add('react.js'); }
-    if (sName.includes('node')) { terms.add('node'); terms.add('nodejs'); terms.add('node.js'); }
-    if (sName.includes('next')) { terms.add('next'); terms.add('nextjs'); terms.add('next.js'); }
-    if (sName.includes('typescript')) { terms.add('typescript'); }
-    if (sName.includes('c#') || sName.includes('.net')) { terms.add('c#'); terms.add('.net'); terms.add('dotnet'); terms.add('asp.net'); }
-    if (sName.includes('java ') || sName.includes('spring')) { terms.add('spring'); terms.add('spring boot'); terms.add('java'); }
-    if (sName.includes('python')) { terms.add('python'); terms.add('django'); terms.add('fastapi'); }
-    if (sName.includes('docker')) { terms.add('docker'); }
-    if (sName.includes('kubernetes')) { terms.add('kubernetes'); terms.add('k8s'); }
-    if (sName.includes('aws')) { terms.add('aws'); terms.add('amazon web services'); }
-    if (sName.includes('azure')) { terms.add('azure'); }
-    if (sName.includes('sql server')) { terms.add('sql server'); terms.add('mssql'); }
-    if (sName.includes('postgresql')) { terms.add('postgresql'); terms.add('postgres'); }
-    if (sName.includes('mongodb')) { terms.add('mongodb'); }
-    if (sName.includes('redis')) { terms.add('redis'); }
-    if (sName.includes('figma')) { terms.add('figma'); terms.add('ui/ux'); }
-    if (sName.includes('tailwind')) { terms.add('tailwind'); terms.add('tailwindcss'); }
-
-    for (const term of terms) {
-      if (term && candidateText.includes(term)) {
-        return true;
-      }
+  static extractSkillsFromText(text = '', taxonomy = []) { return taxonomy.filter(skill => this.hasSkill(text, skill)); }
+  // Pure comparison shared by job detail, search and the CV recommendations workspace.
+  static compareSkills(context, required) {
+    if (!context?.version || context.version.Status !== 'Ready' || !context.data) return unavailable('CV chưa sẵn sàng. Mở Quản lý CV để đọc và xác nhận thông tin.');
+    const metadata = { cvId: context.cv.CVID, cvTitle: context.cv.Title, cvVersionId: context.version.VersionID, cvVersion: context.version.VersionNumber };
+    if (!required.length) return { ...unavailable('Tin tuyển dụng chưa có tiêu chí kỹ năng để đối chiếu.', 'NoCriteria'), ...metadata };
+    const matchedSkills = [], missingSkills = [];
+    let total = 0, earned = 0;
+    for (const requirement of required) {
+      const weight = requirement.IsMandatory ? 2 : 1;
+      total += weight;
+      const found = (context.data.skills || []).find(skill => skill.verified &&
+        (Number(skill.skillId) === Number(requirement.SkillID) || canonicalSkill(skill.name, [requirement]) || fold(skill.canonicalName) === fold(requirement.SkillName)));
+      const item = { skillId: requirement.SkillID, skillName: requirement.SkillName, isMandatory: Boolean(requirement.IsMandatory), weight };
+      if (found) { earned += weight; matchedSkills.push({ ...item, evidence: found.evidence, source: found.source }); }
+      else missingSkills.push(item);
     }
-    return false;
+    const matchScore = Math.round(earned / total * 100);
+    return { status: 'Ready', matchScore, matchedSkills, missingSkills, recommendedCourses: [], ...metadata,
+      algorithmVersion: 'skills-v2', criteriaHash: hash(JSON.stringify(required.map(row => [row.SkillID, row.IsMandatory]).sort())),
+      summary: `CV “${context.cv.Title}” phiên bản ${context.version.VersionNumber} đáp ứng ${matchedSkills.length}/${required.length} kỹ năng (${matchScore}%). Điểm phản ánh yêu cầu kỹ năng, không phải xác suất trúng tuyển.` };
   }
-
-  /**
-   * Calculate Match Score between a Candidate Profile/CV and a Job Posting
-   */
-  static async calculateMatchScore(profileId, jobId) {
+  static async getCVContext(profileId, cvId) {
+    await cvAnalysis.initialize();
+    const cv = (await executeQuery(`SELECT TOP 1 * FROM CVs WHERE ProfileID=@ProfileID AND IsArchived=0
+      ${cvId ? 'AND CVID=@CVID' : ''} ORDER BY IsPrimary DESC,UpdatedAt DESC,CVID DESC`, { ProfileID: profileId, ...(cvId ? { CVID: cvId } : {}) })).recordset[0];
+    if (!cv) return null;
+    const version = await cvAnalysis.ensureVersion(cv);
+    return { cv, version, data: cvAnalysis.parse(version?.ConfirmedJson) };
+  }
+  static async calculateMatchScore(profileId, jobId, cvId = null, prepared = undefined) {
     try {
-      // 1. Fetch Job and its required skills
-      const jobQuery = `
-        SELECT jp.JobID, jp.Title, jp.Requirements, jp.Description,
-               jsr.SkillID, jsr.IsMandatory, st.SkillName, st.NormalizedName
-        FROM JobPostings jp
-        LEFT JOIN JobSkillRequirements jsr ON jp.JobID = jsr.JobID
-        LEFT JOIN SkillTaxonomy st ON jsr.SkillID = st.SkillID
-        WHERE jp.JobID = @JobID
-      `;
-      const jobRes = await executeQuery(jobQuery, { JobID: jobId });
-      if (!jobRes.recordset || jobRes.recordset.length === 0) {
-        return { matchScore: 0, matchedSkills: [], missingSkills: [], recommendedCourses: [] };
+      const context = prepared === undefined ? await this.getCVContext(profileId, cvId) : prepared;
+      if (!context?.version || context.version.Status !== 'Ready' || !context.data) return unavailable('CV chưa sẵn sàng. Mở Quản lý CV để đọc và xác nhận thông tin.');
+      const rows = (await executeQuery(`SELECT jp.JobID,jp.Title,jp.Requirements,jp.Description,jsr.SkillID,jsr.IsMandatory,st.SkillName,st.NormalizedName
+        FROM JobPostings jp LEFT JOIN JobSkillRequirements jsr ON jp.JobID=jsr.JobID
+        LEFT JOIN SkillTaxonomy st ON jsr.SkillID=st.SkillID WHERE jp.JobID=@JobID`, { JobID: jobId })).recordset;
+      if (!rows.length) return unavailable('Không tìm thấy tin tuyển dụng.', 'Unavailable');
+      let required = rows.filter(row => row.SkillID != null);
+      if (!required.length) {
+        const taxonomy = (await executeQuery('SELECT SkillID,SkillName,NormalizedName FROM SkillTaxonomy')).recordset;
+        const text = rows[0].Title + '\n' + rows[0].Description + '\n' + rows[0].Requirements;
+        required = this.extractSkillsFromText(text, taxonomy).map(skill => ({ ...skill, IsMandatory: false }));
       }
-
-      let requiredSkills = jobRes.recordset.filter(r => r.SkillID != null);
-      const jobRow = jobRes.recordset[0];
-
-      // If job has no rows in JobSkillRequirements, extract required skills from Job Description/Requirements
-      if (requiredSkills.length === 0) {
-        const taxonomyRes = await executeQuery(`SELECT SkillID, SkillName, NormalizedName FROM SkillTaxonomy`);
-        const jobText = `${jobRow.Title || ''} ${jobRow.Description || ''} ${jobRow.Requirements || ''}`.toLowerCase();
-        requiredSkills = (taxonomyRes.recordset || [])
-          .filter(sk => AIMatchingService.hasSkill(jobText, sk))
-          .map(sk => ({ ...sk, IsMandatory: true }));
-      }
-
-      // 2. Fetch Candidate Profile & CVs
-      const candidateQuery = `
-        SELECT cp.ProfileID, cp.Headline, cp.Bio, cp.DesiredSalary, cp.CurrentLocation,
-               u.FullName
-        FROM CandidateProfiles cp
-        JOIN Users u ON cp.UserID = u.UserID
-        WHERE cp.ProfileID = @ProfileID
-      `;
-      const candRes = await executeQuery(candidateQuery, { ProfileID: profileId });
-      const candidate = candRes.recordset[0];
-      if (!candidate) {
-        return { matchScore: 0, matchedSkills: [], missingSkills: [], recommendedCourses: [] };
-      }
-
-      // Fetch candidate CVs (including CvData if available)
-      let cvText = '';
-      try {
-        const cvRes = await executeQuery(
-          `SELECT Title, CvData FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC`,
-          { ProfileID: profileId }
-        );
-        cvText = (cvRes.recordset || []).map(c => `${c.Title || ''} ${c.CvData || ''}`).join(' ');
-      } catch (e) {
-        const cvResFallback = await executeQuery(
-          `SELECT Title FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC`,
-          { ProfileID: profileId }
-        );
-        cvText = (cvResFallback.recordset || []).map(c => c.Title || '').join(' ');
-      }
-
-      // Combine candidate text signals
-      const candidateContext = `${candidate.Headline || ''} ${candidate.Bio || ''} ${cvText}`.toLowerCase();
-
-      // If job still has no required skills at all, return 0%
-      if (requiredSkills.length === 0) {
-        return {
-          matchScore: 0,
-          matchedSkills: [],
-          missingSkills: [],
-          recommendedCourses: [],
-          summary: 'Chưa có kỹ năng nào phù hợp giữa hồ sơ và yêu cầu công việc (0%).'
-        };
-      }
-
-      const matchedSkills = [];
-      const missingSkills = [];
-      let totalWeight = 0;
-      let earnedWeight = 0;
-
-      for (const req of requiredSkills) {
-        const weight = req.IsMandatory ? 2.0 : 1.0;
-        totalWeight += weight;
-
-        const isMatched = AIMatchingService.hasSkill(candidateContext, req);
-
-        if (isMatched) {
-          earnedWeight += weight;
-          matchedSkills.push({
-            skillId: req.SkillID,
-            skillName: req.SkillName,
-            isMandatory: req.IsMandatory
-          });
-        } else {
-          missingSkills.push({
-            skillId: req.SkillID,
-            skillName: req.SkillName,
-            isMandatory: req.IsMandatory
-          });
-        }
-      }
-
-      // Strictly 0% if no skills matched
-      let matchScore = 0;
-      if (matchedSkills.length > 0 && totalWeight > 0) {
-        matchScore = Math.round((earnedWeight / totalWeight) * 100);
-        if (matchScore > 100) matchScore = 100;
-      }
-
-      // 3. Query Recommended Courses for Missing Skills
+      const result = this.compareSkills(context, required);
+      const { missingSkills } = result;
       let recommendedCourses = [];
-      if (missingSkills.length > 0) {
-        const missingSkillIds = missingSkills.map(s => s.skillId).filter(Boolean).join(',');
-        if (missingSkillIds) {
-          const coursesRes = await executeQuery(`
-            SELECT c.CourseID, c.Title, c.Provider, c.Url, c.SkillID, st.SkillName
-            FROM Courses c
-            JOIN SkillTaxonomy st ON c.SkillID = st.SkillID
-            WHERE c.SkillID IN (${missingSkillIds})
-          `);
-          recommendedCourses = coursesRes.recordset;
-        }
-      }
-
-      // Summary string
-      let summary = '';
-      if (matchScore === 0) {
-        summary = `Chưa có kỹ năng nào trong hồ sơ trùng khớp với yêu cầu của vị trí này (0%). Bạn cần bổ sung: ${missingSkills.map(s => s.skillName).join(', ')}.`;
-      } else if (matchScore >= 80) {
-        summary = `Hồ sơ rất phù hợp (${matchScore}%). Bạn đáp ứng hầu hết các kỹ năng trọng yếu của vị trí này.`;
-      } else if (matchScore >= 50) {
-        summary = `Hồ sơ phù hợp một phần (${matchScore}%). Cần bổ sung thêm: ${missingSkills.map(s => s.skillName).join(', ')}.`;
-      } else {
-        summary = `Độ phù hợp thấp (${matchScore}%). Cần trau dồi thêm các kỹ năng chuyên môn để đáp ứng yêu cầu công việc.`;
-      }
-
-      return {
-        matchScore,
-        matchedSkills,
-        missingSkills,
-        recommendedCourses,
-        summary
-      };
+      const ids = missingSkills.map(skill => Number(skill.skillId)).filter(Number.isSafeInteger);
+      if (ids.length) recommendedCourses = (await executeQuery(`SELECT c.CourseID,c.Title,c.Provider,c.Url,c.SkillID,st.SkillName FROM Courses c
+        JOIN SkillTaxonomy st ON c.SkillID=st.SkillID WHERE c.SkillID IN (${ids.join(',')})`)).recordset;
+      return { ...result, recommendedCourses };
     } catch (error) {
-      console.error('Error in calculateMatchScore:', error.message);
-      return { matchScore: 0, matchedSkills: [], missingSkills: [], recommendedCourses: [] };
+      console.error('CV matching unavailable:', error.code || error.name);
+      return unavailable('Chưa tính được điểm phù hợp. Vui lòng thử lại.', 'Unavailable');
     }
   }
 }
-
 module.exports = AIMatchingService;

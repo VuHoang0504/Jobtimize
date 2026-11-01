@@ -50,7 +50,7 @@ Retired routes: Admin pending/verify return 404; legacy Employer `/checkout` and
 
 ## Migration and verification
 
-`database/admin-enhancements.sql` is additive and rerunnable. It adds moderation audit fields/table, date indexes, missing PayOS columns and a unique non-null order-code index. Startup initialization and `db:init` include it. Existing installations can run:
+`database/schema.sql` is additive and rerunnable. It adds moderation audit fields/table, date indexes, missing PayOS columns and a unique non-null order-code index. Startup initialization and `db:init` include it. Existing installations can run:
 
 ```powershell
 npm --prefix server run db:notifications

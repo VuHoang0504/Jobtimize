@@ -9,7 +9,6 @@ import {
   Clock, 
   X, 
   Building2, 
-  Sparkles,
   ExternalLink
 } from 'lucide-react';
 
@@ -122,7 +121,7 @@ export default function KYCModal({ isOpen, onClose, onKycUpdated, initialStatus 
                 )}
               </h2>
               <p className="text-xs text-gray-500">
-                Nộp hồ sơ pháp lý để nhận huy hiệu tích xanh uy tín thu hút ứng viên chất lượng cao (UC-E04).
+                Nộp hồ sơ pháp lý để nhận huy hiệu tích xanh uy tín thu hút ứng viên chất lượng cao.
               </p>
             </div>
           </div>

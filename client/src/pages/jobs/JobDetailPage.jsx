@@ -34,17 +34,20 @@ export default function JobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [selectedCvId, setSelectedCvId] = useState('');
+  const [selectedAnalysis, setSelectedAnalysis] = useState(null);
+  const [matching, setMatching] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
 
   const fetchJobDetail = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/jobs/${id}`);
+      const requestedCvId = new URLSearchParams(location.search).get('cvId');
+      const res = await api.get(`/jobs/${id}`, { params: requestedCvId ? { cvId: requestedCvId } : {} });
       if (res.data.success) {
         setJob(res.data.data);
         if (res.data.data.candidateContext?.candidateCVs?.length > 0) {
-          const primaryCv = res.data.data.candidateContext.candidateCVs.find(c => c.IsPrimary) || res.data.data.candidateContext.candidateCVs[0];
+          const primaryCv = res.data.data.candidateContext.candidateCVs.find(c => String(c.CVID) === requestedCvId) || res.data.data.candidateContext.candidateCVs.find(c => c.IsPrimary) || res.data.data.candidateContext.candidateCVs[0];
           setSelectedCvId(primaryCv.CVID);
         }
       }
@@ -58,6 +61,17 @@ export default function JobDetailPage() {
   useEffect(() => {
     fetchJobDetail();
   }, [id, user, location.key]);
+
+  useEffect(() => {
+    if (!selectedCvId || user?.role !== 'Candidate') return;
+    const controller = new AbortController();
+    setMatching(true); setSelectedAnalysis(null);
+    api.get(`/jobs/${id}/match`, { params: { cvId: selectedCvId }, signal: controller.signal })
+      .then(({ data }) => { if (data.success) setSelectedAnalysis(data.data); })
+      .catch(() => { if (!controller.signal.aborted) setSelectedAnalysis({ status: 'Unavailable', matchScore: null, summary: 'Chưa tính được điểm phù hợp. Hãy thử lại.' }); })
+      .finally(() => { if (!controller.signal.aborted) setMatching(false); });
+    return () => controller.abort();
+  }, [id, selectedCvId, user]);
 
   const handleApply = async () => {
     if (!user) {
@@ -127,7 +141,7 @@ export default function JobDetailPage() {
     );
   }
 
-  const aiAnalysis = job.candidateContext?.aiAnalysis;
+  const aiAnalysis = selectedAnalysis || job.candidateContext?.aiAnalysis;
   const isApplied = job.candidateContext?.isApplied;
   const isSaved = job.candidateContext?.isSaved;
 
@@ -291,12 +305,13 @@ export default function JobDetailPage() {
             <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-bold text-slate-900">Mức độ phù hợp hồ sơ</h3>
-                <MatchScoreBadge score={aiAnalysis.matchScore} size="lg" />
+                <MatchScoreBadge score={matching ? null : aiAnalysis.matchScore} size="lg" />
               </div>
 
               <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-gray-200">
                 {aiAnalysis.summary}
               </p>
+              {user?.role === 'Candidate' && selectedCvId && <Link to={`/candidate/skill-gap?jobId=${id}&cvId=${selectedCvId}`} className="inline-block text-sm font-semibold text-blue-700 underline underline-offset-4">Chọn CV và phân tích vị trí này</Link>}
 
               {/* Matched Skills */}
               <div className="space-y-2">
@@ -515,13 +530,14 @@ export default function JobDetailPage() {
                   ) : (
                     <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-2">
                       <p>Bạn chưa tải lên CV nào trong hồ sơ cá nhân.</p>
-                      <Link to="/candidate/dashboard" className="font-bold underline text-brand-blue">
+                      <Link to="/candidate/dashboard?tab=cvs" className="font-bold underline text-brand-blue">
                         Tới trang Quản lý CV để tải lên ngay
                       </Link>
                     </div>
                   )}
                 </div>
 
+                {selectedAnalysis && <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><MatchScoreBadge score={selectedAnalysis.matchScore} /><p className="mt-2">{selectedAnalysis.summary}</p>{!['Ready', 'NoCriteria'].includes(selectedAnalysis.status) && <Link to="/candidate/dashboard?tab=cvs" className="mt-2 inline-block font-semibold text-blue-600">Kiểm tra CV trong Quản lý CV</Link>}</div>}
                 <div className="pt-2 flex items-center justify-end gap-3">
                   <button
                     type="button"
@@ -532,11 +548,11 @@ export default function JobDetailPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={applying}
+                    disabled={applying || matching || !selectedCvId || (!selectedAnalysis || !['Ready', 'NoCriteria'].includes(selectedAnalysis.status))}
                     onClick={handleApply}
                     className="px-6 py-2.5 text-xs font-bold text-white bg-brand-blue hover:bg-brand-dark rounded-xl shadow-md shadow-brand-blue/20 disabled:opacity-50 flex items-center gap-2"
                   >
-                    {applying ? 'Đang gửi hồ sơ...' : 'Xác nhận nộp đơn'}
+                    {applying ? 'Đang gửi hồ sơ...' : matching ? 'Đang đối chiếu CV...' : 'Xác nhận nộp đơn'}
                   </button>
                 </div>
               </div>

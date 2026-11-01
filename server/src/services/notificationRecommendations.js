@@ -1,7 +1,4 @@
 const { createHash } = require('crypto');
-const fs = require('fs/promises');
-const path = require('path');
-const { extractTextFromFile } = require('./aiService');
 const { executeQuery } = require('../config/db');
 const { withTransaction, putNotification } = require('./notificationStore');
 
@@ -65,29 +62,25 @@ function rankJobs(cvText, jobs, requirements, taxonomy, applied = new Set()) {
 }
 
 async function getCVText(cv) {
-  if (cv.CvData) return `${cv.Title || ''} ${cv.CvData}`;
-  // Only read local uploaded CVs, never fetch a URL supplied in CV metadata.
-  if (!cv.FileUrl?.startsWith('/uploads/')) return '';
-  const uploads = path.resolve(__dirname, '../../uploads');
-  const file = path.resolve(uploads, cv.FileUrl.slice('/uploads/'.length));
-  if (!file.startsWith(uploads + path.sep)) return '';
-  const real = await fs.realpath(file);
-  if (!real.startsWith(await fs.realpath(uploads) + path.sep)) return '';
-  const stat = await fs.stat(real);
-  if (stat.size > 10 * 1024 * 1024) return '';
-  return extractTextFromFile(real);
+  let row = (await executeQuery("SELECT TOP 1 Status,ConfirmedJson FROM CVDocumentVersions WHERE CVID=@ID ORDER BY VersionNumber DESC", { ID: cv.CVID })).recordset[0];
+  if (!row) row = await require('./cvAnalysisService').ensureVersion(cv);
+  if (!row || row.Status !== 'Ready') return '';
+  try { return JSON.parse(row.ConfirmedJson).skills.filter(skill => skill.verified).map(skill => skill.canonicalName || skill.name).join('\n'); }
+  catch { return ''; }
 }
 
 async function refreshRecommendations() {
+  await require('./cvAnalysisService').initialize();
   const [jobResult, skillResult, taxonomyResult, profileResult, stateResult, appliedResult] = await Promise.all([
     executeQuery(`SELECT j.JobID,j.Title,j.Description,j.Requirements,e.CompanyName FROM JobPostings j
       JOIN Employers e ON e.EmployerID=j.EmployerID JOIN Users u ON u.UserID=e.UserID
       WHERE j.Status='Published' AND u.Status='Active' AND (j.ExpiresAt IS NULL OR j.ExpiresAt>GETDATE()) ORDER BY j.JobID`),
     executeQuery(`SELECT r.JobID,r.SkillID,r.IsMandatory,t.SkillName,t.NormalizedName FROM JobSkillRequirements r JOIN SkillTaxonomy t ON t.SkillID=r.SkillID ORDER BY r.JobID,r.SkillID`),
     executeQuery('SELECT SkillID,SkillName,NormalizedName FROM SkillTaxonomy ORDER BY SkillID'),
-    executeQuery(`SELECT p.ProfileID,p.UserID,c.CVID,CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT(c.Title,'|',c.CvData,'|',c.FileUrl,'|',CONVERT(VARCHAR(30),c.UpdatedAt,126))),2) AS CVHash
+    executeQuery(`SELECT p.ProfileID,p.UserID,c.CVID,CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT(c.Title,'|',v.ConfirmedJson,'|',v.Status,'|',v.VersionID,'|',CONVERT(VARCHAR(30),c.UpdatedAt,126))),2) AS CVHash
       FROM CandidateProfiles p JOIN Users u ON u.UserID=p.UserID
-      CROSS APPLY(SELECT TOP 1 CVID,Title,CvData,FileUrl,UpdatedAt FROM CVs WHERE ProfileID=p.ProfileID AND IsPrimary=1 ORDER BY UpdatedAt DESC,CVID DESC)c
+      CROSS APPLY(SELECT TOP 1 CVID,Title,CvData,FileUrl,UpdatedAt FROM CVs WHERE ProfileID=p.ProfileID AND IsPrimary=1 AND IsArchived=0 ORDER BY UpdatedAt DESC,CVID DESC)c
+      OUTER APPLY(SELECT TOP 1 VersionID,ConfirmedJson,Status FROM CVDocumentVersions WHERE CVID=c.CVID ORDER BY VersionNumber DESC)v
       WHERE p.IsLookingForJob=1 AND u.Status='Active' AND EXISTS(SELECT 1 FROM UserRoles ur JOIN Roles r ON r.RoleID=ur.RoleID WHERE ur.UserID=p.UserID AND r.RoleName='Candidate')`),
     executeQuery('SELECT ProfileID,Fingerprint FROM NotificationRecommendationState'),
     executeQuery('SELECT ProfileID,JobID FROM JobApplications ORDER BY ProfileID,JobID')
@@ -109,7 +102,7 @@ async function refreshRecommendations() {
   const prepared = dirty.length ? prepareCatalog(jobs, skills, taxonomy) : [];
   for (const profile of dirty) {
     try {
-      const cv = (await executeQuery('SELECT CVID,Title,CvData,FileUrl FROM CVs WHERE CVID=@CVID AND IsPrimary=1', { CVID: profile.CVID })).recordset[0];
+      const cv = (await executeQuery('SELECT * FROM CVs WHERE CVID=@CVID AND IsPrimary=1 AND IsArchived=0', { CVID: profile.CVID })).recordset[0];
       if (!cv) continue;
       // A changed or unreadable CV must not leave recommendations based on its old contents.
       await withTransaction(async query => {

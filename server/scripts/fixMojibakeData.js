@@ -89,19 +89,7 @@ async function ensurePaymentTransactions() {
   const exists = (await executeQuery(`SELECT COUNT(*) AS n FROM sys.tables WHERE name = 'PaymentTransactions'`)).recordset[0].n;
   console.log(`  PaymentTransactions: ${exists ? 'đã tồn tại' : 'CHƯA có → sẽ tạo'}`);
   if (exists || !APPLY) return;
-  await executeQuery(`
-    CREATE TABLE PaymentTransactions (
-      PaymentID INT IDENTITY(1,1) PRIMARY KEY,
-      TransactionRef NVARCHAR(100) NOT NULL UNIQUE,
-      EmployerID INT NOT NULL FOREIGN KEY REFERENCES Employers(EmployerID) ON DELETE CASCADE,
-      PackageID INT NOT NULL FOREIGN KEY REFERENCES SubscriptionPackages(PackageID),
-      Amount DECIMAL(18,2) NOT NULL,
-      Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
-      PaymentMethod NVARCHAR(50) NULL,
-      GatewayTransactionNo NVARCHAR(100) NULL,
-      CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-      PaidAt DATETIME NULL
-    )`);
+  await require('../src/services/databaseSchema').ensureSchema();
 }
 
 (async () => {

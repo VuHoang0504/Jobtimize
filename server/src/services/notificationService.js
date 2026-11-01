@@ -1,5 +1,3 @@
-const fs = require('fs/promises');
-const path = require('path');
 const { executeQuery } = require('../config/db');
 const { withTransaction, enqueue, putNotification } = require('./notificationStore');
 const { refreshRecommendations } = require('./notificationRecommendations');
@@ -12,8 +10,8 @@ async function eventNotifications(query, event) {
   const admins = async () => (await query(`SELECT DISTINCT u.UserID FROM Users u JOIN UserRoles ur ON ur.UserID=u.UserID
     JOIN Roles r ON r.RoleID=ur.RoleID WHERE r.RoleName='Admin' AND u.Status='Active'`)).recordset;
   if (event.EventType === 'login') {
-    const user = await query('SELECT UserID FROM Users WHERE UserID=@ID', { ID: p.userId });
-    if (user.recordset.length) add(p.userId, 'Candidate', 'Đăng nhập thành công', 'Bạn vừa đăng nhập vào Jobtimize.', '/candidate/dashboard?tab=security');
+    // Legacy queued login events must never become persistent inbox items.
+    return notices;
   } else if (event.EventType === 'application') {
     const row = (await query(`SELECT j.JobID,j.Title,e.UserID,u.FullName FROM JobApplications a JOIN JobPostings j ON j.JobID=a.JobID
       JOIN Employers e ON e.EmployerID=j.EmployerID JOIN CandidateProfiles cp ON cp.ProfileID=a.ProfileID JOIN Users u ON u.UserID=cp.UserID
@@ -27,9 +25,39 @@ async function eventNotifications(query, event) {
       if (p.status === 'PendingApproval') for (const admin of await admins()) add(admin.UserID, 'Admin', 'Có tin tuyển dụng chờ duyệt', job.Title, `/admin/users?tab=jobs&jobId=${p.jobId}`, p.jobId);
     }
   } else if (event.EventType === 'invitation') {
-    const row = (await query(`SELECT cp.UserID,e.CompanyName,j.Title FROM CandidateInvitations i JOIN CandidateProfiles cp ON cp.ProfileID=i.ProfileID
+    const row = (await query(`SELECT cp.UserID,e.UserID AS EmployerUserID,u.FullName,e.CompanyName,j.Title FROM CandidateInvitations i JOIN CandidateProfiles cp ON cp.ProfileID=i.ProfileID
+      JOIN Users u ON u.UserID=cp.UserID
       JOIN Employers e ON e.EmployerID=i.EmployerID JOIN JobPostings j ON j.JobID=i.JobID WHERE i.InvitationID=@ID`, { ID: p.invitationId })).recordset[0];
-    if (row) add(row.UserID, 'Candidate', 'Bạn có lời mời ứng tuyển', `${row.CompanyName} mời bạn ứng tuyển ${row.Title}. ${p.message || ''}`, `/candidate/dashboard?tab=invitations&invitationId=${p.invitationId}`);
+    if (row) {
+      add(row.UserID, 'Candidate', 'Bạn có lời mời ứng tuyển', `${row.CompanyName} mời bạn ứng tuyển ${row.Title}. ${p.message || ''}`, `/candidate/dashboard?tab=invitations&invitationId=${p.invitationId}`);
+      add(row.EmployerUserID, 'Employer', 'Đã gửi lời mời ứng tuyển', `Đã mời ${row.FullName} cho vị trí ${row.Title}.`, `/employer/talents?tab=invitations&invitationId=${p.invitationId}`);
+    }
+  } else if (event.EventType === 'invitation_response') {
+    const row = (await query(`SELECT e.UserID,u.FullName,j.Title FROM CandidateInvitations i
+      JOIN Employers e ON e.EmployerID=i.EmployerID JOIN JobPostings j ON j.JobID=i.JobID
+      JOIN CandidateProfiles cp ON cp.ProfileID=i.ProfileID JOIN Users u ON u.UserID=cp.UserID
+      WHERE i.InvitationID=@ID`, { ID: p.invitationId })).recordset[0];
+    if (row) add(row.UserID, 'Employer', p.status === 'Accepted' ? 'Ứng viên quan tâm lời mời' : 'Ứng viên từ chối lời mời',
+      `${row.FullName} ${p.status === 'Accepted' ? 'quan tâm' : 'từ chối'} vị trí ${row.Title}.`, `/employer/talents?tab=invitations&invitationId=${p.invitationId}`);
+  } else if (event.EventType === 'application_status') {
+    const row = (await query(`SELECT cp.UserID,j.Title,e.CompanyName FROM JobApplications a JOIN CandidateProfiles cp ON cp.ProfileID=a.ProfileID
+      JOIN JobPostings j ON j.JobID=a.JobID JOIN Employers e ON e.EmployerID=j.EmployerID WHERE a.ApplicationID=@ID`, { ID: p.applicationId })).recordset[0];
+    const label = { Screening: 'Đang xét duyệt', Offered: 'Ứng tuyển thành công, kiểm tra email', Rejected: 'Hồ sơ chưa phù hợp' }[p.status];
+    if (row) add(row.UserID, 'Candidate', label, `${row.CompanyName}: ${row.Title}.`, `/candidate/dashboard?tab=applications&applicationId=${p.applicationId}`);
+  } else if (['interview_scheduled', 'interview_response'].includes(event.EventType)) {
+    const row = (await query(`SELECT iv.InterviewID,iv.InvitationID,iv.ApplicationID,j.JobID,j.Title,e.UserID AS EmployerUserID,
+      e.CompanyName,cp.UserID AS CandidateUserID,u.FullName FROM Interviews iv
+      LEFT JOIN JobApplications a ON a.ApplicationID=iv.ApplicationID LEFT JOIN CandidateInvitations i ON i.InvitationID=iv.InvitationID
+      JOIN JobPostings j ON j.JobID=COALESCE(a.JobID,i.JobID) JOIN Employers e ON e.EmployerID=j.EmployerID
+      JOIN CandidateProfiles cp ON cp.ProfileID=COALESCE(a.ProfileID,i.ProfileID) JOIN Users u ON u.UserID=cp.UserID
+      WHERE iv.InterviewID=@ID`, { ID: p.interviewId })).recordset[0];
+    if (row) {
+      const employerHref = row.InvitationID ? `/employer/talents?tab=invitations&invitationId=${row.InvitationID}` : `/employer/ats/${row.JobID}?applicationId=${row.ApplicationID}`;
+      if (event.EventType === 'interview_scheduled') {
+        add(row.CandidateUserID, 'Candidate', 'Lịch phỏng vấn cần xác nhận', `${row.CompanyName} đã gửi lịch phỏng vấn ${row.Title}.`, `/candidate/dashboard?tab=invitations&interviewId=${row.InterviewID}`);
+        add(row.EmployerUserID, 'Employer', 'Đã gửi lịch phỏng vấn', `${row.FullName}: ${row.Title}. Đang chờ xác nhận.`, employerHref);
+      } else add(row.EmployerUserID, 'Employer', p.status === 'Confirmed' ? 'Ứng viên xác nhận phỏng vấn' : 'Ứng viên không thể tham gia', `${row.FullName}: ${row.Title}.`, employerHref);
+    }
   } else if (event.EventType === 'kyc_submitted' || event.EventType === 'kyc_reviewed') {
     const emp = (await query('SELECT UserID,CompanyName FROM Employers WHERE EmployerID=@ID', { ID: p.employerId })).recordset[0];
     if (emp && event.EventType === 'kyc_submitted') for (const admin of await admins()) add(admin.UserID, 'Admin', 'Có hồ sơ KYC cần duyệt', `${emp.CompanyName} vừa nộp hồ sơ pháp lý.`, `/admin/users?tab=employers&employerId=${p.employerId}`);
@@ -70,10 +98,9 @@ async function drainOutbox(limit = 50) {
 }
 
 async function initialize() {
-  for (const filename of ['notifications.sql', 'admin-enhancements.sql']) {
-    const migration = await fs.readFile(path.resolve(__dirname, '../../../database', filename), 'utf8');
-    for (const batch of migration.split(/^\s*GO\s*$/im).filter(s => s.trim())) await executeQuery(batch);
-  }
+  await require('./databaseSchema').ensureSchema();
+  // Retire old login inbox history; login success is transient client feedback.
+  await executeQuery("DELETE FROM Notifications WHERE Type='login'; DELETE FROM NotificationOutbox WHERE EventType='login';");
   // Pick up existing pending work without notifying for unsubmitted KYC profiles.
   await withTransaction(async query => {
     for (const job of (await query("SELECT JobID FROM JobPostings WHERE Status='PendingApproval'")).recordset) {

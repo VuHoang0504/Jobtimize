@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { openProtectedCV } from '../../services/cv';
+import EmployerInvitations from '../../components/employer/EmployerInvitations';
 import InviteCandidateModal from '../../components/employer/InviteCandidateModal';
 import {
   Search,
@@ -10,7 +12,6 @@ import {
   Send,
   ExternalLink,
   Filter,
-  Sparkles,
   CheckCircle2,
   UserCheck,
   Tag,
@@ -21,10 +22,14 @@ import {
 } from 'lucide-react';
 
 export default function CandidateSearchPage() {
+  const routeLocation = useLocation();
+  const navigate = useNavigate();
   const [candidates, setCandidates] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('search'); // 'search' | 'invitations'
+  const [activeTab, setActiveTab] = useState(new URLSearchParams(routeLocation.search).get('tab') === 'invitations' ? 'invitations' : 'search'); // 'search' | 'invitations'
+
+  useEffect(() => { setActiveTab(new URLSearchParams(routeLocation.search).get('tab') === 'invitations' ? 'invitations' : 'search'); }, [routeLocation.key]);
 
   // Filters
   const [keyword, setKeyword] = useState('');
@@ -95,21 +100,21 @@ export default function CandidateSearchPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
 
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="bg-white rounded-xl p-6 sm:p-8 border border-gray-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-2">
 
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-            Kho CV Ứng Viên Đang Bật Tìm Việc
+            Tìm kiếm ứng viên
           </h1>
           <p className="text-xs text-gray-500 max-w-2xl leading-relaxed">
-            Tiếp cận các chuyên gia công nghệ đang chủ động bật chế độ tìm việc. Lọc nhanh theo kỹ năng, khu vực và gửi lời mời phỏng vấn trực tiếp kèm email thông báo tự động.
+            Tiếp cận các chuyên gia công nghệ đang chủ động bật chế độ tìm việc. Lọc nhanh theo kỹ năng, khu vực và gửi lời mời ứng tuyển kèm email thông báo tự động.
           </p>
         </div>
 
         {/* Tab switch */}
         <div className="flex items-center gap-2 p-1.5 bg-gray-100 rounded-2xl border border-gray-200 w-full sm:w-auto">
           <button
-            onClick={() => setActiveTab('search')}
+            onClick={() => navigate('/employer/talents')}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'search'
               ? 'bg-white text-gray-900 shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
@@ -118,7 +123,7 @@ export default function CandidateSearchPage() {
             Kho CV ({candidates.length})
           </button>
           <button
-            onClick={() => setActiveTab('invitations')}
+            onClick={() => navigate('/employer/talents?tab=invitations')}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'invitations'
               ? 'bg-white text-gray-900 shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
@@ -262,11 +267,7 @@ export default function CandidateSearchPage() {
                     {/* Header info */}
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3.5">
-                        <img
-                          src={cand.AvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&q=80'}
-                          alt={cand.FullName}
-                          className="w-14 h-14 rounded-2xl object-cover border border-gray-100 shadow-xs"
-                        />
+                        <div aria-hidden="true" className="w-12 h-12 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center font-semibold shrink-0">{cand.FullName?.slice(0, 1)}</div>
                         <div className="space-y-0.5">
                           <h3 className="text-base font-bold text-gray-900">{cand.FullName}</h3>
                           <p className="text-xs font-semibold text-brand-blue">{cand.Headline || 'Ứng viên tiềm năng'}</p>
@@ -319,6 +320,7 @@ export default function CandidateSearchPage() {
                     {cand.CVFileUrl ? (
                       <a
                         href={cand.CVFileUrl}
+                        onClick={event => { event.preventDefault(); openProtectedCV(cand.CVFileUrl); }}
                         target="_blank"
                         rel="noreferrer"
                         className="px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
@@ -348,75 +350,7 @@ export default function CandidateSearchPage() {
           )}
         </>
       ) : (
-        /* Tab: Lời mời đã gửi (UC-E12 History) */
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <div className="flex items-center gap-2.5">
-              <History className="w-5 h-5 text-brand-purple" />
-              <h2 className="text-base font-bold text-gray-900">Danh sách Lời mời Ứng tuyển Đã Gửi Trực Tiếp</h2>
-            </div>
-            <span className="text-xs font-semibold text-gray-500">{invitations.length} lời mời</span>
-          </div>
-
-          {invitations.length === 0 ? (
-            <div className="text-center py-12 space-y-3">
-              <Send className="w-12 h-12 text-gray-300 mx-auto" />
-              <h3 className="text-base font-bold text-gray-800">Chưa có lời mời ứng tuyển nào</h3>
-              <p className="text-xs text-gray-500">Chuyển sang tab Kho CV để tìm kiếm ứng viên và bấm nút "Gửi lời mời ứng tuyển".</p>
-              <button
-                onClick={() => setActiveTab('search')}
-                className="px-4 py-2 bg-brand-green text-white rounded-xl text-xs font-bold"
-              >
-                Khám phá kho CV ngay
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {invitations.map((inv) => (
-                <div
-                  key={inv.InvitationID}
-                  className="p-5 rounded-2xl border border-gray-200 hover:border-brand-purple/40 bg-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all"
-                >
-                  <div className="flex items-start gap-4">
-                    <img
-                      src={inv.CandidateAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&q=80'}
-                      alt={inv.CandidateName}
-                      className="w-12 h-12 rounded-2xl object-cover border border-gray-100"
-                    />
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-gray-900">{inv.CandidateName}</h4>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
-                          {inv.Status === 'Sent' ? 'Đã gửi tới ứng viên' : inv.Status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600">
-                        Vị trí mời: <span className="font-bold text-brand-blue">{inv.JobTitle}</span>
-                      </p>
-                      {inv.Message && (
-                        <p className="text-[11px] text-gray-500 line-clamp-1 italic">
-                          "{inv.Message}"
-                        </p>
-                      )}
-                      <p className="text-[10px] text-gray-400">
-                        Gửi ngày: {new Date(inv.SentAt).toLocaleString('vi-VN')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-                    <Link
-                      to={`/jobs/${inv.JobID}`}
-                      className="px-3.5 py-1.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-semibold"
-                    >
-                      Xem JD vị trí
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <EmployerInvitations />
       )}
 
       {/* Invite Candidate Modal */}

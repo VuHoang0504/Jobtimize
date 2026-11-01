@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const recruitment = require('../controllers/recruitmentController');
 const employerController = require('../controllers/employerController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 const kycUpload = require('../middleware/kycUploadMiddleware');
@@ -25,9 +26,10 @@ router.delete('/jobs/:jobId', employerController.deleteJob);
 
 // 4. ATS & Interview Scheduling (UC-E08, UC-E10)
 router.get('/jobs/:jobId/ats', employerController.getJobApplicantsATS);
-router.patch('/applications/:applicationId/status', employerController.updateApplicationStatus);
-router.get('/interviews', employerController.getScheduledInterviews);
-router.post('/interviews', employerController.scheduleInterview);
+router.patch('/applications/:applicationId/status', recruitment.updateApplicationStatus);
+router.post('/applications/:applicationId/email', recruitment.sendApplicationNotice);
+router.get('/interviews', recruitment.listInterviews);
+router.post('/interviews', recruitment.scheduleInterview);
 
 // 5. Subscription Packages & Payment (UC-E07)
 router.get('/packages', employerController.getSubscriptionPackages);

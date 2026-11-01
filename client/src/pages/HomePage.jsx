@@ -52,31 +52,8 @@ function formatPostedAgo(dateStr, fallback = 'Đăng 2 ngày trước') {
   return 'Đăng gần đây';
 }
 
-function calculateJobMatchScore(job, user) {
-  if (typeof job.matchScore === 'number') {
-    return Math.max(0, Math.min(100, Math.round(job.matchScore)));
-  }
-
-  const reqSkills = Array.isArray(job.requiredSkills) ? job.requiredSkills : [];
-  if (!user || user.role !== 'Candidate' || !user.profile || reqSkills.length === 0) {
-    return 0;
-  }
-
-  const candidateText = `${user.profile.Headline || ''} ${user.profile.Bio || ''}`.toLowerCase();
-  if (!candidateText.trim()) return 0;
-
-  let matched = 0;
-  for (const s of reqSkills) {
-    const rawName = (typeof s === 'string' ? s : s.SkillName || '').toLowerCase().trim();
-    if (!rawName) continue;
-    const baseName = rawName.replace(/\.js$/, '');
-    if (candidateText.includes(rawName) || (baseName.length > 2 && candidateText.includes(baseName))) {
-      matched += 1;
-    }
-  }
-
-  if (matched === 0) return 0;
-  return Math.round((matched / reqSkills.length) * 100);
+function calculateJobMatchScore(job) {
+  return typeof job.matchScore === 'number' ? Math.max(0, Math.min(100, Math.round(job.matchScore))) : null;
 }
 
 export default function HomePage() {
@@ -91,6 +68,8 @@ export default function HomePage() {
   const selectedCategory = categories.find((category) => String(category.CategoryID) === categoryId);
   const [jobs, setJobs] = useState([]);
   const [jobsError, setJobsError] = useState('');
+  const [skillMatch, setSkillMatch] = useState(null);
+  const skillsOnly = user?.role === 'Candidate' && searchParams.get('skillsMatch') === '1';
   const [loading, setLoading] = useState(true);
 
   // Trạng thái thanh tìm kiếm
@@ -112,6 +91,7 @@ export default function HomePage() {
     setLoading(true);
     setJobsError('');
     setJobs([]);
+    setSkillMatch(null);
 
     const params = {};
     if (kw) params.keyword = kw;
@@ -123,6 +103,7 @@ export default function HomePage() {
       .then(({ data }) => {
         if (!data?.success || !Array.isArray(data.data)) throw new Error('Invalid jobs');
         setJobs(data.data);
+        setSkillMatch(data.skillMatch || null);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -140,6 +121,7 @@ export default function HomePage() {
     const params = {};
     if (categoryId) params.categoryId = categoryId;
     if (groupId) params.group = groupId;
+    if (skillsOnly) params.skillsMatch = '1';
     if (keyword.trim()) params.keyword = keyword.trim();
     if (location.trim()) params.location = location.trim();
     setSearchParams(params);
@@ -185,6 +167,7 @@ export default function HomePage() {
   // Lọc dữ liệu trực tiếp theo các checkbox bộ lọc cột trái
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
+      if (skillsOnly && (job.matchStatus !== 'Ready' || typeof job.matchScore !== 'number' || job.matchScore < 70)) return false;
       const titleAndDesc = `${job.Title || ''} ${job.Description || ''} ${job.Requirements || ''} ${job.Location || ''}`.toLowerCase();
 
       if (selectedJobTypes.length > 0) {
@@ -217,8 +200,8 @@ export default function HomePage() {
       }
 
       return true;
-    });
-  }, [jobs, selectedJobTypes, selectedExpLevels, selectedSalaryRange]);
+    }).sort((a, b) => skillsOnly ? b.matchScore - a.matchScore : 0);
+  }, [jobs, selectedJobTypes, selectedExpLevels, selectedSalaryRange, skillsOnly]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20">
@@ -332,7 +315,7 @@ export default function HomePage() {
 
           <div className="flex items-center gap-3 shrink-0">
             <Link
-              to={user ? '/candidate/dashboard' : '/login'}
+              to={user ? '/candidate/dashboard?tab=cvs' : '/login'}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-slate-800 text-sm font-semibold transition-colors shadow-2xs"
             >
               <Upload className="w-4 h-4 text-blue-600" />
@@ -402,6 +385,24 @@ export default function HomePage() {
               </select>
               {categoriesError && <p role="alert" className="text-xs text-red-600">{categoriesError}</p>}
             </div>
+
+            {user?.role !== 'Employer' && <div className="space-y-2 border-t border-gray-100 pt-4">
+              <label className="flex items-start gap-2.5 text-sm font-medium text-slate-800">
+                <input type="checkbox" checked={skillsOnly} disabled={user?.role !== 'Candidate'}
+                  onChange={event => {
+                    const params = new URLSearchParams(searchParams);
+                    if (event.target.checked) params.set('skillsMatch', '1');
+                    else params.delete('skillsMatch');
+                    setSearchParams(params);
+                  }}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
+                Phù hợp với kỹ năng
+              </label>
+              {/* <p className="pl-6 text-xs leading-5 text-slate-500">Chỉ hiện việc làm đạt từ 70% phù hợp với kỹ năng đã xác nhận trong CV chính.</p> */}
+              {!user && <Link to="/login" className="block pl-6 text-xs font-medium text-blue-600">Đăng nhập để sử dụng</Link>}
+              {user && user.role !== 'Candidate' && <p className="pl-6 text-xs text-slate-500">Dành cho tài khoản ứng viên.</p>}
+              {skillsOnly && skillMatch?.status === 'Ready' && <p className="pl-6 text-xs leading-5 text-slate-500">Đang dùng: {skillMatch.cvTitle}</p>}
+            </div>}
 
             {/* Nhóm lọc 1: Hình thức làm việc */}
             <div className="space-y-3">
@@ -501,7 +502,7 @@ export default function HomePage() {
                 Hiển thị <span className="font-semibold text-slate-900">{filteredJobs.length}</span> vị trí đang tuyển dụng
               </p>
               <span className="text-xs text-slate-500">
-                Sắp xếp theo: <strong className="font-semibold text-slate-800">Độ phù hợp cao nhất (Match Score)</strong>
+                Sắp xếp theo: <strong className="font-semibold text-slate-800">{skillsOnly ? 'Độ phù hợp cao nhất' : 'Mới nhất'}</strong>
               </span>
             </div>
 
@@ -525,6 +526,12 @@ export default function HomePage() {
               </div>
             ) : jobsError ? (
               <div role="alert" className="rounded-lg border border-red-200 bg-white p-6 text-sm text-red-600">{jobsError}</div>
+            ) : skillsOnly && skillMatch && skillMatch.status !== 'Ready' ? (
+              <div role="status" className="rounded-lg border border-amber-200 bg-white p-6">
+                <h3 className="font-semibold text-slate-900">{skillMatch.status === 'NoSkills' ? 'CV chính chưa có kỹ năng để đối chiếu' : 'CV chính chưa sẵn sàng để đối chiếu'}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Vào Quản lý CV, chọn CV chính và xác nhận thông tin kỹ năng trước khi sử dụng bộ lọc này.</p>
+                <Link to="/candidate/dashboard?tab=cvs" className="mt-3 inline-block text-sm font-semibold text-blue-600">Mở Quản lý CV</Link>
+              </div>
             ) : filteredJobs.length === 0 ? (
               <div className="bg-white rounded-lg p-12 text-center border border-gray-200 space-y-3">
                 <div className="w-12 h-12 rounded-lg bg-slate-50 border border-gray-200 flex items-center justify-center mx-auto text-slate-400">
@@ -607,7 +614,7 @@ export default function HomePage() {
                                 matchScore > 0 ? 'bg-emerald-500' : 'bg-slate-400'
                               }`}
                             ></span>
-                            {matchScore}% Phù hợp
+                            {matchScore === null ? 'Chưa đối chiếu' : `${matchScore}% phù hợp kỹ năng`}
                           </span>
                         </div>
                       </div>

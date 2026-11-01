@@ -346,8 +346,9 @@ export default function Navbar() {
                             onClick={() => setProfileDropdownOpen(false)}
                             className="block px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 transition-colors"
                           >
-                            Hồ sơ & CV
+                            Hồ sơ cá nhân
                           </Link>
+                          <Link to="/candidate/dashboard?tab=cvs" onClick={() => setProfileDropdownOpen(false)} className="block px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100">Quản lý CV</Link>
                           <Link
                             to="/candidate/cv-builder"
                             onClick={() => setProfileDropdownOpen(false)}
@@ -381,6 +382,7 @@ export default function Navbar() {
 
                       {isEmployer && (
                         <>
+                          <Link to="/employer/settings" onClick={() => setProfileDropdownOpen(false)} className="block px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100">Hồ sơ & bảo mật</Link>
                           <Link
                             to="/employer/dashboard"
                             onClick={() => setProfileDropdownOpen(false)}
@@ -521,8 +523,9 @@ export default function Navbar() {
                     onClick={() => setMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-900 hover:bg-slate-100"
                   >
-                    Hồ sơ & CV
+                    Hồ sơ cá nhân
                   </Link>
+                  <Link to="/candidate/dashboard?tab=cvs" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-900 hover:bg-slate-100">Quản lý CV</Link>
                   <Link
                     to="/candidate/cv-builder"
                     onClick={() => setMobileMenuOpen(false)}
@@ -548,6 +551,7 @@ export default function Navbar() {
               )}
               {isEmployer && (
                 <>
+                  <Link to="/employer/settings" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-900 hover:bg-slate-100">Hồ sơ & bảo mật</Link>
                   <Link
                     to="/employer/dashboard"
                     onClick={() => setMobileMenuOpen(false)}

@@ -1,223 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
-import { 
-  Send, 
-  Briefcase, 
-  X, 
-  CheckCircle2, 
-  AlertCircle, 
-  Sparkles, 
-  Mail, 
-  User,
-  PlusCircle
-} from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import api from '../../services/api';
+import '../common/recruitment.css';
 
 export default function InviteCandidateModal({ isOpen, onClose, candidate, onInvited }) {
-  const [jobs, setJobs] = useState([]);
-  const [selectedJobId, setSelectedJobId] = useState('');
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-
+  const [jobs, setJobs] = useState([]), [jobId, setJobId] = useState('');
+  const [message, setMessage] = useState(`Chào ${candidate?.FullName || 'bạn'},\nChúng tôi mời bạn tìm hiểu vị trí tuyển dụng dưới đây. Nếu quan tâm, vui lòng phản hồi trên Jobtimize để chúng tôi sắp xếp phỏng vấn.`);
+  const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [success, setSuccess] = useState('');
+  const dialog = useRef(null), closeRef = useRef(onClose), busyRef = useRef(busy);
+  closeRef.current = onClose; busyRef.current = busy;
   useEffect(() => {
-    if (isOpen) {
-      loadEmployerJobs();
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (candidate) {
-      setMessage(`Chào ${candidate.FullName},\nChúng tôi rất ấn tượng với hồ sơ và các kỹ năng của bạn trên Jobtimize. Chúng tôi trân trọng mời bạn tìm hiểu và ứng tuyển vị trí này để cùng đồng hành phát triển!`);
-    }
-  }, [candidate]);
-
-  const loadEmployerJobs = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      setSuccessMsg('');
-      const res = await api.get('/employer/jobs');
-      if (res.data.success) {
-        const publishedJobs = res.data.data.filter(j => j.Status === 'Published');
-        setJobs(publishedJobs);
-        if (publishedJobs.length > 0) {
-          setSelectedJobId(publishedJobs[0].JobID);
-        }
-      }
-    } catch (err) {
-      setError('Lỗi khi tải danh sách tin tuyển dụng');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    const controller = new AbortController();
+    api.get('/employer/jobs', { signal: controller.signal }).then(res => {
+      const openJobs = res.data.data.filter(item => item.Status === 'Published'); setJobs(openJobs); setJobId(openJobs[0]?.JobID || '');
+    }).catch(() => { if (!controller.signal.aborted) setError('Chưa tải được tin tuyển dụng. Đóng cửa sổ và thử lại.'); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    const previous = document.activeElement;
+    dialog.current?.querySelector('button')?.focus();
+    const keydown = event => {
+      if (event.key === 'Escape' && !busyRef.current) closeRef.current();
+      if (event.key !== 'Tab') return;
+      const items = [...dialog.current.querySelectorAll('button:not(:disabled), input, textarea, select, a')];
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1)?.focus(); }
+      else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0]?.focus(); }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => { controller.abort(); document.removeEventListener('keydown', keydown); previous?.focus(); };
+  }, []);
   if (!isOpen || !candidate) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMsg('');
-
-    if (!selectedJobId) {
-      setError('Vui lòng chọn vị trí công việc cần mời ứng tuyển.');
-      return;
-    }
-
+  async function submit(event) {
+    event.preventDefault(); setError(''); setBusy(true);
     try {
-      setSubmitting(true);
-      const res = await api.post('/employer/invite-candidate', {
-        profileId: candidate.ProfileID,
-        jobId: selectedJobId,
-        message: message.trim()
-      });
-
-      if (res.data.success) {
-        setSuccessMsg(res.data.message || 'Đã gửi lời mời ứng tuyển thành công!');
-        if (onInvited) onInvited();
-        setTimeout(() => {
-          onClose();
-        }, 1500);
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Có lỗi xảy ra khi gửi lời mời ứng tuyển.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-brand-green flex items-center justify-center border border-emerald-100 shadow-xs">
-              <Send className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-black text-gray-900 tracking-tight">
-                Gửi Lời Mời Ứng Tuyển (UC-E12)
-              </h2>
-              <p className="text-xs text-gray-500">
-                Chủ động kết nối với nhân tài đang bật trạng thái tìm việc.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Candidate Summary Card */}
-        <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex items-center gap-3.5">
-          <img
-            src={candidate.AvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&q=80'}
-            alt={candidate.FullName}
-            className="w-12 h-12 rounded-2xl object-cover border border-gray-200"
-          />
-          <div className="space-y-0.5">
-            <h4 className="text-sm font-bold text-gray-900">{candidate.FullName}</h4>
-            <p className="text-xs text-brand-blue font-semibold">{candidate.Headline || 'Ứng viên tiềm năng'}</p>
-            <p className="text-[11px] text-gray-500">{candidate.CurrentLocation} • {candidate.Email}</p>
-          </div>
-        </div>
-
-        {/* Notification Alert */}
-        <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs flex items-start gap-2.5">
-          <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-          <p className="leading-relaxed">
-            Hệ thống sẽ <strong>tự động gửi email mời ứng tuyển</strong> đến ứng viên và lưu vào danh sách lời mời trực tiếp của họ trên Jobtimize.
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-        {successMsg && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="py-8 text-center text-xs text-gray-500">Đang tải danh sách tin tuyển dụng...</div>
-        ) : jobs.length === 0 ? (
-          <div className="p-6 text-center border border-dashed border-gray-200 rounded-2xl space-y-3">
-            <p className="text-xs text-gray-600">Bạn chưa có tin tuyển dụng nào đang mở (Published) để mời ứng viên.</p>
-            <Link
-              to="/employer/post-job"
-              onClick={onClose}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-green text-white rounded-xl text-xs font-bold"
-            >
-              <PlusCircle className="w-3.5 h-3.5" /> Đăng tin tuyển dụng mới
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Chọn tin tuyển dụng mời ứng tuyển *
-              </label>
-              <select
-                required
-                value={selectedJobId}
-                onChange={(e) => setSelectedJobId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold bg-white focus:ring-2 focus:ring-brand-green/20 outline-none"
-              >
-                {jobs.map((j) => (
-                  <option key={j.JobID} value={j.JobID}>
-                    {j.Title} ({j.SalaryRange || 'Thỏa thuận'} - {j.Location})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Lời nhắn gửi ứng viên
-              </label>
-              <textarea
-                rows={4}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                className="w-full p-3 rounded-xl border border-gray-200 text-xs leading-relaxed focus:ring-2 focus:ring-brand-green/20 outline-none"
-                placeholder="Nhập nội dung lời nhắn mời phỏng vấn hoặc ứng tuyển..."
-              />
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-xl bg-brand-green hover:bg-brand-greenDark text-white font-bold text-xs shadow-md shadow-brand-green/20 disabled:opacity-50 flex items-center gap-2 transition-colors"
-              >
-                <Send className="w-4 h-4" />
-                <span>{submitting ? 'Đang gửi lời mời...' : 'Gửi lời mời ngay'}</span>
-              </button>
-            </div>
-          </form>
-        )}
-
-      </div>
-    </div>
-  );
+      const response = await api.post('/employer/invite-candidate', { profileId: candidate.ProfileID, jobId, message: message.trim() });
+      setSuccess(response.data.message); onInvited?.(); window.dispatchEvent(new Event('notifications-changed'));
+    } catch (err) { setError(err.response?.data?.message || 'Chưa gửi được lời mời. Vui lòng thử lại.'); }
+    finally { setBusy(false); }
+  }
+  return <div className="recruit-dialog-backdrop"><section ref={dialog} className="recruit-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+    <div className="recruit-row"><h2 className="text-xl font-semibold" id="invite-title">Gửi lời mời ứng tuyển</h2><button className="recruit-button" disabled={busy} onClick={onClose}>Đóng</button></div>
+    <p className="mt-3 font-medium">{candidate.FullName}</p><p className="recruit-muted">{candidate.Headline} • {candidate.Email}</p>
+    <p className="recruit-muted mt-3">Ứng viên nhận lời mời trên website và qua email. Bạn theo dõi phản hồi tại Lời mời đã gửi.</p>
+    {error && <p role="alert" className="recruit-notice recruit-error">{error}</p>}
+    {success ? <><p role="status" className="recruit-notice">{success}</p><button className="recruit-button recruit-primary" onClick={onClose}>Hoàn tất</button></> : loading ? <p role="status" className="mt-4">Đang tải tin tuyển dụng…</p> : !jobs.length ? <div className="mt-4"><p>Chưa có tin đang mở để gửi lời mời.</p><Link className="recruit-button mt-3" to="/employer/post-job" onClick={onClose}>Đăng tin tuyển dụng</Link></div> : <form onSubmit={submit}>
+      <label className="recruit-field">Vị trí tuyển dụng<select className="recruit-input" required value={jobId} onChange={event => setJobId(event.target.value)}>{jobs.map(item => <option key={item.JobID} value={item.JobID}>{item.Title}</option>)}</select></label>
+      <label className="recruit-field">Nội dung lời mời<textarea className="recruit-input" rows={5} maxLength={2000} value={message} onChange={event => setMessage(event.target.value)} /></label>
+      <div className="recruit-actions justify-end"><button type="button" className="recruit-button" disabled={busy} onClick={onClose}>Hủy</button><button className="recruit-button recruit-primary" disabled={busy}>{busy ? 'Đang gửi…' : 'Gửi lời mời'}</button></div>
+    </form>}
+  </section></div>;
 }
-

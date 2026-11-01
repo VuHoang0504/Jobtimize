@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import '../../components/common/recruitment.css';
 import api from '../../services/api';
 import KYCModal from '../../components/employer/KYCModal';
 import EditJobModal from '../../components/employer/EditJobModal';
@@ -14,7 +15,6 @@ import {
   ArrowRight, 
   Clock, 
   ExternalLink, 
-  Sparkles, 
   Layers,
   ShieldCheck,
   Edit,
@@ -77,12 +77,12 @@ export default function EmployerDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [location.key]);
 
   const totalApplicants = jobs.reduce((sum, j) => sum + (j.TotalApplicants || 0), 0);
   const totalInterviewing = jobs.reduce((sum, j) => sum + (j.TotalInterviewing || 0), 0);
 
-  // Handle Toggle Job Status (Đóng tin / Mở lại tin) (UC-E06)
+  // Handle Toggle Job Status (Đóng tin / Mở lại tin)
   const handleToggleJobStatus = async (jobId, currentStatus) => {
     const nextStatus = currentStatus === 'Published' ? 'Closed' : 'Published';
     try {
@@ -103,7 +103,7 @@ export default function EmployerDashboard() {
     }
   };
 
-  // Handle Delete Job (UC-E06)
+  // Handle Delete Job
   const handleDeleteJob = async () => {
     if (!deleteConfirmJob) return;
     try {
@@ -170,7 +170,7 @@ export default function EmployerDashboard() {
                 {profile?.CompanyName || 'Công ty Tuyển dụng'}
               </h1>
 
-              {/* Dynamic KYC Badge (UC-E04) */}
+              {/* Dynamic KYC Badge */}
               {kycStatus === 'Approved' ? (
                 <span 
                   onClick={() => setKycModalOpen(true)}
@@ -194,7 +194,7 @@ export default function EmployerDashboard() {
                   className="cursor-pointer inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200 hover:bg-amber-100 transition-colors"
                 >
                   <Clock className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Chờ duyệt KYC / Cập nhật</span>
+                  <span>{profile?.HasKycDocument ? 'Chờ duyệt KYC' : 'Chưa xác thực'}</span>
                 </span>
               )}
             </div>
@@ -207,6 +207,7 @@ export default function EmployerDashboard() {
 
         {/* Action Shortcuts */}
         <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+          <Link to="/employer/settings" className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Hồ sơ & bảo mật</Link>
           <button
             onClick={() => setKycModalOpen(true)}
             className="px-4 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs flex items-center gap-1.5 transition-colors"
@@ -225,84 +226,20 @@ export default function EmployerDashboard() {
         </div>
       </div>
 
-      {/* Feature Navigation Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link
-          to="/employer/talents"
-          className="bg-white p-5 rounded-2xl border border-gray-200/80 hover:border-brand-blue/50 shadow-card hover:shadow-card-hover transition-all flex items-center gap-3.5 group"
-        >
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-            <Search className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-gray-900 group-hover:text-brand-blue">Tìm kiếm ứng viên</h4>
-            <p className="text-[11px] text-gray-500">Tra cứu CV đang bật tìm việc (UC-E11)</p>
-          </div>
-        </Link>
+      <nav className="flex flex-wrap gap-3" aria-label="Quản lý tuyển dụng">
+        <Link className="recruit-button" to="/employer/talents">Tìm kiếm ứng viên</Link>
+        <Link className="recruit-button recruit-primary" to="/employer/talents?tab=invitations">Lời mời & lịch phỏng vấn</Link>
+        <Link className="recruit-button" to="/employer/pricing">Gói dịch vụ</Link>
+      </nav>
 
-        <Link
-          to="/employer/pricing"
-          className="bg-white p-5 rounded-2xl border border-gray-200/80 hover:border-emerald-500/50 shadow-card hover:shadow-card-hover transition-all flex items-center gap-3.5 group"
-        >
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-            <CreditCard className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-gray-900 group-hover:text-emerald-600">Gói dịch vụ & Thanh toán</h4>
-            <p className="text-[11px] text-gray-500">VNPay & MoMo QR (UC-E07)</p>
-          </div>
-        </Link>
-
-        <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-card flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-purple-50 text-brand-purple flex items-center justify-center shrink-0">
-            <Calendar className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-gray-900">Phỏng vấn tự động</h4>
-            <p className="text-[11px] text-gray-500">{totalInterviewing} ứng viên đang xếp lịch</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-card flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-gray-900">Điểm phù hợp</h4>
-            <p className="text-[11px] text-gray-500">{totalApplicants} hồ sơ được đánh giá độ phù hợp</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-card space-y-2">
-          <p className="text-xs font-bold text-gray-400 uppercase">Tin đang đăng tuyển</p>
-          <p className="text-3xl font-black text-brand-blue">{jobs.length}</p>
-          <p className="text-xs text-gray-500">Chiến dịch tuyển dụng của doanh nghiệp</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-card space-y-2">
-          <p className="text-xs font-bold text-gray-400 uppercase">Tổng lượt ứng viên nộp hồ sơ</p>
-          <p className="text-3xl font-black text-brand-green">{totalApplicants}</p>
-          <p className="text-xs text-gray-500">Tự động đối chiếu kỹ năng với yêu cầu tuyển dụng</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-card space-y-2">
-          <p className="text-xs font-bold text-gray-400 uppercase">Ứng viên đang phỏng vấn</p>
-          <p className="text-3xl font-black text-brand-purple">{totalInterviewing}</p>
-          <p className="text-xs text-gray-500">Đã lên lịch Google Meet / Trực tiếp (UC-E10)</p>
-        </div>
-      </div>
-
-      {/* Job Postings & Job Management Actions (UC-E06) */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
+      {/* Job Postings & Job Management Actions */}
+      <div className="bg-white rounded-xl p-6 sm:p-8 border border-gray-200 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
           <div className="flex items-center gap-2.5">
             <Layers className="w-5 h-5 text-brand-blue" />
             <div>
-              <h2 className="text-base font-bold text-gray-900">Quản lý Tin tuyển dụng & Hệ thống ATS</h2>
-              <p className="text-xs text-gray-500">Chỉnh sửa nội dung, tạm dừng (đóng tin), mở lại hoặc xóa tin tuyển dụng</p>
+              <h2 className="text-base font-bold text-gray-900">Quản lý tin tuyển dụng</h2>
+              <p className="text-xs text-gray-500">Theo dõi hồ sơ mới, xét duyệt ứng viên và quản lý tin tuyển dụng</p>
             </div>
           </div>
 
@@ -397,14 +334,14 @@ export default function EmployerDashboard() {
                   </div>
                 </div>
 
-                {/* Right: ATS badge + Action Buttons (UC-E06) */}
+                {/* Right: ATS badge + Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
                   
                   {/* Applicants Counter */}
-                  <div className="text-right px-3.5 py-1.5 bg-gray-50 rounded-xl border border-gray-100 shrink-0">
+                  <Link to={`/employer/ats/${job.JobID}`} className="text-right px-3.5 py-1.5 bg-gray-50 rounded-xl border border-gray-100 shrink-0">
                     <p className="text-[10px] uppercase font-bold text-gray-400">Ứng viên</p>
-                    <p className="text-base font-black text-brand-blue">{job.TotalApplicants || 0}</p>
-                  </div>
+                    <p className="text-base font-black text-brand-blue">{job.TotalApplicants || 0}</p><p className="text-xs text-amber-700">{job.NewApplicants || 0} hồ sơ mới</p>
+                  </Link>
 
                   {/* Button 1: Chỉnh sửa nội dung JD */}
                   <button
@@ -458,7 +395,7 @@ export default function EmployerDashboard() {
                     className="px-4 py-2 bg-brand-blue hover:bg-brand-dark text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors shrink-0"
                   >
                     <Users className="w-3.5 h-3.5" />
-                    <span>Mở ATS ({job.TotalApplicants || 0})</span>
+                    <span>Xét duyệt hồ sơ ({job.TotalApplicants || 0})</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
 
@@ -469,7 +406,7 @@ export default function EmployerDashboard() {
         )}
       </div>
 
-      {/* KYC Modal (UC-E04) */}
+      {/* KYC Modal */}
       <KYCModal
         isOpen={kycModalOpen}
         onClose={() => setKycModalOpen(false)}
@@ -479,7 +416,7 @@ export default function EmployerDashboard() {
         }}
       />
 
-      {/* Edit Job Modal (UC-E06) */}
+      {/* Edit Job Modal */}
       <EditJobModal
         isOpen={editModalOpen}
         onClose={() => {
@@ -492,7 +429,7 @@ export default function EmployerDashboard() {
         }}
       />
 
-      {/* Delete Job Confirmation Modal (UC-E06) */}
+      {/* Delete Job Confirmation Modal */}
       {deleteConfirmJob && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-gray-100">

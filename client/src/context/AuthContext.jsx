@@ -10,33 +10,15 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     sessionStorage.removeItem('jobtimize_auth_notice');
+    sessionStorage.removeItem('jobtimize_pending_login_notice');
     if (!authNotice) return;
     const timer = setTimeout(() => setAuthNotice(''), 6000);
     return () => clearTimeout(timer);
   }, [authNotice]);
 
-  const loginNotice = (data) => {
+  const loginNotice = () => {
     setAuthNotice('Đăng nhập thành công!');
-    if (data.user.role === 'Candidate') sessionStorage.setItem('jobtimize_pending_login_notice', String(data.user.userId));
   };
-
-  // Retry notification delivery independently; authentication remains usable during an inbox outage.
-  useEffect(() => {
-    if (user?.role !== 'Candidate') return;
-    let active = true, pending = false;
-    const record = async () => {
-      if (pending || sessionStorage.getItem('jobtimize_pending_login_notice') !== String(user.userId)) return;
-      pending = true;
-      try {
-        await api.post('/notifications/session');
-        if (active) { sessionStorage.removeItem('jobtimize_pending_login_notice'); window.dispatchEvent(new Event('notifications-changed')); }
-      } catch { /* Retry on the next tick without changing the login result. */ }
-      finally { pending = false; }
-    };
-    void record();
-    const timer = setInterval(record, 15000);
-    return () => { active = false; clearInterval(timer); };
-  }, [user?.userId, user?.role]);
 
   const fetchCurrentUser = async () => {
     const token = localStorage.getItem('jobtimize_token');
@@ -84,7 +66,7 @@ export const AuthProvider = ({ children }) => {
     const res = await api.post('/auth/login', { email, password });
     if (res.data.success) {
       localStorage.setItem('jobtimize_token', res.data.data.token);
-      loginNotice(res.data.data);
+      loginNotice();
       setUser(res.data.data.user);
       return res.data.data;
     }
@@ -94,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     const res = await api.post('/auth/google', googlePayload);
     if (res.data.success) {
       localStorage.setItem('jobtimize_token', res.data.data.token);
-      loginNotice(res.data.data);
+      loginNotice();
       setUser(res.data.data.user);
       return res.data.data;
     }

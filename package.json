@@ -16,7 +16,16 @@
     "seed:browse": "npm --prefix server run seed:browse",
     "test:ai": "npm --prefix server run test:ai",
     "test:notifications": "npm --prefix server run test:notifications && npm --prefix client run test:notifications",
-    "check:ai": "npm --prefix server run check:ai --"
+    "check:ai": "npm --prefix server run check:ai --",
+    "check:payos": "npm --prefix server run check:payos --",
+    "test:payos": "npm --prefix server run test:payos",
+    "test:cv-analysis": "npm --prefix server run test:cv-analysis",
+    "test:cv-manager:ui": "node --test server/scripts/test_cv_manager_ui.mjs",
+    "test:skill-gap": "node --test server/scripts/test_skill_gap.js",
+    "test:skill-gap:ui": "node --test server/scripts/test_skill_gap_ui.mjs",
+    "test:employer-account": "node --test server/scripts/test_employer_account.js",
+    "test:employer-account:ui": "node --test server/scripts/test_employer_account_ui.mjs",
+    "test:db": "npm --prefix server run test:db"
   },
   "keywords": [
     "recruitment",

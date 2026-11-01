@@ -1,0 +1,77 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+process.env.PLAYWRIGHT_BROWSERS_PATH ||= path.resolve('.cache/ms-playwright');
+const { chromium } = require('playwright');
+const output = path.resolve('.cache/cv-tests');
+await fs.mkdir(output, { recursive: true });
+test('CV manager desktop/mobile review, confirmation, filters, upload failure, archive and profile separation', { timeout: 90000 }, async () => {
+  const browser = await chromium.launch();
+  const errors = [];
+  const analysis = { personal: { fullName: 'Nguyễn Minh An', email: 'an@example.org' }, summary: 'Frontend developer', skills: [{ name: 'ReactJS', canonicalName: 'React.js', evidence: 'Developed web applications with ReactJS.', verified: true }], experiences: [], educations: [], certifications: [], languages: [] };
+  let saved, archived = false, uploadAttempted = false;
+  const document = { versionId: 10, version: 1, status: 'NeedsReview', originalName: 'CV.png', updatedAt: '2026-10-30', warnings: ['Kiểm tra thông tin với tệp gốc.'], analysis, rawText: 'Nguyễn Minh An\nDeveloped web applications with ReactJS.' };
+  const cv = { CVID: 1, Title: 'CV Frontend — Nguyễn Minh An', CvType: 'Upload', IsPrimary: true, UpdatedAt: '2026-10-30', document };
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await context.addInitScript(() => localStorage.setItem('jobtimize_token', 'isolated-ui-token'));
+    const page = await context.newPage(); page.setDefaultTimeout(10000); page.on('pageerror', error => errors.push(error.message));
+    await page.route('**/api/**', async route => {
+      const req = route.request(), url = new URL(req.url()).pathname;
+      let data = [];
+      if (url === '/api/auth/me') data = { userId: 1, role: 'Candidate', fullName: 'Nguyễn Minh An', email: 'an@example.org' };
+      else if (url === '/api/candidate/profile') data = { FullName: 'Nguyễn Minh An', Headline: 'Frontend Developer', Email: 'an@example.org', cvs: [cv] };
+      else if (url === '/api/cv-documents' && req.method() === 'POST') { uploadAttempted = true; return route.fulfill({ status: 503, json: { success: false, message: 'Tải lên chưa thành công. Thử lại.' } }); }
+      else if (url === '/api/cv-documents') data = archived ? [] : [cv];
+      else if (url === '/api/cv-documents/1' && req.method() === 'DELETE') archived = true;
+      else if (url === '/api/cv-documents/1') data = { ...cv, history: [document] };
+      else if (url.endsWith('/analysis')) { saved = req.postDataJSON(); document.status = 'Ready'; document.analysis = saved.analysis; }
+      else if (url.endsWith('/file')) return route.fulfill({ contentType: 'image/png', body: await require('sharp')({ create: { width: 500, height: 700, channels: 3, background: '#ffffff' } }).png().toBuffer() });
+      else if (url.includes('/notifications')) return route.fulfill({ json: { success: true, data: [], unreadCount: 0, total: 0 } });
+      return route.fulfill({ status: 200, json: { success: true, data } });
+    });
+    await page.goto(`${process.env.CV_UI_BASE || 'http://127.0.0.1:3000'}/candidate/dashboard?tab=cvs`);
+    await page.getByRole('heading', { name: 'Quản lý CV', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Kiểm tra thông tin', exact: true }).waitFor();
+    await page.screenshot({ path: path.join(output, 'cv-manager-desktop.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Kiểm tra thông tin', exact: true }).click();
+    await page.getByLabel('Họ và tên', { exact: true }).fill('Nguyễn Minh Anh');
+    await page.getByRole('button', { name: 'Xác nhận và sử dụng CV', exact: true }).click();
+    await page.getByRole('button', { name: 'Lưu thông tin đã kiểm tra', exact: true }).waitFor();
+    assert.equal(saved.analysis.personal.fullName, 'Nguyễn Minh Anh'); assert.equal(saved.versionId, 10);
+    await page.screenshot({ path: path.join(output, 'cv-review-desktop.png') });
+    await page.getByRole('button', { name: 'Nội dung gốc', exact: true }).click();
+    await page.getByText('Nguyễn Minh An\nDeveloped web applications with ReactJS.', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Lịch sử', exact: true }).click();
+    await page.getByText('Phiên bản 1', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Đóng thông tin CV', exact: true }).click();
+    await page.getByRole('button', { name: 'Cần xử lý', exact: true }).click();
+    await page.getByRole('heading', { name: 'Không có CV phù hợp bộ lọc' }).waitFor();
+    await page.getByRole('button', { name: 'Tất cả', exact: true }).click();
+    await page.getByRole('button', { name: 'Tải CV lên', exact: true }).click();
+    await page.getByLabel('Tệp CV', { exact: true }).setInputFiles({ name: 'Synthetic.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-synthetic') });
+    await page.getByRole('button', { name: 'Tải lên và đọc nội dung', exact: true }).click();
+    await page.getByText('Tải lên chưa thành công. Thử lại.', { exact: true }).waitFor(); assert.equal(uploadAttempted, true);
+    assert.equal(await page.getByLabel('Tên CV', { exact: true }).inputValue(), 'Synthetic');
+    await page.getByRole('button', { name: 'Đóng tải lên', exact: true }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: path.join(output, 'cv-manager-mobile.png'), fullPage: true });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.getByRole('button', { name: 'Xem và quản lý', exact: true }).click();
+    await page.getByRole('link', { name: 'Mở tệp gốc', exact: true }).waitFor();
+    await page.getByLabel('Họ và tên', { exact: true }).waitFor();
+    await page.screenshot({ path: path.join(output, 'cv-review-mobile.png') });
+    assert.equal(await page.locator('dialog[open]').evaluate(el => el.scrollWidth > el.clientWidth), false);
+    await page.getByRole('button', { name: 'Đóng thông tin CV', exact: true }).click();
+    await page.getByRole('button', { name: 'Xóa CV Frontend — Nguyễn Minh An', exact: true }).click();
+    await page.getByRole('button', { name: 'Xóa CV', exact: true }).click();
+    await page.getByRole('heading', { name: 'Một nơi dành riêng cho CV của bạn' }).waitFor();
+    await page.goto(`${process.env.CV_UI_BASE || 'http://127.0.0.1:3000'}/candidate/dashboard?tab=profile`);
+    await page.getByRole('heading', { name: 'Thông tin cá nhân & Giới thiệu', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Tải CV lên', exact: true }).count(), 0);
+    assert.deepEqual(errors, []);
+  } catch (error) { const page = browser.contexts()[0]?.pages()[0]; if (page) { await page.screenshot({ path: path.join(output, 'cv-manager-failure.png'), fullPage: true }); console.log((await page.locator('body').innerText()).slice(-2200)); } throw error; } finally { await browser.close(); }
+});

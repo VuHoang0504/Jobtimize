@@ -196,7 +196,7 @@ const verifyEmailOtp = async (req, res) => {
         const empInsert = await executeQuery(
           `INSERT INTO Employers (UserID, CompanyName, KYCStatus)
            OUTPUT INSERTED.EmployerID, INSERTED.CompanyName, INSERTED.KYCStatus
-           VALUES (@UserID, @CompanyName, 'Approved')`,
+           VALUES (@UserID, @CompanyName, 'Pending')`,
           { UserID: userId, CompanyName: companyName || 'Công ty tuyển dụng' }
         );
         profileData = empInsert.recordset[0];
@@ -221,6 +221,7 @@ const verifyEmailOtp = async (req, res) => {
         user: {
           ...newUser,
           role: roleName,
+          hasPassword: true,
           profile: profileData
         }
       }
@@ -360,6 +361,7 @@ const login = async (req, res) => {
           phone: user.Phone,
           avatarUrl: user.AvatarUrl || profile?.CompanyLogoUrl || null,
           role: user.RoleName,
+          hasPassword: Boolean(user.PasswordHash),
           profile
         }
       }
@@ -374,8 +376,9 @@ const login = async (req, res) => {
 const googleLogin = async (req, res) => {
   try {
     const { credential, roleName = 'Candidate' } = req.body;
+    if (!['Candidate', 'Employer'].includes(roleName)) return res.status(400).json({ success: false, message: 'Loại tài khoản không hợp lệ.' });
 
-    if (!credential) {
+    if (typeof credential !== 'string' || !credential.trim()) {
       return res.status(400).json({ success: false, message: 'Thiếu Google credential token' });
     }
 
@@ -415,7 +418,7 @@ const googleLogin = async (req, res) => {
       });
     }
 
-    if (!payload || !payload.email) {
+    if (!payload || !payload.email || payload.email_verified !== true) {
       return res.status(401).json({ success: false, message: 'Token Google không hợp lệ hoặc không chứa email.' });
     }
 
@@ -427,7 +430,7 @@ const googleLogin = async (req, res) => {
 
     // Check if user exists by Email or GoogleID
     let userRes = await executeQuery(
-      `SELECT u.UserID, u.Email, u.FullName, u.Phone, u.AvatarUrl, u.Status, u.GoogleID, r.RoleName
+      `SELECT u.UserID, u.Email, u.FullName, u.Phone, u.AvatarUrl, u.Status, u.GoogleID, CASE WHEN NULLIF(u.PasswordHash, '') IS NULL THEN 0 ELSE 1 END AS HasPassword, r.RoleName
        FROM Users u
        LEFT JOIN UserRoles ur ON u.UserID = ur.UserID
        LEFT JOIN Roles r ON ur.RoleID = r.RoleID
@@ -470,12 +473,12 @@ const googleLogin = async (req, res) => {
       } else {
         await executeQuery(
           `INSERT INTO Employers (UserID, CompanyName, KYCStatus)
-           VALUES (@UserID, N'Doanh nghiệp (Google Login)', 'Approved')`,
+           VALUES (@UserID, N'Doanh nghiệp (Google Login)', 'Pending')`,
           { UserID: newUser.UserID }
         );
       }
 
-      user = { ...newUser, RoleName: roleName };
+      user = { ...newUser, RoleName: roleName, HasPassword: false, GoogleID: googleId };
     } else {
       user = userRes.recordset[0];
       actualRole = user.RoleName || 'Candidate';
@@ -525,6 +528,8 @@ const googleLogin = async (req, res) => {
           fullName: user.FullName,
           avatarUrl: user.AvatarUrl || avatarUrl,
           role: actualRole,
+          hasPassword: Boolean(user.HasPassword),
+          googleLinked: true,
           profile
         }
       }
@@ -541,7 +546,7 @@ const getMe = async (req, res) => {
     const userId = req.user.userId;
 
     const userRes = await executeQuery(
-      `SELECT u.UserID, u.Email, u.FullName, u.Phone, u.AvatarUrl, u.Status, u.CreatedAt,
+      `SELECT u.UserID, u.Email, u.FullName, u.Phone, u.AvatarUrl, u.Status, u.CreatedAt, CASE WHEN NULLIF(u.PasswordHash, '') IS NULL THEN 0 ELSE 1 END AS HasPassword, u.GoogleID,
               r.RoleName
        FROM Users u
        LEFT JOIN UserRoles ur ON u.UserID = ur.UserID
@@ -575,6 +580,8 @@ const getMe = async (req, res) => {
         avatarUrl: user.AvatarUrl || profile?.CompanyLogoUrl || null,
         role: user.RoleName,
         createdAt: user.CreatedAt,
+        hasPassword: Boolean(user.HasPassword),
+        googleLinked: Boolean(user.GoogleID),
         profile
       }
     });
@@ -698,44 +705,25 @@ const changePassword = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới' });
-    }
-
-    const pwdValidation = validatePasswordStrength(newPassword);
-    if (!pwdValidation.valid) {
-      return res.status(400).json({ success: false, message: pwdValidation.message });
-    }
-
-    const userRes = await executeQuery('SELECT PasswordHash, GoogleID FROM Users WHERE UserID = @UserID', { UserID: userId });
-    if (!userRes.recordset || userRes.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
-    }
-
-    const user = userRes.recordset[0];
-    if (!user.PasswordHash) {
-      return res.status(400).json({ success: false, message: 'Tài khoản của bạn được đăng nhập qua Google, không có mật khẩu trực tiếp' });
-    }
-
-    const isMatch = await comparePassword(currentPassword, user.PasswordHash);
-    if (!isMatch) {
+    const validation = validatePasswordStrength(newPassword);
+    if (!validation.valid) return res.status(400).json({ success: false, message: validation.message });
+    if (Buffer.byteLength(newPassword, 'utf8') > 72) return res.status(400).json({ success: false, message: 'Mật khẩu tối đa 72 byte. Vui lòng dùng mật khẩu ngắn hơn.' });
+    const user = (await executeQuery('SELECT PasswordHash, GoogleID FROM Users WHERE UserID = @UserID', { UserID: userId })).recordset[0];
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
+    const creating = !user.PasswordHash;
+    if (creating && !user.GoogleID) return res.status(400).json({ success: false, message: 'Dùng chức năng quên mật khẩu để thiết lập lại thông tin đăng nhập.' });
+    if (!creating && (typeof currentPassword !== 'string' || !await comparePassword(currentPassword, user.PasswordHash))) {
       return res.status(400).json({ success: false, message: 'Mật khẩu hiện tại không chính xác' });
     }
-
-    const newHashedPassword = await hashPassword(newPassword);
-    await executeQuery('UPDATE Users SET PasswordHash = @PasswordHash, UpdatedAt = GETDATE() WHERE UserID = @UserID', {
-      PasswordHash: newHashedPassword,
-      UserID: userId
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Đổi mật khẩu thành công!'
-    });
+    const passwordHash = await hashPassword(newPassword);
+    const updated = await executeQuery(`UPDATE Users SET PasswordHash=@PasswordHash, UpdatedAt=GETDATE()
+      OUTPUT INSERTED.UserID WHERE UserID=@UserID AND ${creating ? "NULLIF(PasswordHash, '') IS NULL" : 'PasswordHash=@OldHash'}`,
+    { UserID: userId, PasswordHash: passwordHash, ...(!creating ? { OldHash: user.PasswordHash } : {}) });
+    if (!updated.recordset?.length) return res.status(409).json({ success: false, message: 'Mật khẩu đã được thay đổi. Tải lại trang và thử lại.' });
+    return res.json({ success: true, message: creating ? 'Tạo mật khẩu thành công! Bạn có thể đăng nhập bằng email và mật khẩu.' : 'Đổi mật khẩu thành công!', data: { hasPassword: true } });
   } catch (error) {
-    console.error('changePassword error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi server khi đổi mật khẩu: ' + error.message });
+    console.error('changePassword error:', error.code || error.name);
+    return res.status(500).json({ success: false, message: 'Chưa lưu được mật khẩu. Vui lòng thử lại.' });
   }
 };
 

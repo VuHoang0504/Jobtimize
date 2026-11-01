@@ -187,11 +187,11 @@ export default function CVBuilderPage() {
     setError(''); setAvatarFile(file);
   }
   if (loading) return <div className="cv-loading" role="status">Đang mở CV…</div>;
-  if (loadError) return <div className="cv-loading"><p role="alert">{loadError}</p><button type="button" onClick={() => setRetry(n => n + 1)}>Thử lại</button><Link to="/candidate/dashboard">Quay lại hồ sơ</Link></div>;
+  if (loadError) return <div className="cv-loading"><p role="alert">{loadError}</p><button type="button" onClick={() => setRetry(n => n + 1)}>Thử lại</button><Link to="/candidate/dashboard?tab=cvs">Quay lại Quản lý CV</Link></div>;
   const d = value.cvData.design;
   return <div className="cv-workspace">
     <header className="cv-topbar">
-      <Link className="cv-icon-button" to="/candidate/dashboard" aria-label="Quay lại hồ sơ"><ArrowLeft size={19} /></Link>
+      <Link className="cv-icon-button" to="/candidate/dashboard?tab=cvs" aria-label="Quay lại Quản lý CV"><ArrowLeft size={19} /></Link>
       <div className="cv-title-group"><input aria-label="Tên CV" maxLength={200} value={value.title} onChange={event => change(v => ({ ...v, title: event.target.value }), { inline: true, group: 'title' })} /><span aria-live="polite">{dirty ? 'Có thay đổi chưa lưu' : 'Đã lưu / sẵn sàng chỉnh sửa'}</span></div>
       <div className="cv-top-actions">
         <button className="cv-icon-button" type="button" disabled={!editor.canUndo || busy} onClick={editor.undo} title="Hoàn tác" aria-label="Hoàn tác"><Undo2 size={18} /></button>

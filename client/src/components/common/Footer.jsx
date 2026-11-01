@@ -1,5 +1,5 @@
 import React from 'react';
-import { Briefcase, Sparkles, Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -28,7 +28,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-gray-600">
               <li><a href="/" className="hover:text-brand-blue">Tìm kiếm việc làm IT</a></li>
               <li><a href="/candidate/dashboard" className="hover:text-brand-blue">Tạo & Quản lý nhiều bản CV</a></li>
-              <li><a href="/candidate/skill-gap" className="hover:text-brand-purple flex items-center gap-1">Phân tích kỹ năng chuyên môn <Sparkles className="w-3 h-3 text-brand-purple" /></a></li>
+              <li><a href="/candidate/skill-gap" className="hover:text-brand-purple flex items-center gap-1">Phân tích kỹ năng chuyên môn</a></li>
               <li><a href="/" className="hover:text-brand-blue">Khóa học nâng cao tay nghề</a></li>
             </ul>
           </div>
@@ -44,20 +44,18 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-bold text-gray-800 tracking-wide uppercase mb-3">Công nghệ & Database</h4>
-            <div className="flex flex-wrap gap-2">
-              <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-blue-50 text-blue-700">React + Vite</span>
-              <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700">Node.js Express</span>
-              <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-700">MS SQL Server</span>
-              <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-purple-50 text-purple-700">Smart Matching Engine</span>
-            </div>
-            <p className="text-xs text-gray-400 mt-4">Database: JobtimizeDB (MSSQL Localhost:1433)</p>
+            <h4 className="text-sm font-bold text-gray-800 mb-3">Theo dõi tuyển dụng</h4>
+            <ul className="space-y-2 text-sm text-gray-600">
+              <li><a href="/candidate/dashboard?tab=invitations" className="hover:text-brand-blue">Lời mời & lịch phỏng vấn</a></li>
+              <li><a href="/candidate/dashboard?tab=applications" className="hover:text-brand-blue">Hồ sơ đã ứng tuyển</a></li>
+              <li><a href="/employer/talents?tab=invitations" className="hover:text-brand-blue">Lời mời đã gửi</a></li>
+            </ul>
           </div>
 
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">
-          <p>© 2024 Jobtimize Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
+          <p>© {new Date().getFullYear()} Jobtimize Recruitment Platform. Bản quyền thuộc về Jobtimize Team.</p>
           <p className="flex items-center gap-1 mt-2 sm:mt-0">
             Xây dựng với <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> dành cho cộng đồng IT Việt Nam
           </p>

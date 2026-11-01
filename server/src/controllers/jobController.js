@@ -77,6 +77,7 @@ const getJobs = async (req, res) => {
       };
     });
 
+    let skillMatch = { status: req.user?.role === 'Candidate' ? 'NotReady' : 'LoginRequired' };
     // If candidate is logged in, calculate AI Match Score for each job
     if (req.user && req.user.role === 'Candidate') {
       const candRes = await executeQuery('SELECT ProfileID FROM CandidateProfiles WHERE UserID = @UserID', { UserID: req.user.userId });
@@ -92,13 +93,20 @@ const getJobs = async (req, res) => {
         const appliedMap = new Map();
         appliedRes.recordset.forEach(a => appliedMap.set(a.JobID, a));
 
+        const cvContext = await AIMatchingService.getCVContext(profileId, req.query.cvId);
+        skillMatch = {
+          status: cvContext?.version?.Status === 'Ready' && cvContext.data
+            ? (cvContext.data.skills?.some(skill => skill.verified) ? 'Ready' : 'NoSkills') : 'NotReady',
+          cvTitle: cvContext?.cv?.Title || null
+        };
         // Parallel compute match score
         jobs = await Promise.all(
           jobs.map(async (job) => {
-            const aiAnalysis = await AIMatchingService.calculateMatchScore(profileId, job.JobID);
+            const aiAnalysis = await AIMatchingService.calculateMatchScore(profileId, job.JobID, req.query.cvId, cvContext);
             return {
               ...job,
               matchScore: aiAnalysis.matchScore,
+              matchStatus: aiAnalysis.status,
               isSaved: savedJobIds.has(job.JobID),
               isApplied: appliedMap.has(job.JobID),
               applicationStatus: appliedMap.get(job.JobID)?.Status || null
@@ -110,7 +118,8 @@ const getJobs = async (req, res) => {
 
     return res.json({
       success: true,
-      data: jobs
+      data: jobs,
+      skillMatch
     });
   } catch (error) {
     console.error('getJobs error:', error);
@@ -183,13 +192,13 @@ const getJobById = async (req, res) => {
         }
 
         // Fetch candidate CVs
-        const cvsRes = await executeQuery('SELECT CVID, Title, FileUrl, IsPrimary FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC', {
+        const cvsRes = await executeQuery('SELECT CVID, Title, FileUrl, IsPrimary FROM CVs WHERE ProfileID = @ProfileID AND IsArchived=0 ORDER BY IsPrimary DESC', {
           ProfileID: profileId
         });
         candidateContext.candidateCVs = cvsRes.recordset;
 
         // AI Skill Gap & Match Analysis
-        candidateContext.aiAnalysis = await AIMatchingService.calculateMatchScore(profileId, id);
+        candidateContext.aiAnalysis = await AIMatchingService.calculateMatchScore(profileId, id, req.query.cvId);
       }
     }
 
@@ -278,17 +287,18 @@ const applyJob = async (req, res) => {
     const jobCheck = await executeQuery("SELECT JobID FROM JobPostings WHERE JobID=@JobID AND Status='Published' AND (ExpiresAt IS NULL OR ExpiresAt>GETDATE())", { JobID: jobId });
     if (!jobCheck.recordset.length) return res.status(400).json({ success: false, message: 'Tin tuyển dụng không còn nhận hồ sơ.' });
     if (cvId) {
-      const owned = await executeQuery('SELECT CVID FROM CVs WHERE CVID=@CVID AND ProfileID=@ProfileID', { CVID: cvId, ProfileID: profileId });
+      const owned = await executeQuery('SELECT CVID FROM CVs WHERE CVID=@CVID AND ProfileID=@ProfileID AND IsArchived=0', { CVID: cvId, ProfileID: profileId });
       if (!owned.recordset.length) return res.status(400).json({ success: false, message: 'CV không thuộc hồ sơ của bạn.' });
     }
 
     // Calculate AI Match Score
-    const aiResult = await AIMatchingService.calculateMatchScore(profileId, jobId);
+    const aiResult = await AIMatchingService.calculateMatchScore(profileId, jobId, cvId);
+    if (!['Ready', 'NoCriteria'].includes(aiResult.status)) return res.status(409).json({ success: false, message: aiResult.summary });
 
     // If no cvId specified, get primary CV
-    let targetCvId = cvId;
+    let targetCvId = aiResult.cvId;
     if (!targetCvId) {
-      const primaryCvRes = await executeQuery('SELECT CVID FROM CVs WHERE ProfileID = @ProfileID ORDER BY IsPrimary DESC', { ProfileID: profileId });
+      const primaryCvRes = await executeQuery('SELECT CVID FROM CVs WHERE ProfileID = @ProfileID AND IsArchived=0 ORDER BY IsPrimary DESC', { ProfileID: profileId });
       if (primaryCvRes.recordset && primaryCvRes.recordset.length > 0) {
         targetCvId = primaryCvRes.recordset[0].CVID;
       }
@@ -299,16 +309,20 @@ const applyJob = async (req, res) => {
       const activeCandidate = await query("SELECT UserID FROM Users WITH(HOLDLOCK,ROWLOCK) WHERE UserID=@ID AND Status='Active'", { ID: req.user.userId });
       const activeOwner = await query("SELECT UserID FROM Users WITH(HOLDLOCK,ROWLOCK) WHERE Status='Active' AND UserID=(SELECT e.UserID FROM Employers e JOIN JobPostings j ON j.EmployerID=e.EmployerID WHERE j.JobID=@ID AND j.Status='Published' AND (j.ExpiresAt IS NULL OR j.ExpiresAt>GETDATE()))", { ID: jobId });
       if (!activeCandidate.recordset.length || !activeOwner.recordset.length) throw Object.assign(new Error('Tài khoản hoặc tin tuyển dụng không còn nhận hồ sơ.'), { status: 409 });
+      const currentCV = await query('SELECT TOP 1 v.VersionID FROM CVs c WITH(HOLDLOCK) JOIN CVDocumentVersions v ON c.CVID=v.CVID WHERE c.CVID=@ID AND c.ProfileID=@ProfileID AND c.IsArchived=0 ORDER BY v.VersionNumber DESC', { ID: targetCvId, ProfileID: profileId });
+      if (currentCV.recordset[0]?.VersionID !== aiResult.cvVersionId) throw Object.assign(new Error('CV đã thay đổi. Hãy xem lại điểm phù hợp trước khi gửi.'), { status: 409 });
       const duplicate = await query('SELECT ApplicationID FROM JobApplications WITH(UPDLOCK,HOLDLOCK) WHERE JobID=@JobID AND ProfileID=@ProfileID', { JobID: jobId, ProfileID: profileId });
       if (duplicate.recordset.length) throw Object.assign(new Error('Bạn đã nộp đơn ứng tuyển cho công việc này rồi!'), { status: 409 });
       const insertRes = await query(
-        `INSERT INTO JobApplications (JobID, ProfileID, CVID, MatchScore, Status, AppliedAt)
-         OUTPUT INSERTED.ApplicationID, INSERTED.MatchScore, INSERTED.Status, INSERTED.AppliedAt
-         VALUES (@JobID, @ProfileID, @CVID, @MatchScore, 'Applied', GETDATE())`,
+        `INSERT INTO JobApplications (JobID, ProfileID, CVID, CVVersionID, MatchScore, MatchDetailsJson, Status, AppliedAt)
+         OUTPUT INSERTED.ApplicationID, INSERTED.CVVersionID, INSERTED.MatchScore, INSERTED.Status, INSERTED.AppliedAt
+         VALUES (@JobID, @ProfileID, @CVID, @CVVersionID, @MatchScore, @MatchDetails, 'Applied', GETDATE())`,
         {
           JobID: jobId,
           ProfileID: profileId,
           CVID: targetCvId || null,
+          CVVersionID: aiResult.cvVersionId,
+          MatchDetails: JSON.stringify(aiResult),
           MatchScore: aiResult.matchScore
         }
       );
@@ -331,6 +345,14 @@ const applyJob = async (req, res) => {
 };
 
 module.exports = {
+  getJobMatch: async (req, res, next) => {
+    try {
+    const profile = await executeQuery('SELECT ProfileID FROM CandidateProfiles WHERE UserID=@ID', { ID: req.user.userId });
+    if (!profile.recordset[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ.' });
+    const data = await AIMatchingService.calculateMatchScore(profile.recordset[0].ProfileID, req.params.id, req.query.cvId);
+    return res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
   getJobs,
   getJobById,
   toggleSaveJob,

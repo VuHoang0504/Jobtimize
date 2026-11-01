@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function MatchScoreBadge({ score, size = 'md', showLabel = true }) {
-  if (score === undefined || score === null) return null;
+  if (score === undefined || score === null) return <span className="text-xs text-slate-400">Chưa đủ dữ liệu đối chiếu</span>;
 
   const numericScore = typeof score === 'number' ? Math.round(score) : Math.round(parseFloat(score) || 0);
 

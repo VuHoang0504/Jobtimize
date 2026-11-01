@@ -1,9 +1,10 @@
+-- Initial reference data and demo accounts/listings. Existing accounts are preserved.
+USE JobtimizeDB;
+GO
+
 -- ========================================================
 -- DỮ LIỆU BAN ĐẦU (SEED DATA) CHO JOBTIMIZEDB
 -- ========================================================
-
-USE JobtimizeDB;
-GO
 
 -- 1. Nạp Roles
 IF NOT EXISTS (SELECT 1 FROM Roles WHERE RoleName = 'Admin')
@@ -127,7 +128,7 @@ BEGIN
 END
 GO
 
--- 6. Nạp Tài khoản Admin mặc định (Password: Admin@123 -> $2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a)
+-- 6. Initial demo administrator (existing accounts are never overwritten).
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'admin@jobtimize.vn')
 BEGIN
     INSERT INTO Users (Email, PasswordHash, FullName, Phone, Status, IsEmailVerified)
@@ -162,7 +163,7 @@ BEGIN
 
     INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status)
     VALUES (@FptEmpID, @CatIT, N'Senior Fullstack Developer (Node.js & React.js)', N'Phát triển ứng dụng Web quy mô lớn với Node.js, React.js và Microservices.', N'Từ 3+ năm kinh nghiệm Fullstack, thành thạo React, Node.js, PostgreSQL.', N'28 - 45 triệu VNĐ', N'Hà Nội', 'Published');
-    
+
     INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status)
     VALUES (@FptEmpID, @CatCloud, N'Chuyên viên Quản trị Hệ thống Cloud & DevOps (AWS / Docker)', N'Tự động hóa CI/CD, vận hành cụm Kubernetes và hạ tầng AWS Cloud.', N'Tối thiểu 2 năm kinh nghiệm DevOps, Docker, K8s, AWS EKS.', N'25 - 40 triệu VNĐ', N'Hà Nội', 'Published');
 END
@@ -357,4 +358,127 @@ GO
 
 PRINT 'JobtimizeDB Seed Data completed!';
 
+GO
 
+-- Additional demo records formerly inserted during API startup.
+IF (SELECT COUNT(*) FROM UserReports) = 0
+      BEGIN
+        DECLARE @FirstJob INT = (SELECT TOP 1 JobID FROM JobPostings);
+        DECLARE @FirstUser INT = (SELECT TOP 1 UserID FROM Users WHERE Email <> 'admin@jobtimize.vn');
+        IF @FirstJob IS NOT NULL AND @FirstUser IS NOT NULL
+        BEGIN
+          INSERT INTO UserReports (ReporterUserID, TargetType, TargetID, Reason, Status, CreatedAt)
+          VALUES
+          (@FirstUser, 'JobPosting', @FirstJob, N'Tin tuyển dụng yêu cầu ứng viên đóng phí phỏng vấn trái quy định, thông tin mức lương không đúng thực tế khi trao đổi.', 'Pending', DATEADD(HOUR, -5, GETDATE()));
+        END
+      END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'EmployerSubscriptions')
+         AND (SELECT COUNT(*) FROM EmployerSubscriptions) < 4
+      BEGIN
+        DECLARE @FptID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%FPT%');
+        DECLARE @VngID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%VNG%');
+        DECLARE @KmsID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%KMS%');
+        DECLARE @VinAIID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%VinAI%');
+        DECLARE @ShopeeID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%Shopee%');
+        DECLARE @GhtkID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%Giao Hàng%');
+        DECLARE @ChoTotID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%Chợ Tốt%');
+
+        DECLARE @PkgStarter INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE Price = 0);
+        DECLARE @PkgPro INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE Price > 0 AND Price < 3000000);
+        DECLARE @PkgEnterprise INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE Price >= 3000000);
+
+        IF @FptID IS NOT NULL AND @PkgEnterprise IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@FptID, @PkgEnterprise, DATEADD(MONTH, -5, GETDATE()), DATEADD(MONTH, -2, GETDATE()), 35, 380, 4990000, 'BankTransfer', 'Completed', 'TXN-202605-FPT01', DATEADD(MONTH, -5, GETDATE()));
+
+        IF @VngID IS NOT NULL AND @PkgEnterprise IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@VngID, @PkgEnterprise, DATEADD(MONTH, -4, GETDATE()), DATEADD(MONTH, -1, GETDATE()), 42, 450, 4990000, 'VNPay', 'Completed', 'TXN-202606-VNG02', DATEADD(MONTH, -4, GETDATE()));
+
+        IF @KmsID IS NOT NULL AND @PkgPro IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@KmsID, @PkgPro, DATEADD(MONTH, -3, GETDATE()), DATEADD(MONTH, -2, GETDATE()), 10, 80, 1990000, 'MoMo', 'Completed', 'TXN-202607-KMS03', DATEADD(MONTH, -3, GETDATE()));
+
+        IF @VinAIID IS NOT NULL AND @PkgEnterprise IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@VinAIID, @PkgEnterprise, DATEADD(MONTH, -2, GETDATE()), DATEADD(MONTH, 1, GETDATE()), 48, 490, 4990000, 'BankTransfer', 'Completed', 'TXN-202608-VAI04', DATEADD(MONTH, -2, GETDATE()));
+
+        IF @ShopeeID IS NOT NULL AND @PkgEnterprise IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@ShopeeID, @PkgEnterprise, DATEADD(MONTH, -1, GETDATE()), DATEADD(MONTH, 2, GETDATE()), 45, 460, 4990000, 'VNPay', 'Completed', 'TXN-202609-SHP05', DATEADD(MONTH, -1, GETDATE()));
+
+        IF @GhtkID IS NOT NULL AND @PkgPro IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@GhtkID, @PkgPro, DATEADD(DAY, -14, GETDATE()), DATEADD(DAY, 16, GETDATE()), 12, 90, 1990000, 'VNPay', 'Completed', 'TXN-202609-GHT06', DATEADD(DAY, -14, GETDATE()));
+
+        IF @ChoTotID IS NOT NULL AND @PkgPro IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@ChoTotID, @PkgPro, DATEADD(DAY, -4, GETDATE()), DATEADD(DAY, 26, GETDATE()), 14, 95, 1990000, 'MoMo', 'Completed', 'TXN-202610-CHT07', DATEADD(DAY, -4, GETDATE()));
+
+        IF @FptID IS NOT NULL AND @PkgEnterprise IS NOT NULL
+          INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
+          VALUES (@FptID, @PkgEnterprise, DATEADD(DAY, -1, GETDATE()), DATEADD(MONTH, 3, GETDATE()), 50, 500, 4990000, 'BankTransfer', 'Completed', 'TXN-202610-FPT08', DATEADD(DAY, -1, GETDATE()));
+      END
+GO
+
+IF (SELECT COUNT(DISTINCT CAST(CreatedAt AS DATE)) FROM Users) <= 1
+      BEGIN
+        UPDATE Users SET CreatedAt = DATEADD(MONTH, -5, CreatedAt) WHERE Email = 'hr@fpt-software.com';
+        UPDATE Users SET CreatedAt = DATEADD(MONTH, -4, CreatedAt) WHERE Email = 'career@vng.com.vn';
+        UPDATE Users SET CreatedAt = DATEADD(MONTH, -3, CreatedAt) WHERE Email = 'career-dn@kms-technology.com';
+        UPDATE Users SET CreatedAt = DATEADD(MONTH, -2, CreatedAt) WHERE Email = 'career@vinai.io';
+        UPDATE Users SET CreatedAt = DATEADD(MONTH, -1, CreatedAt) WHERE Email = 'tuyendung@onemount.com';
+        UPDATE Users SET CreatedAt = DATEADD(DAY, -18, CreatedAt) WHERE Email = 'talent@ghtk.vn';
+        UPDATE Users SET CreatedAt = DATEADD(DAY, -10, CreatedAt) WHERE Email = 'recruitment@shopee.vn';
+        UPDATE Users SET CreatedAt = DATEADD(DAY, -3, CreatedAt) WHERE Email = 'talent@chotot.vn';
+      END;
+
+      IF (SELECT COUNT(DISTINCT CAST(CreatedAt AS DATE)) FROM JobPostings) <= 1
+      BEGIN
+        UPDATE JobPostings SET CreatedAt = DATEADD(MONTH, -5, CreatedAt) WHERE JobID IN (1, 2);
+        UPDATE JobPostings SET CreatedAt = DATEADD(MONTH, -4, CreatedAt) WHERE JobID IN (3, 4);
+        UPDATE JobPostings SET CreatedAt = DATEADD(MONTH, -3, CreatedAt) WHERE JobID IN (5, 6);
+        UPDATE JobPostings SET CreatedAt = DATEADD(MONTH, -2, CreatedAt) WHERE JobID = 7;
+        UPDATE JobPostings SET CreatedAt = DATEADD(MONTH, -1, CreatedAt) WHERE JobID = 8;
+        UPDATE JobPostings SET CreatedAt = DATEADD(DAY, -14, CreatedAt) WHERE JobID = 9;
+        UPDATE JobPostings SET CreatedAt = DATEADD(DAY, -5, CreatedAt) WHERE JobID = 10;
+      END;
+GO
+
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'JobApplications')
+         AND (SELECT COUNT(*) FROM JobApplications) = 0
+      BEGIN
+        DECLARE @CandidateUser INT = (
+          SELECT TOP 1 u.UserID
+          FROM Users u
+          JOIN UserRoles ur ON u.UserID = ur.UserID
+          JOIN Roles r ON ur.RoleID = r.RoleID
+          WHERE r.RoleName = 'Candidate'
+        );
+
+        IF @CandidateUser IS NOT NULL
+        BEGIN
+          DECLARE @PId INT = (SELECT TOP 1 ProfileID FROM CandidateProfiles WHERE UserID = @CandidateUser);
+          IF @PId IS NULL
+          BEGIN
+            INSERT INTO CandidateProfiles (UserID, Headline, DesiredSalary, CurrentLocation, IsLookingForJob)
+            VALUES (@CandidateUser, N'Senior Fullstack Software Engineer', 35000000, N'Hà Nội', 1);
+            SET @PId = SCOPE_IDENTITY();
+          END;
+
+          DECLARE @CId INT = (SELECT TOP 1 CVID FROM CVs WHERE ProfileID = @PId);
+          IF @CId IS NULL
+          BEGIN
+            INSERT INTO CVs (ProfileID, Title, FileUrl, IsPrimary)
+            VALUES (@PId, N'CV Fullstack Engineer 2026', 'https://example.com/cv.pdf', 1);
+            SET @CId = SCOPE_IDENTITY();
+          END;
+
+          INSERT INTO JobApplications (JobID, ProfileID, CVID, MatchScore, Status, AppliedAt)
+          SELECT TOP 6 JobID, @PId, @CId, 86.5, 'Applied', DATEADD(DAY, -JobID * 3, GETDATE())
+          FROM JobPostings;
+        END
+      END
+GO

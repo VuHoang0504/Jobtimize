@@ -1,0 +1,21 @@
+const router = require('express').Router();
+const { authenticate, authorize } = require('../middleware/authMiddleware');
+const controller = require('../controllers/cvAnalysisController');
+router.use(authenticate);
+for (const name of ['cvId', 'applicationId', 'profileId']) router.param(name, (req, res, next, value) => {
+  if (!/^[1-9]\d{0,9}$/.test(value) || Number(value) > 2147483647) return res.status(400).json({ success: false, message: 'Mã hồ sơ không hợp lệ.' });
+  next();
+});
+router.get('/applications/:applicationId/file', controller.applicationFile);
+router.get('/talent/:profileId/file', authorize(['Employer', 'Admin']), controller.talentFile);
+router.use(authorize(['Candidate']));
+router.get('/', controller.list);
+router.post('/', controller.upload);
+router.get('/:cvId', controller.detail);
+router.get('/:cvId/file', controller.file);
+router.post('/:cvId/versions', controller.upload);
+router.patch('/:cvId', controller.rename);
+router.post('/:cvId/retry', controller.retry);
+router.put('/:cvId/analysis', controller.confirm);
+router.delete('/:cvId', controller.archive);
+module.exports = router;

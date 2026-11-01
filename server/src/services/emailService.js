@@ -99,136 +99,52 @@ const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (character)
   "'": '&#39;'
 }[character]));
 
-const sendInterviewEmail = async ({ toEmail, candidateName, companyName, jobTitle, interviewDate, interviewType, locationOrLink, notes }) => {
+const websiteLink = route => (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '') + route;
+
+const sendRecruitmentEmail = async ({ toEmail, subject, heading, body, href, replyTo }) => {
   const transporter = createTransporter();
-  if (!transporter) {
-    return { success: false, error: 'Chưa cấu hình EMAIL_USER/EMAIL_PASS hoặc SMTP_USER/SMTP_PASS.' };
-  }
-
-  const dateText = new Date(interviewDate).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-  const isOnline = interviewType === 'Online';
-  const subject = `[Jobtimize] Lịch phỏng vấn ${jobTitle}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
-      <h2>Xin chào ${escapeHtml(candidateName)},</h2>
-      <p>${escapeHtml(companyName)} đã mời bạn tham gia phỏng vấn vị trí <strong>${escapeHtml(jobTitle)}</strong>.</p>
-      <p><strong>Thời gian:</strong> ${escapeHtml(dateText)} (giờ Việt Nam)</p>
-      <p><strong>Hình thức:</strong> ${isOnline ? 'Trực tuyến' : 'Trực tiếp'}</p>
-      <p><strong>${isOnline ? 'Đường dẫn' : 'Địa điểm'}:</strong> ${escapeHtml(locationOrLink)}</p>
-      ${notes ? `<p><strong>Ghi chú:</strong><br>${escapeHtml(notes).replace(/\n/g, '<br>')}</p>` : ''}
-      <p>Trân trọng,<br>${escapeHtml(companyName)} qua Jobtimize</p>
-    </div>`;
-
+  if (!transporter) return { success: false, code: 'EMAIL_NOT_CONFIGURED' };
   try {
-    const info = await transporter.sendMail({
-      from: getMailFrom('Jobtimize'),
-      to: toEmail,
-      subject,
-      html
-    });
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error(`[EMAIL SERVICE] Lỗi gửi lịch phỏng vấn tới ${toEmail}:`, error.message);
-    return { success: false, error: error.message };
-  }
+    const info = await transporter.sendMail({ from: getMailFrom('Jobtimize'), to: toEmail, subject, ...(replyTo ? { replyTo } : {}),
+      html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:28px;color:#172033;line-height:1.7">'
+        + '<h2>' + escapeHtml(heading) + '</h2>' + body
+        + '<p><a style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:white;text-decoration:none;border-radius:6px" href="' + escapeHtml(websiteLink(href)) + '">' + (replyTo ? 'Xem hồ sơ trên Jobtimize' : 'Xem và phản hồi trên Jobtimize') + '</a></p>'
+        + '<p>' + (replyTo ? 'Bạn có thể trả lời email này để liên hệ trực tiếp với nhà tuyển dụng.' : 'Vui lòng phản hồi trên website để cập nhật trạng thái chính thức.') + '</p></div>' });
+    return { success: Boolean(info.accepted?.length), messageId: info.messageId };
+  } catch (err) {
+    console.error('Recruitment email failed:', err.code || 'EMAIL_SEND_FAILED');
+    return { success: false, code: err.code || 'EMAIL_SEND_FAILED' };
+  } finally { transporter.close(); }
 };
 
-const sendInvitationEmail = async ({ toEmail, candidateName, companyName, jobTitle, message }) => {
-  const transporter = createTransporter();
-  const subject = `[Jobtimize] ${companyName} trân trọng mời bạn ứng tuyển vị trí: ${jobTitle}`;
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
-        .container { max-width: 580px; margin: 30px auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
-        .header { background: linear-gradient(135deg, #059669 0%, #10b981 50%, #0284c7 100%); padding: 32px 28px; text-align: center; color: white; }
-        .header h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
-        .header p { margin: 6px 0 0 0; opacity: 0.95; font-size: 13px; font-weight: 500; }
-        .content { padding: 32px 28px; }
-        .badge { display: inline-block; padding: 4px 12px; background: #ecfdf5; color: #047857; font-size: 12px; font-weight: 700; border-radius: 9999px; border: 1px solid #a7f3d0; margin-bottom: 16px; }
-        .job-card { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px 20px; margin: 20px 0; }
-        .job-title { font-size: 16px; font-weight: 800; color: #065f46; margin: 0 0 6px 0; }
-        .company-name { font-size: 13px; font-weight: 600; color: #047857; margin: 0; }
-        .message-box { background: #f8fafc; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 0 12px 12px 0; margin: 20px 0; font-size: 13px; color: #334155; line-height: 1.6; }
-        .btn-wrapper { text-align: center; margin: 28px 0 16px 0; }
-        .btn { display: inline-block; background: #10b981; color: #ffffff !important; text-decoration: none; padding: 12px 28px; font-size: 14px; font-weight: 700; border-radius: 12px; box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
-        .footer { background: #f1f5f9; padding: 20px 28px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Jobtimize Recruitment</h1>
-          <p>Cơ hội việc làm dành riêng cho bạn</p>
-        </div>
-        <div class="content">
-          <div class="badge">🌟 Lời mời ứng tuyển trực tiếp</div>
-          <p style="font-size: 15px; margin: 0 0 12px 0; color: #1e293b;">Xin chào <strong>${escapeHtml(candidateName)}</strong>,</p>
-          <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0;">
-            Nhà tuyển dụng <strong>${escapeHtml(companyName)}</strong> đã xem xét hồ sơ của bạn trên Jobtimize và nhận thấy kỹ năng của bạn rất phù hợp. Họ trân trọng gửi lời mời bạn tham gia ứng tuyển:
-          </p>
+const sendInvitationEmail = ({ toEmail, candidateName, companyName, jobTitle, message, invitationId }) => sendRecruitmentEmail({
+  toEmail, subject: '[Jobtimize] Lời mời ứng tuyển: ' + jobTitle, heading: 'Lời mời từ ' + companyName,
+  body: '<p>Xin chào ' + escapeHtml(candidateName) + ',</p><p>Bạn được mời tìm hiểu vị trí <strong>' + escapeHtml(jobTitle) + '</strong>.</p><p>' + escapeHtml(message || '').replace(/\n/g, '<br>') + '</p>',
+  href: '/candidate/dashboard?tab=invitations' + (invitationId ? '&invitationId=' + invitationId : '')
+});
 
-          <div class="job-card">
-            <h3 class="job-title">${escapeHtml(jobTitle)}</h3>
-            <p class="company-name">🏢 ${escapeHtml(companyName)}</p>
-          </div>
+const sendInterviewEmail = ({ toEmail, candidateName, companyName, jobTitle, interviewDate, interviewType, locationOrLink, notes, interviewId }) => sendRecruitmentEmail({
+  toEmail, subject: '[Jobtimize] Xác nhận lịch phỏng vấn: ' + jobTitle, heading: 'Lịch phỏng vấn từ ' + companyName,
+  body: '<p>Xin chào ' + escapeHtml(candidateName) + ',</p><p>Vị trí: <strong>' + escapeHtml(jobTitle) + '</strong></p>'
+    + '<p>Thời gian: ' + escapeHtml(new Date(interviewDate).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })) + ' (giờ Việt Nam)</p>'
+    + '<p>Hình thức: ' + (interviewType === 'Online' ? 'Trực tuyến' : 'Trực tiếp') + '</p><p>Đường dẫn / địa điểm: ' + escapeHtml(locationOrLink) + '</p>'
+    + '<p>' + escapeHtml(notes || '').replace(/\n/g, '<br>') + '</p>',
+  href: '/candidate/dashboard?tab=invitations' + (interviewId ? '&interviewId=' + interviewId : '')
+});
 
-          ${message ? `
-          <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Lời nhắn từ Nhà tuyển dụng:</div>
-          <div class="message-box">
-            ${escapeHtml(message).replace(/\n/g, '<br>')}
-          </div>
-          ` : ''}
+const sendApplicationStatusEmail = ({ toEmail, candidateName, companyName, jobTitle, status }) => sendRecruitmentEmail({
+  toEmail, subject: '[Jobtimize] Kết quả hồ sơ: ' + jobTitle, heading: 'Cập nhật hồ sơ từ ' + companyName,
+  body: '<p>Xin chào ' + escapeHtml(candidateName) + ',</p><p>Hồ sơ ứng tuyển vị trí <strong>' + escapeHtml(jobTitle) + '</strong>: '
+    + ({ Screening: 'Đang xét duyệt', Offered: 'Ứng tuyển thành công. Nhà tuyển dụng đã xác nhận hồ sơ ứng tuyển của bạn. Vui lòng kiểm tra thông tin trong email và liên hệ nhà tuyển dụng để trao đổi các bước tiếp theo.', Rejected: 'Chưa phù hợp với vị trí ở thời điểm này.' }[status] || status) + '</p>',
+  href: '/candidate/dashboard?tab=applications'
+});
 
-          <div class="btn-wrapper">
-            <a href="http://localhost:3000/candidate/dashboard?tab=invitations" class="btn">
-              Xem Lời Mời & Ứng Tuyển Ngay
-            </a>
-          </div>
-
-          <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 16px;">
-            Hoặc bạn có thể đăng nhập vào nền tảng <strong>Jobtimize</strong> bất kỳ lúc nào để phản hồi lời mời.
-          </p>
-        </div>
-        <div class="footer">
-          © ${new Date().getFullYear()} Jobtimize. Email này được gửi tự động khi Nhà tuyển dụng gửi lời mời ứng tuyển.
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-
-  console.log('\n==================================================');
-  console.log(`[EMAIL SERVICE] GỬI LỜI MỜI ỨNG TUYỂN:`);
-  console.log(`- Người nhận: ${toEmail} (${candidateName})`);
-  console.log(`- Công ty: ${companyName}`);
-  console.log(`- Vị trí: ${jobTitle}`);
-  if (message) console.log(`- Lời nhắn: ${message}`);
-  console.log('==================================================\n');
-
-  if (!transporter) {
-    console.log(`[EMAIL SERVICE SIMULATED] Gửi lời mời tới ${toEmail} thành công (Chế độ mô phỏng / Chưa cấu hình SMTP).`);
-    return { success: true, simulated: true };
-  }
-
-  try {
-    const info = await transporter.sendMail({
-      from: getMailFrom('Jobtimize'),
-      to: toEmail,
-      subject,
-      html
-    });
-    console.log(`[EMAIL SERVICE] ĐÃ GỬI EMAIL THÀNH CÔNG TỚI ${toEmail}! MessageID: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error(`[EMAIL SERVICE] Lỗi gửi email tới ${toEmail}:`, error.message);
-    console.log(`[EMAIL SERVICE FALLBACK] Thông tin lời mời vẫn được lưu trữ an toàn trong tài khoản của ứng viên trên hệ thống Jobtimize.`);
-    return { success: false, error: error.message };
-  }
-};
+const sendApplicationNoticeEmail = ({ toEmail, candidateName, companyName, jobTitle, subject, message, employerEmail }) => sendRecruitmentEmail({
+  toEmail, replyTo: employerEmail, subject: '[Jobtimize] ' + subject, heading: 'Thông báo từ ' + companyName,
+  body: '<p>Xin chào ' + escapeHtml(candidateName) + ',</p><p>Về hồ sơ ứng tuyển vị trí <strong>' + escapeHtml(jobTitle) + '</strong>:</p>'
+    + '<p>' + escapeHtml(message).replace(/\n/g, '<br>') + '</p><p>Trân trọng,<br>' + escapeHtml(companyName) + '</p>',
+  href: '/candidate/dashboard?tab=applications'
+});
 
 const sendPaymentPendingEmail = async ({ toEmail, companyName, packageName, amount, transactionRef }) => {
   const transporter = createTransporter();
@@ -304,7 +220,9 @@ const sendPaymentSuccessEmail = async ({ toEmail, companyName, packageName, dura
 };
 
 module.exports = {
+  sendApplicationNoticeEmail,
   sendOtpEmail,
+  sendApplicationStatusEmail,
   sendInterviewEmail,
   sendInvitationEmail,
   sendPaymentPendingEmail,
