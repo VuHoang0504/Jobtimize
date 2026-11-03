@@ -1,0 +1,604 @@
+
+KẾ HOẠCH TRIỂN KHAI RBL INSIGHT VÀ MANUSCRIPT DRAFT
+Đề tài Jobtimize — Nền tảng tuyển dụng ứng dụng AI cho SWR302 và SWT301
+
+
+
+
+MỤC LỤC
+Tổng quan triển khai
+Bài toán chung: Nền tảng tuyển dụng Jobtimize
+Chuẩn đầu ra và năng lực cần hình thành
+Phân công nhóm và cơ chế kiểm chứng
+Triển khai cho môn SWR302 - Software Requirements
+Triển khai cho môn SWT301 - Software Testing
+Quy trình RBL Insight trong tháng 10/2026
+Hướng dẫn sử dụng AI Audit Log
+Cấu trúc manuscript draft 4-6 trang
+Rubric đánh giá chi tiết
+Mẫu biểu giao cho sinh viên
+Kế hoạch chọn nhóm nâng cấp gửi hội nghị
+Phụ lục prompt mẫu và biểu mẫu dữ liệu
+
+1. Tổng quan triển khai
+Nhóm 03 sử dụng Jobtimize làm case study để nghiên cứu cách AI hỗ trợ phân tích yêu cầu và thiết kế kiểm thử cho nền tảng tuyển dụng. Trọng tâm SWT301 là so sánh test case do AI sinh với bộ ca thủ công trên các nghiệp vụ OTP/JWT, ứng tuyển, CV matching và lịch phỏng vấn. Phần SWR302 bổ trợ việc chuẩn hóa requirement, user story và use case. Sản phẩm gồm dataset có expected result, prompt log, bảng đánh giá, phân tích lỗi và kế hoạch manuscript 4–6 trang.
+1.1. Mục tiêu triển khai
+Kiểm chứng output AI bằng controller, service, middleware và script kiểm thử thực tế của Jobtimize.
+Xây dựng dữ liệu có cấu trúc, tách yêu cầu đã triển khai, tiêu chí nghiên cứu đề xuất và kết quả thực nghiệm.
+Lưu prompt, phiên bản code, output gốc, nhận xét và phần chỉnh sửa của từng thành viên.
+Đánh giá chất lượng test case và unit test trước và sau khi con người hiệu chỉnh.
+Chuẩn bị dữ liệu và manuscript để giảng viên xem xét khả năng mở rộng nghiên cứu sau môn học.
+1.2. Phân biệt RBL, RBL Insight và Manuscript Draft
+2. Bài toán chung: Nền tảng tuyển dụng Jobtimize
+Jobtimize kết nối ứng viên và nhà tuyển dụng, có quản trị viên quản lý tài khoản và nội dung. Frontend dùng React 18, Vite và Tailwind CSS; backend dùng Node.js, Express và SQL Server. Hệ thống có đăng ký/xác thực OTP, JWT, tìm việc, CV nhiều phiên bản, ứng tuyển, ATS, AI matching, skill gap, lời mời, lịch phỏng vấn, thông báo và thanh toán PayOS. Nghiên cứu tập trung vào các nhánh nghiệp vụ có thể kiểm chứng từ code, không đánh đồng AI dùng để hỗ trợ kiểm thử với dịch vụ AI đang tích hợp trong sản phẩm.
+2.1. Mô tả nghiệp vụ
+Khách có thể tìm và xem tin tuyển dụng; ứng viên đăng nhập để lưu tin, quản lý hồ sơ và ứng tuyển.
+Ứng viên quản lý nhiều CV, chọn CV chính, tạo CV online và xác nhận dữ liệu kỹ năng trước khi đối chiếu với tin tuyển dụng.
+Nhà tuyển dụng quản lý hồ sơ doanh nghiệp, KYC, đăng tin, tìm ứng viên và quản lý hồ sơ trong ATS.
+AI matching đối chiếu kỹ năng đã xác nhận với yêu cầu tuyển dụng; skill gap chỉ ra kỹ năng thiếu và gợi ý khóa học.
+Nhà tuyển dụng gửi lời mời, đặt lịch phỏng vấn; ứng viên phản hồi theo trạng thái và phiên bản dữ liệu.
+Hệ thống lưu thông báo, hỗ trợ email tuyển dụng và xử lý gói dịch vụ/thanh toán PayOS ở phía server.
+Admin quản lý người dùng, kiểm duyệt doanh nghiệp/nội dung và xem báo cáo phân tích. JWT, vai trò và quyền sở hữu được kiểm tra ở backend.
+2.2. Actor và quyền hạn
+2.3. Quy tắc nghiệp vụ mẫu
+3. Chuẩn đầu ra và năng lực cần hình thành
+4. Phân công nhóm và cơ chế kiểm chứng
+Nhóm 03 gồm 5 thành viên, dùng một repository Jobtimize và bộ dữ liệu chung. Mỗi người phụ trách một module, đồng thời tham gia một cặp review chéo. Phần SWR302 cung cấp requirement có thể kiểm thử; phần SWT301 sử dụng cùng rule để thiết kế và đánh giá test. Phạm vi nghiên cứu chính gồm xác thực, ứng tuyển, matching và lịch phỏng vấn; PayOS, thông báo và admin là phạm vi hồi quy bổ trợ.
+5. Triển khai cho môn SWR302 - Software Requirements
+Môn SWR302 tập trung vào việc chuyển từ mô tả bài toán sang yêu cầu phần mềm có cấu trúc. AI được dùng như một công cụ hỗ trợ sinh ý tưởng ban đầu, sau đó sinh viên phải kiểm chứng bằng tư duy Business Analyst và Requirement Engineer.
+5.1. Nhóm SWR302-01 - AI sinh User Story
+Câu hỏi nghiên cứu: Với cùng mô tả Jobtimize, prompt có ngữ cảnh code và checklist INVEST có tạo user story rõ actor, đúng quyền và acceptance criteria kiểm thử được tốt hơn prompt đơn giản không?
+Sinh viên cần làm
+Chuẩn bị mô tả Jobtimize 300–500 từ, nêu ba vai trò Candidate, Employer, Admin và các điều kiện CV/OTP.
+Thiết kế ít nhất 3 prompt: prompt đơn giản, prompt đóng vai Business Analyst, prompt có checklist INVEST.
+Yêu cầu AI sinh user story theo format: As a [role], I want [goal], so that [benefit].
+Yêu cầu AI sinh acceptance criteria theo Given-When-Then.
+Nhóm đánh giá từng user story theo các tiêu chí: đúng actor, đúng goal, có business value, không trùng lặp, acceptance criteria kiểm thử được.
+Chọn 10–15 user story hợp lệ, gắn với rule và file nguồn; lưu cả bản AI gốc lẫn bản sửa.
+5.2. Nhóm SWR302-02 - AI phát hiện requirement mơ hồ
+Câu hỏi nghiên cứu: AI phát hiện được requirement mơ hồ về matching, phản hồi API và quyền truy cập của Jobtimize đến mức nào?
+Sinh viên cần làm
+Tạo 30–50 requirement cho Jobtimize, có câu rõ và câu mơ hồ; ghi rõ câu nào là tiêu chí đề xuất chưa có trong code.
+Nhóm tự dán nhãn Human Label: Clear hoặc Ambiguous.
+Dùng AI để phân loại từng requirement và giải thích lý do.
+So sánh AI Label với Human Label.
+Ghi nhận các lỗi thường gặp: AI đánh dấu sai, giải thích chung chung, gợi ý rewrite chưa đo lường được.
+Tính accuracy và precision/recall cho nhãn Ambiguous; thống kê rewrite được chấp nhận, không coi nhãn nhóm là chân lý tuyệt đối.
+5.3. Nhóm SWR302-03 - AI sinh Use Case Model
+Câu hỏi nghiên cứu: AI xác định đúng actor, main flow và nhánh lỗi của ứng tuyển, xác nhận CV và đặt lịch phỏng vấn hay không?
+Sinh viên cần làm
+Chuẩn bị mô tả Jobtimize và trích đoạn route/controller liên quan, loại bỏ bí mật và dữ liệu cá nhân.
+Yêu cầu AI xác định actor và danh sách use case.
+Viết specification cho 3 use case: Apply Job, Confirm CV và Schedule Interview; nêu tiền điều kiện, hậu điều kiện và nhánh lỗi.
+Nhóm vẽ use case diagram bằng công cụ như draw.io, PlantUML hoặc StarUML.
+Kiểm tra AI có nhầm quyền Candidate/Employer/Admin, thiếu điều kiện CV Ready, quyền sở hữu hoặc version hay không.
+Chỉnh sửa use case specification thành bản cuối.
+5.4. Nhóm SWR302-04 - So sánh chiến lược prompt
+Câu hỏi nghiên cứu: Trong Jobtimize, chiến lược prompt nào cho requirement đúng nghiệp vụ và dễ kiểm thử nhất khi giữ cùng input?
+Sinh viên cần làm
+Thiết kế ít nhất 4 prompt khác nhau.
+Chạy cùng một mô tả bài toán với từng prompt.
+Chuẩn hóa output thành bảng requirement.
+Đánh giá output theo tiêu chí: completeness, clarity, correctness, testability, non-duplication.
+So sánh số lượng requirement sinh ra, số requirement dùng được, số requirement mơ hồ.
+Rút ra prompt template cho Jobtimize, ghi rõ giới hạn áp dụng đối với domain khác.
+6. Triển khai cho môn SWT301 - Software Testing
+Với Jobtimize, SWT301 tập trung vào test case cho OTP/JWT và ứng tuyển, giá trị biên của matching và lịch phỏng vấn, unit test Node.js và test smell. Các script hiện có gồm test_otp.js, test_cv_normalization.js, test_cv_analysis.js, test_schedule_idor.js và test_payos_setup.js. Nghiên cứu dùng code làm căn cứ xác định expected, đồng thời lập tiêu chí nghiệp vụ thủ công để tránh chỉ sao chép lỗi hiện có của implementation.
+6.1. Nhánh SWT301 thứ nhất: AI sinh test case xác thực và ứng tuyển
+Câu hỏi nghiên cứu RQ1: Prompt có ngữ cảnh code giúp AI sinh test case đúng nghiệp vụ, đủ ca âm và ít trùng lặp hơn prompt chỉ mô tả chức năng hay không?
+Sinh viên cần làm
+Viết requirement cho OTP đăng ký/reset mật khẩu, kiểm tra JWT và POST /api/jobs/apply, gắn với rule BR01–BR04.
+Dùng hai chiến lược prompt P0 và P1 để sinh ít nhất 20 test case mỗi chiến lược; yêu cầu đủ ID, tiền điều kiện, input, bước chạy, expected và type.
+Nhóm tự thiết kế ít nhất 10 ca thủ công trước khi xem AI output, sau đó review độc lập để tạo bộ tham chiếu.
+So sánh từng bộ ca AI với bộ tham chiếu theo rule và nhánh nghiệp vụ; chuẩn hóa các ca tương đương trước khi đếm.
+Chấm correctness, testability, completeness và trùng lặp. Các lỗi khác nhau 401/403/404/409 phải có điều kiện cụ thể.
+Chốt bộ test cuối sau review; giữ liên kết từ test case đến output AI gốc và lý do sửa.
+6.2. Nhánh SWT301 thứ hai: AI sinh test biên matching và lịch phỏng vấn
+Câu hỏi nghiên cứu RQ2: AI có xác định đúng biên điểm matching, trạng thái CV và điều kiện thời gian/version của lịch phỏng vấn không?
+Sinh viên cần làm
+Mô tả matching: trọng số kỹ năng bắt buộc 2, tùy chọn 1; chỉ nhận kỹ năng verified và CV Ready; kết quả làm tròn bằng Math.round.
+Tạo ca 0%, 100%, một phần kỹ năng, không có tiêu chí, CV chưa Ready; thêm lịch quá khứ, đúng thời điểm hiện tại, tương lai và thiếu múi giờ.
+Thiết kế input gồm trạng thái CV, tập kỹ năng, yêu cầu tuyển dụng, now cố định, interviewDate, version và expected status/score.
+Tính expected bằng tay từ rule; phân biệt null/NotReady/NoCriteria với điểm 0 của CV đã sẵn sàng.
+Tính tỷ lệ expected đúng và tỷ lệ nhánh biên được bao phủ; mẫu số là bộ rule/biên đã chốt trước.
+Phân tích lỗi AI khi chia đều trọng số, dùng kỹ năng chưa xác nhận, bỏ qua múi giờ hoặc version cũ.
+6.3. Nhánh SWT301 thứ ba: AI sinh unit test bằng Node.js
+Câu hỏi nghiên cứu RQ3: Unit test do AI sinh có chạy được, assert đúng và phát hiện được nhánh lỗi quan trọng sau bao nhiêu chỉnh sửa?
+Sinh viên cần làm
+Chọn getOtpRecord/verifyOtp trong otpStore.js và compareSkills trong aiMatchingService.js, cô lập các dependency không thuộc phạm vi.
+Yêu cầu AI dùng node:test, node:assert/strict và CommonJS đúng với server; tham khảo test_otp.js và test_cv_normalization.js.
+Chạy trong môi trường cô lập; mock DB, SMTP và AI provider. Không gửi email hoặc gọi gateway thật trong unit test.
+Lưu lệnh chạy, số ca, kết quả, lỗi nạp module, assert sai, fixture thiếu và thời gian sửa; giữ output gốc trước hiệu chỉnh.
+Sửa test khi cần, ghi người sửa và lý do; không sửa implementation chỉ để làm assertion sai của AI thành đúng.
+Đo executability, assertion correctness và mức bao phủ rule. Chỉ ghi line/branch coverage khi có công cụ và báo cáo đo thực.
+6.4. Nhóm SWT301-04 - AI phát hiện test smell
+Câu hỏi nghiên cứu RQ4: AI phát hiện test smell trong script Node.js của Jobtimize có phù hợp với đánh giá độc lập của hai thành viên không?
+Sinh viên cần làm
+Chuẩn bị 20–30 đoạn test từ script Jobtimize hoặc biến thể phục vụ nghiên cứu; tách rõ code gốc và code được cài smell.
+Xét bốn smell: Assertion Roulette, Eager Test, Mystery Guest và Resource Optimism; mô tả quy tắc gán nhãn trước khi chạy AI.
+Hai thành viên dán nhãn độc lập trước khi xem output AI; lưu bất đồng và kết quả thống nhất sau review.
+Yêu cầu AI phân tích từng đoạn test, chỉ ra vị trí, bằng chứng và gợi ý refactor.
+So sánh AI label với nhãn thống nhất; tính precision/recall riêng cho mỗi smell, cho phép nhiều nhãn trên một mẫu.
+Ghi lỗi false positive/false negative; không coi mọi dependency tích hợp hoặc nhiều assertion đều mặc định là smell.
+6.5. Thiết kế so sánh và chỉ số đánh giá
+P0 chỉ cung cấp mô tả chức năng. P1 bổ sung cùng mô tả, rule và trích đoạn code. Mỗi chiến lược chạy tối thiểu 3 lần với cùng model/cấu hình và cùng yêu cầu số ca. Gán run ID, lưu output đầy đủ và không đưa bộ tham chiếu cho AI trước khi sinh. Dữ liệu nghiên cứu dự kiến gồm ít nhất 120 test case thô: 2 chiến lược × 3 lần × 20 ca. Đây là thiết kế thu thập, không phải số ca đã kiểm chứng.
+Correctness = số ca có expected đúng / tổng ca được chấm. Rule coverage = số rule/nhánh trong ma trận tham chiếu được kiểm tra hợp lệ / tổng rule/nhánh đã chốt. Duplicate rate = số ca lặp dư / tổng ca thô; giữ lại một ca đại diện cho mỗi nhóm tương đương.
+Executability = số unit test nạp và chạy được / tổng test sinh. Pass rate được báo cáo riêng, vì test pass vẫn có thể có assertion sai. Với nhãn mơ hồ/test smell, dùng precision = TP/(TP+FP), recall = TP/(TP+FN); mẫu số bằng 0 ghi N/A. Tổng hợp theo từng run và module trước khi tính trung bình, kèm khoảng min–max.
+Mỗi output được hai thành viên chấm độc lập; Phạm Tuấn Khôi tổng hợp bất đồng để cả nhóm thống nhất theo rule. Lưu thời gian và số chỉnh sửa ở bước human review. Chỉ so sánh prompt khi cùng input, môi trường và tiêu chí. Kết quả trên Jobtimize không đủ để suy ra độ chính xác AI nói chung.
+7. Quy trình RBL Insight trong tháng 10/2026
+8. Hướng dẫn sử dụng AI Audit Log
+AI Audit Log ghi ngày, thành viên, công cụ/model, prompt, output, đánh giá, phần sửa và kết quả kiểm chứng. Nhóm dùng file SWT301_AI_Log_Jobtimize_5ThanhVien.xlsx để tổng hợp theo Part1–Part4. Nhật ký tái dựng hoặc dữ liệu minh họa phải được phân biệt với log thực nghiệm thu thập khi chạy, vì chỉ dữ liệu kiểm chứng mới được dùng để kết luận trong manuscript.
+9. Cấu trúc manuscript draft 4-6 trang
+10. Rubric đánh giá chi tiết
+11. Mẫu biểu giao cho sinh viên
+11.1. Problem Statement của nhóm Jobtimize
+11.2. Bảng Requirement Dataset minh họa
+11.3. Bảng Test Case minh họa
+12. Kế hoạch chọn nhóm nâng cấp gửi hội nghị
+Nhóm 03 chỉ cân nhắc nâng cấp sau khi có dataset truy vết được, kết quả đo lặp lại và phản biện của giảng viên. Mức từ 80/100 trong rubric là điều kiện xem xét nội bộ, không phải bảo đảm bài được chấp nhận. Hướng mở rộng gồm nhiều lần chạy AI, thêm module hoặc thêm domain và đối chiếu related work.
+13. Phụ lục prompt mẫu và biểu mẫu dữ liệu
+13.1. Prompt sinh User Story
+13.2. Prompt phát hiện requirement mơ hồ
+13.3. Prompt sinh test case
+13.4. Prompt phát hiện test smell
+
+13.5. Nguồn minh chứng và tài liệu nền
+Nguồn mã: https://github.com/VuHoang0504/Jobtimize. Khi thực nghiệm, ghi commit/revision và môi trường để tái lập. Controller xác định API/side effect; service xác định rule; script kiểm thử chỉ được coi là bằng chứng chạy khi kèm log thực.
+Minh chứng ưu tiên: server/scripts/test_otp.js; test_cv_normalization.js; test_cv_analysis.js; test_schedule_idor.js; test_payos_setup.js. test_cv_analysis.js dùng database thử riêng và provider giả; không chạy ca tích hợp trên database đang sử dụng.
+[1] M. Chen et al., Evaluating Large Language Models Trained on Code, 2021. https://arxiv.org/abs/2107.03374. Dùng để phân biệt mã sinh ra với tính đúng chức năng.
+[2] ChatUniTest: A Framework for LLM-Based Test Generation, 2023. https://arxiv.org/abs/2305.04764. Tham khảo quy trình sinh, kiểm tra và sửa test; cần đánh giá lại trên stack Node.js.
+[3] Node.js, Test runner. https://nodejs.org/api/test.html. Tài liệu kỹ thuật cho node:test; ghi phiên bản Node khi chạy.
+[4] Node.js, Assert. https://nodejs.org/api/assert.html. Tài liệu kỹ thuật cho assertion dùng trong các suite Jobtimize.
+[5] OWASP, Insecure Direct Object Reference Prevention Cheat Sheet. https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html. Tham chiếu cho ca owner và truy cập đối tượng khác.
+Mục tiêu tài liệu
+Kế hoạch RBL của Nhóm 03 cho Jobtimize: phân tích yêu cầu, thiết kế kiểm thử có AI hỗ trợ, xây dựng dataset, đối chiếu với code, đo chất lượng output và chuẩn bị manuscript draft. Trọng tâm thực hiện là SWT301; SWR302 cung cấp các hoạt động phân tích yêu cầu liên quan.
+
+Hạng mục
+Nội dung
+Đối tượng áp dụng
+Nhóm 03, lớp SE1701; trọng tâm SWT301, liên hệ SWR302
+Bài toán chung
+Jobtimize — Nền tảng tuyển dụng ứng dụng AI
+Định hướng
+RBL Insight, AI Audit Log và manuscript draft
+Sản phẩm cuối
+Dataset, bộ test, log thực nghiệm, bảng đánh giá và manuscript 4–6 trang
+Vai trò AI
+Hỗ trợ sinh/phân tích output; nhóm chịu trách nhiệm xác định expected và kiểm chứng
+Giảng viên hướng dẫn
+Lê Thị Bích Tra — traltb@fe.edu.vn
+Thời gian triển khai
+01/10/2026–31/10/2026
+Repository
+https://github.com/VuHoang0504/Jobtimize
+Cách triển khai của nhóm
+Từ cùng một mô tả và phiên bản code Jobtimize, nhóm thiết kế bộ tham chiếu thủ công, dùng AI tạo output ban đầu, kiểm tra lỗi, đo chất lượng trước/sau hiệu chỉnh và rút ra insight. Không sử dụng số liệu minh họa làm kết quả thực nghiệm.
+
+Khái niệm
+Giải thích
+Điểm nhấn
+RBL
+Sinh viên học thông qua một vấn đề thực tế, có quy trình tìm hiểu, xây dựng giải pháp và phản ánh kết quả.
+Tập trung vào trải nghiệm học và sản phẩm môn học.
+RBL Insight
+Bổ sung yếu tố dữ liệu, đo lường, phân tích kết quả và rút ra insight từ quá trình học.
+Tập trung vào bằng chứng và kết quả có thể đánh giá.
+Manuscript Draft
+Bản thảo bài báo khoa học 4-6 trang được viết từ mini study của nhóm.
+Tập trung vào cấu trúc nghiên cứu: câu hỏi, phương pháp, thực nghiệm, kết quả, thảo luận.
+Conference Direction
+Chọn nhóm có kết quả tốt để chỉnh sửa, bổ sung related work và gửi hội nghị phù hợp.
+Không yêu cầu mọi nhóm đều phải được chấp nhận bài, nhưng mọi nhóm cần có bản thảo có cấu trúc.
+Actor
+Quyền hạn/chức năng chính
+Candidate
+Quản lý hồ sơ/CV, lưu tin, ứng tuyển, xem matching/skill gap, phản hồi lời mời và lịch phỏng vấn.
+Employer
+Quản lý doanh nghiệp/KYC, đăng tin, ATS, tìm ứng viên, gửi lời mời, hẹn phỏng vấn và mua gói dịch vụ.
+Admin
+Quản lý tài khoản, kiểm duyệt doanh nghiệp/nội dung và xem báo cáo quản trị.
+System và dịch vụ tích hợp
+Kiểm tra JWT/role, tính matching, xử lý thông báo, email và xác minh thanh toán. Đây là thành phần hỗ trợ, không phải tài khoản người dùng.
+Mã rule
+Nội dung rule và căn cứ
+BR01
+OTP tách theo email đã chuẩn hóa và purpose. TTL mặc định 10 phút; getOtpRecord loại mã khi now > expiresAt, nên phải kiểm tra cả mốc bằng. Nguồn: otpStore.js.
+BR02
+API bảo vệ yêu cầu Bearer JWT hợp lệ và user Active. Thiếu/xấu token trả 401; không thuộc role cho phép trả 403. Nguồn: authMiddleware.js.
+BR03
+Ứng tuyển dùng Candidate đã xác thực; tin phải Published và còn hạn; CV không archived và thuộc hồ sơ ứng viên. Nguồn: jobRoutes.js, jobController.js.
+BR04
+Ứng tuyển trùng hoặc CV thay đổi version trong quá trình gửi có thể trả 409. Hồ sơ lưu CVVersionID và chi tiết matching. Nguồn: jobController.js.
+BR05
+Matching cần CV Ready và dữ liệu xác nhận. Kỹ năng bắt buộc có trọng số 2, tùy chọn 1; chỉ tính kỹ năng verified. Điểm = round(earned/total × 100). Không có tiêu chí trả NoCriteria và null. Nguồn: aiMatchingService.js.
+BR06
+Đặt lịch nhận đúng một applicationId hoặc invitationId, kiểm tra owner, trạng thái và version; ngày phải ở tương lai và có múi giờ; Online yêu cầu http/https. Nguồn: recruitmentController.js.
+BR07
+Giá gói lấy từ DB; thanh toán được server xác minh và xử lý kích hoạt. Không dùng return URL làm bằng chứng trả tiền. Nguồn: paymentController.js, payosService.js, paymentService.js.
+Môn
+Năng lực
+Mô tả
+SWR302
+Phân tích yêu cầu
+Sinh viên xác định actor, stakeholder, functional requirement, non-functional requirement, use case, user story, acceptance criteria và phát hiện yêu cầu mơ hồ.
+SWR302
+Tư duy phản biện AI
+Sinh viên biết đánh giá output AI: thiếu gì, sai gì, mơ hồ ở đâu, cần viết lại thế nào.
+SWT301
+Thiết kế kiểm thử
+Sinh viên thiết kế test case, boundary value, negative test, unit test và đánh giá test coverage ở mức cơ bản.
+SWT301
+Đánh giá chất lượng kiểm thử
+Sinh viên nhận diện test case trùng lặp, thiếu expected result, thiếu pre-condition, test smell và test không chạy được.
+Cả hai môn
+Nghiên cứu nhỏ
+Sinh viên biết đặt câu hỏi nghiên cứu, thiết kế dữ liệu nhỏ, thu thập kết quả, phân tích và viết manuscript draft.
+Cả hai môn
+AI Audit Log
+Sinh viên ghi lại prompt, công cụ dùng, output, chỉnh sửa của con người và bài học rút ra.
+Thành viên hoặc hoạt động
+Phạm vi
+Nhiệm vụ và đầu ra
+A — Đỗ Minh Tuấn Anh
+Auth và quản trị
+Trưởng nhóm; OTP/JWT, ma trận quyền, tích hợp báo cáo và kiểm tra truy vết kết quả.
+B — Bì Lê Vũ Hoàng
+Việc làm và doanh nghiệp
+Requirement tìm việc/đăng tin/KYC; test dữ liệu đầu vào và luồng Employer.
+C — Nguyễn Thành Phước
+CV và AI matching
+Bộ dữ liệu kỹ năng, rule trọng số/Ready, ca biên và so sánh expected bằng tay.
+D — Mai Xuân Quý
+Tuyển dụng và PayOS
+Ca ứng tuyển, lời mời, lịch, owner/version và hồi quy thanh toán.
+E — Phạm Tuấn Khôi
+Dữ liệu và đánh giá thực nghiệm
+Chuẩn hóa dataset, dán nhãn test smell, tổng hợp metric và biên tập phương pháp/giới hạn.
+Review chéo
+A với B; C với D; E tổng hợp
+Hai người đánh giá độc lập; lưu bất đồng trước khi thống nhất nhãn.
+SWR302 liên quan
+User story, requirement, use case
+Dùng cùng rule Jobtimize làm input để thiết kế test SWT301.
+SWT301 trọng tâm
+Test design, unit test, test smell
+Đối chiếu AI với bộ tham chiếu; kiểm chứng trong môi trường phù hợp và viết manuscript.
+Tên manuscript draft gợi ý
+AI Assisted User Story Generation for Jobtimize
+
+Hạng mục
+Yêu cầu tối thiểu
+Số user story AI sinh
+Ít nhất 20
+Số user story dùng được sau đánh giá
+Tối thiểu 10
+Dữ liệu bắt buộc
+Prompt log, AI output, bảng đánh giá, user story sau chỉnh sửa
+Kết quả manuscript
+Bảng so sánh chất lượng giữa các prompt
+Tên manuscript draft gợi ý
+Detecting Ambiguous Requirements in an AI Recruitment Platform
+
+Hạng mục
+Yêu cầu tối thiểu
+Số requirement
+30-50
+Tỷ lệ câu mơ hồ đề xuất
+Khoảng 40-50%
+Dữ liệu bắt buộc
+Requirement dataset, human label, AI label, reason, rewritten requirement
+Kết quả manuscript
+Bảng confusion đơn giản và phân tích lỗi
+Tên manuscript draft gợi ý
+Prompt Based Use Case Modeling for Jobtimize
+
+Hạng mục
+Yêu cầu tối thiểu
+Số actor
+Ít nhất 3 actor người dùng: Candidate, Employer, Admin
+Số use case
+Ít nhất 10 use case thuộc các module đã triển khai
+Use case specification chi tiết
+Apply Job, Confirm CV và Schedule Interview
+Kết quả manuscript
+Bảng lỗi AI trong xác định actor/use case và đề xuất prompt cải tiến
+Tên manuscript draft gợi ý
+Comparing Prompting Strategies for Jobtimize Requirements
+
+Hạng mục
+Yêu cầu tối thiểu
+Số prompt
+Ít nhất 4
+Số tiêu chí đánh giá
+Ít nhất 5
+Dữ liệu bắt buộc
+Prompt, AI output, bảng chấm điểm, nhận xét
+Kết quả manuscript
+Biểu đồ/bảng so sánh điểm trung bình từng prompt
+Tên manuscript draft gợi ý
+Evaluating AI Generated Authentication and Job Application Test Cases
+
+Hạng mục
+Yêu cầu tối thiểu
+Số test case AI sinh
+Ít nhất 20 ca mỗi chiến lược P0/P1; lưu số thực tế khi chạy
+Số test case thủ công
+Ít nhất 10 ca tham chiếu viết trước khi xem AI output
+Chức năng kiểm thử
+OTP/JWT và ứng tuyển qua POST /api/jobs/apply
+Kết quả manuscript
+Bảng correctness, rule coverage, duplicate rate và lỗi đặc trưng
+Tên manuscript draft gợi ý
+AI Assisted Boundary Test Design for CV Matching and Interview Scheduling
+
+Hạng mục
+Yêu cầu tối thiểu
+Số test case
+Ít nhất 20 ca cho matching và lịch phỏng vấn
+Boundary case bắt buộc
+Ready/NotReady/NoCriteria; 0/67/100%; past/now/future; version cũ
+Dữ liệu bắt buộc
+Input có now cố định, CV version, skills, criteria và expected score/status
+Kết quả manuscript
+Tỷ lệ expected đúng, mức bao phủ biên và phân tích lỗi
+Tên manuscript draft gợi ý
+Assessing AI Generated Node.js Unit Tests in Jobtimize
+
+Hạng mục
+Yêu cầu tối thiểu
+Số hàm kiểm thử
+Ít nhất 2 hàm hoặc nhóm hàm từ otpStore/compareSkills
+Số unit test
+Ít nhất 8 unit test; dùng node:test và node:assert/strict
+Minh chứng bắt buộc
+Lệnh chạy, log nguyên bản, output AI và test sau hiệu chỉnh
+Kết quả manuscript
+Executability, assertion correctness, số chỉnh sửa và lỗi dependency
+Tên manuscript draft gợi ý
+Detecting Test Smells in Jobtimize Node.js Tests
+
+Hạng mục
+Yêu cầu tối thiểu
+Số test code
+20–30 đoạn test gốc/biến thể có nguồn và ID
+Số loại smell
+4 loại smell; một mẫu có thể có nhiều nhãn
+Dữ liệu bắt buộc
+Test code, nhãn của hai người, nhãn thống nhất, AI label và lý do
+Kết quả manuscript
+Precision/recall theo smell, false positive/negative và ví dụ
+Giai đoạn
+Hoạt động chính
+Sản phẩm nộp
+Vai trò giảng viên
+01–03/10/2026
+Chốt scope Jobtimize, rule và phân công 5 người.
+Đăng ký đề tài và phạm vi
+Góp ý giới hạn nghiên cứu.
+04–06/10/2026
+Viết problem statement, RQ và ma trận rule–file.
+Problem statement và RQ1–RQ4
+Duyệt câu hỏi và expected nền.
+07–09/10/2026
+Thiết kế P0/P1 và mẫu AI Audit Log.
+Prompt v1, output thử
+Kiểm tra ngữ cảnh và format.
+10–12/10/2026
+Tạo dataset và bộ tham chiếu thủ công.
+Dataset v1 và nhãn độc lập
+Review rule, mẫu số và bất đồng.
+13–15/10/2026
+Chạy thí nghiệm chính, lưu model/config và code revision.
+Output gốc, log và bảng chấm
+Kiểm tra quy trình có thể lặp lại.
+16–18/10/2026
+Tính metric, phân loại lỗi và review chéo.
+Bảng kết quả thực và error analysis
+Kiểm tra phép tính và kết luận.
+19–21/10/2026
+Viết manuscript lần 1 theo khung 4–6 trang.
+Draft v1, bảng và ví dụ
+Phản biện phương pháp và minh chứng.
+22–24/10/2026
+Chỉnh sửa bộ test và chuẩn hóa phần so sánh.
+Draft v2 và bảng phản hồi
+Kiểm tra thay đổi sau review.
+25–28/10/2026
+Hoàn thiện discussion, validity, references và log.
+Manuscript final và dataset final
+Rà soát nhất quán giữa dữ liệu và claim.
+29–31/10/2026
+Trình bày, phản biện và lập kế hoạch mở rộng.
+Slide, demo, submission checklist
+Đánh giá theo rubric, góp ý hướng nâng cấp.
+Trường thông tin
+Cách ghi
+Ngày/giờ
+Ngày/giờ thực tế; dùng DD/MM/YYYY, các mốc kế hoạch thuộc 10/2026.
+Công cụ AI
+Tên công cụ, model/version và cấu hình nếu truy cập được; không tự đoán phiên bản.
+Mục tiêu prompt
+Sinh requirement, test OTP/matching, unit test hoặc phân tích test smell của Jobtimize.
+Prompt đầy đủ
+Dán nguyên văn prompt đã dùng.
+Output tóm tắt
+Lưu output gốc với ID và đường dẫn minh chứng; tách output thử và output chính thức.
+Đánh giá của nhóm
+Ghi rule bị sai/thiếu, trạng thái hoặc assertion không hợp lệ; dẫn file/ca tham chiếu.
+Human modification
+Ghi phần sửa, người sửa và lý do; giữ bản trước/sau để đo công sức hiệu chỉnh.
+Bài học rút ra
+Prompt nào hiệu quả, lỗi nào thường gặp, lần sau cải thiện ra sao.
+Nguyên tắc bắt buộc
+Không chấm điểm cao cho nhóm chỉ nộp output AI mà không có đánh giá của con người. Điểm RBL Insight nằm ở phần kiểm chứng, phân tích, phản biện và cải tiến kết quả.
+Nguyên tắc bắt buộc
+Không chấm điểm cao cho nhóm chỉ nộp output AI mà không có đánh giá của con người. Điểm RBL Insight nằm ở phần kiểm chứng, phân tích, phản biện và cải tiến kết quả.
+Phần
+Nội dung cần viết cho Jobtimize
+Title
+Evaluating AI Generated Test Cases for the Jobtimize Recruitment Platform. Chốt tên theo phạm vi và kết quả thực thu được.
+Abstract
+150–200 từ: bối cảnh tuyển dụng, RQ, P0/P1, dataset, phương pháp đánh giá và phát hiện. Chỉ điền số đo sau thực nghiệm.
+1. Introduction
+Rủi ro sai rule ở OTP, ứng tuyển, matching và lịch; lý do đánh giá AI; mục tiêu và RQ chính.
+2. Related Work
+Tổng hợp 3–5 nghiên cứu về AI sinh test, oracle và test smell; phân biệt kết quả nghiên cứu Java với hệ Node.js.
+3. Methodology
+Phiên bản code, dataset, bộ tham chiếu độc lập, P0/P1, số lần lặp, model/config, tiêu chí chấm và xử lý bất đồng.
+4. Experiment / Case Study
+Kiến trúc React–Express–SQL Server; module chọn; fixture có owner/version; mock SMTP/model và DB thử riêng.
+5. Results and Discussion
+Bảng metric thực, ví dụ lỗi 401/403, OTP boundary, trọng số 2:1 và version. Phân biệt output AI gốc và sau sửa.
+6. Threats to Validity
+Một dự án, mẫu nhỏ, nhãn chủ quan, biến thiên AI, rò rỉ bộ tham chiếu và nguy cơ dùng code làm oracle duy nhất.
+7. Conclusion
+Trả lời RQ dựa trên số đo; nêu khi nào cần human review và phạm vi chưa thể khái quát.
+References
+Tối thiểu 5 tài liệu theo IEEE/APA; gồm nghiên cứu, tài liệu kỹ thuật và snapshot repository.
+Tiêu chí
+Tỷ trọng
+Mức tốt
+Mức cần cải thiện
+Problem & Scope
+10%
+Bài toán rõ, phạm vi vừa sức, có actor/rule nghiệp vụ cụ thể.
+Phạm vi rộng, thiếu actor/rule hoặc không gắn với Jobtimize.
+Dataset/Input
+15%
+Dataset đủ số lượng, có ID, nguồn, rule và expected/nhãn; phân biệt dữ liệu thử và thực.
+Dataset ít, thiếu nhãn, thiếu rule hoặc không kiểm chứng được.
+AI Audit Log
+15%
+Ghi đầy đủ prompt, output, nhận xét, chỉnh sửa và reflection.
+Chỉ nộp output AI, thiếu prompt hoặc thiếu đánh giá của nhóm.
+Experiment Design
+15%
+Giữ input chung khi so P0/P1; có bộ tham chiếu độc lập, tiêu chí chấm và số lần lặp rõ.
+Chỉ mô tả kết quả, không có phương pháp đánh giá.
+Result Analysis
+15%
+Có số đo thực, mẫu số rõ, ví dụ sai/thiếu và phân tích công sức sửa.
+Kết quả mang tính kể lại, không có số liệu hoặc phân tích.
+Technical Output
+10%
+Có user story/use case/test case/unit test/test smell dataset đúng format.
+Output thiếu format, thiếu expected result hoặc khó dùng lại.
+Manuscript Draft
+15%
+Đủ cấu trúc paper, viết mạch lạc, có bảng/hình, có hạn chế và kết luận.
+Giống báo cáo môn học, thiếu cấu trúc nghiên cứu.
+Presentation & Reflection
+5%
+Trình bày rõ, trả lời được nhóm đã học gì khi dùng AI.
+Trình bày rời rạc, không nêu được bài học.
+Mục
+Nội dung
+Tên nhóm
+Nhóm 03 — lớp SE1701 — SWT301
+Tên chủ đề
+Đánh giá AI hỗ trợ thiết kế kiểm thử cho nền tảng tuyển dụng Jobtimize
+Bối cảnh
+Jobtimize dùng React, Express và SQL Server; xử lý xác thực, CV, ứng tuyển và tuyển dụng nhiều vai trò.
+Vấn đề
+AI có thể sinh ca nhanh nhưng dễ sai điều kiện owner/version, OTP purpose và weighted matching; cần kiểm chứng bằng rule và bộ tham chiếu.
+Câu hỏi nghiên cứu
+RQ chính: bổ sung code/rule vào prompt có cải thiện correctness và rule coverage của test case so với prompt mô tả đơn giản không?
+Dữ liệu đầu vào
+Rule BR01–BR07, route/controller/service chọn, bộ tham chiếu ít nhất 10 ca, output AI P0/P1 và script liên quan.
+Kết quả mong đợi
+Dataset có truy vết, bảng so sánh P0/P1, log chỉnh sửa, error analysis và manuscript draft 4–6 trang.
+ID
+Requirement
+Human Label
+AI Label
+Đúng/Sai
+AI Rewrite
+Ghi chú
+REQ01
+Hệ thống tìm việc nhanh.
+Ambiguous
+Chưa chạy
+Chưa chấm
+Đề xuất: P95 ≤ 2 giây với 20 request đồng thời trên môi trường và dataset đã chốt.
+Tiêu chí nghiên cứu đề xuất; chưa phải SLA đã đạt.
+REQ02
+Matching chỉ tính kỹ năng verified, trọng số bắt buộc 2 và tùy chọn 1.
+Clear
+Chưa chạy
+Chưa chấm
+Không cần viết lại.
+Đối chiếu compareSkills.
+REQ03
+AI luôn đưa ra ứng viên phù hợp.
+Ambiguous
+Chưa chạy
+Chưa chấm
+Hiển thị skill score và kỹ năng khớp/thiếu của CV Ready; không diễn giải thành xác suất tuyển dụng.
+Cần tách score kỹ năng với quyết định tuyển dụng.
+TC ID
+Feature
+Scenario
+Pre-condition
+Input
+Steps
+Expected Result
+Type
+TC01
+OTP
+Đúng thời điểm hết TTL
+Lưu OTP đăng ký; cố định now.
+now = expiresAt
+Lưu OTP, đặt đồng hồ, gọi getOtpRecord.
+Record còn tồn tại vì code chỉ loại khi now > expiresAt.
+Boundary
+TC02
+CV match
+Khớp kỹ năng bắt buộc
+CV Ready; kỹ năng A verified.
+Yêu cầu A bắt buộc, B tùy chọn.
+Gọi compareSkills với fixture.
+Ready; điểm 67%; A khớp, B thiếu.
+Positive
+TC03
+Interview
+Dữ liệu version cũ
+Employer sở hữu hồ sơ; có lịch version 2.
+Gửi version 1; ngày tương lai có múi giờ.
+Gửi yêu cầu đổi lịch với version cũ.
+409; không cập nhật lịch hoặc tạo thông báo thành công.
+Negative
+Bước
+Hoạt động
+Kết quả
+Bước 1
+Chấm manuscript draft cuối kỳ theo rubric.
+Nhóm được xem xét nội bộ khi đạt từ 80/100 và có dữ liệu kiểm chứng.
+Bước 2
+Giảng viên chọn nhóm có dữ liệu sạch, kết quả rõ, câu hỏi nghiên cứu phù hợp.
+Danh mục hạng mục cần nâng cấp của Nhóm 03.
+Bước 3
+Bổ sung related work và chuẩn hóa định dạng bài báo.
+Bản paper 6-8 trang.
+Bước 4
+Tăng dataset, lặp lại nhiều lần, thêm module hoặc domain đối chứng; thu thập dữ liệu thực.
+Kết quả mạnh hơn bản môn học.
+Bước 5
+Giảng viên cùng nhóm xác định seminar/hội nghị phù hợp sau khi kiểm tra chất lượng và yêu cầu hiện hành.
+Submission package.
+Bước 6
+Tập dượt trình bày và phản biện.
+Slide, poster, demo dataset.
+Prompt mẫu
+Act as a business analyst for Jobtimize, an AI-assisted recruitment platform built with React, Express and SQL Server. Generate 20 user stories for Candidate, Employer and Admin. Cover authentication, CV confirmation, job application, interview scheduling and subscriptions. Use As a [role], I want [goal], so that [benefit] with Given-When-Then acceptance criteria. Use only the supplied rules. Mark proposals separately.
+
+Prompt mẫu
+Review these Jobtimize user stories using INVEST. Check actor permissions, CV Ready state, verified skills, ownership and version conflicts. Explain each issue and rewrite the story with measurable acceptance criteria. Do not invent implemented limits or successful experiment results.
+
+Prompt mẫu
+For each supplied Jobtimize requirement, classify Clear or Ambiguous. Explain whether actor, action, condition and expected result are testable. If ambiguous, propose a measurable rewrite and label any new threshold as a proposal. Return ID, original text, label, reason, rewrite and supporting code/rule. Do not assume response-time SLAs from the implementation.
+
+Prompt mẫu
+Act as a QA engineer for Jobtimize. Using BR01–BR06 and the supplied otpStore.js, jobController.js, aiMatchingService.js and recruitmentController.js excerpts, generate at least 20 tests. Include positive, negative, boundary and role/ownership cases. Return ID, rule, precondition, input, steps, expected HTTP or return value, side effect and type. Check OTP purpose and exact expiry, verified skills with weights 2:1, CV version, interview timezone and stale version. Do not fabricate endpoints.
+
+Prompt mẫu
+Analyze the supplied Jobtimize CommonJS node:test code for Assertion Roulette, Eager Test, Mystery Guest and Resource Optimism. Return sample ID, smell labels, exact evidence, reason and a minimal refactor. Multiple labels are allowed. Do not classify every integration dependency or every group of related assertions as a smell. Preserve the behavior and do not call external SMTP, AI or payment services.

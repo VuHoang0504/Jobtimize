@@ -1,6 +1,7 @@
 const { withTransaction, enqueue } = require('../services/notificationStore');
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
+const { canViewApplicantMatching, applicantMatchDetails } = require('../services/applicantMatchingAccess');
 
 // Helper to get EmployerID from authenticated UserID
 const getEmployerId = async (userId) => {
@@ -543,6 +544,7 @@ const getJobApplicantsATS = async (req, res) => {
     }
 
     const jobInfo = jobCheck.recordset[0];
+    const matchingAccess = await canViewApplicantMatching(emp.EmployerID);
 
     const applicantsQuery = `
       SELECT ja.ApplicationID, ja.JobID, ja.ProfileID, ja.CVID, ja.MatchDetailsJson, ja.MatchScore, ja.Status, ja.AppliedAt,
@@ -561,7 +563,7 @@ const getJobApplicantsATS = async (req, res) => {
       JOIN Users u ON cp.UserID = u.UserID
       LEFT JOIN CVs cv ON ja.CVID = cv.CVID
       WHERE ja.JobID = @JobID
-      ORDER BY ja.MatchScore DESC, ja.AppliedAt DESC
+      ORDER BY ${matchingAccess ? 'ja.MatchScore DESC,' : ''} ja.AppliedAt DESC
     `;
 
     const applicantsRes = await executeQuery(applicantsQuery, { JobID: jobId });
@@ -575,6 +577,7 @@ const getJobApplicantsATS = async (req, res) => {
       }
       return {
         ...a,
+        ...applicantMatchDetails(a, matchingAccess),
         CVTitle: (() => { try { return JSON.parse(a.MatchDetailsJson)?.cvTitle || a.CVTitle; } catch { return a.CVTitle; } })(),
         CVFileUrl: a.CVID ? `/api/cv-documents/applications/${a.ApplicationID}/file` : null,
         interview,
@@ -586,6 +589,7 @@ const getJobApplicantsATS = async (req, res) => {
       success: true,
       data: {
         job: jobInfo,
+        matchingAccess,
         applicants
       }
     });
@@ -644,8 +648,7 @@ const getEmployerSubscription = async (req, res) => {
     const subscription = subRes.recordset[0] || null;
 
     // Tính toán cấp bậc gói cao nhất đã mở khóa (Tier Inheritance)
-    // Khi nạp gói 5.000VND, maxUnlockedPrice >= 5000: Có thể sử dụng cả gói 5.000VND & 2.000VND và có nút luân phiên chuyển đổi
-    // Khi chỉ nạp gói 2.000VND, maxUnlockedPrice = 2000: Không có quyền chuyển sang gói 5.000VND
+    // Tier thresholds follow current package prices.
     let maxUnlockedPrice = 0;
     let unlockedPackageIds = [1]; // Gói Starter (0 VND) luôn mở khóa
 
@@ -670,9 +673,12 @@ const getEmployerSubscription = async (req, res) => {
       unlockedPackageIds = unlockedRes.recordset.map(p => p.PackageID);
     }
 
-    const canSwitchBetweenTiers = maxUnlockedPrice >= 5000;
-    const hasEnterpriseAccess = maxUnlockedPrice >= 5000;
-    const hasProAccess = maxUnlockedPrice >= 2000;
+    const paidPackages = (await executeQuery('SELECT Price FROM SubscriptionPackages WHERE Price > 0 ORDER BY Price')).recordset;
+    const proPrice = Number(paidPackages[0]?.Price);
+    const enterprisePrice = Number(paidPackages[paidPackages.length - 1]?.Price);
+    const hasEnterpriseAccess = enterprisePrice > 0 && maxUnlockedPrice >= enterprisePrice;
+    const hasProAccess = proPrice > 0 && maxUnlockedPrice >= proPrice;
+    const canSwitchBetweenTiers = hasEnterpriseAccess;
 
     const responseData = subscription
       ? {
@@ -717,7 +723,10 @@ const getPaymentHistory = async (req, res) => {
     }
 
     const historyRes = await executeQuery(
-      `SELECT pt.PaymentID, pt.TransactionRef, pt.Amount, pt.Status, pt.PaymentMethod,
+      `SELECT pt.PaymentID, pt.TransactionRef, pt.Amount,
+              CASE WHEN pt.Status = 'Pending' AND DATEADD(minute, 5, pt.CreatedAt) <= GETDATE()
+                   THEN 'Failed' ELSE pt.Status END AS Status,
+              pt.PaymentMethod,
               pt.GatewayTransactionNo, pt.CreatedAt, pt.PaidAt,
               sp.PackageName
        FROM PaymentTransactions pt
@@ -1110,7 +1119,7 @@ const switchSubscriptionPackage = async (req, res) => {
     if (Number(targetPack.Price) > maxUnlockedPrice && targetPack.PackageID !== 1) {
       return res.status(403).json({
         success: false,
-        message: `Bạn chưa sở hữu gói ${targetPack.PackageName}. Chỉ khi nạp gói 5.000VND bạn mới có quyền luân phiên chuyển đổi sử dụng gói này!`
+        message: `Bạn chưa mở khóa gói ${targetPack.PackageName}. Vui lòng mua gói này hoặc gói có giá cao hơn để sử dụng.`
       });
     }
 

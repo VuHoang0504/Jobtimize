@@ -1,0 +1,16 @@
+import fs from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {pathToFileURL} from 'node:url';
+const require=createRequire('C:/Users/duong/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/package.json');
+const {FileBlob,SpreadsheetFile}=await import(pathToFileURL(require.resolve('@oai/artifact-tool')).href);
+const dir='C:/Users/duong/Desktop/Jobtimize/outputs/jobtimize-ai-log';
+const wb=await SpreadsheetFile.importXlsx(await FileBlob.load(`${dir}/SWT301_AI_Log_Jobtimize_CapNhatTen.xlsx`));
+const sh=wb.worksheets.getItem('Thông tin nhóm');
+sh.getRange('B17:G17').copyFrom(sh.getRange('B16:G16'),'all');
+sh.getRange('B17:G17').format.rowHeight=18;
+sh.getRange('B17:G17').values=[['E','Phạm Tuấn Khôi','N/A','N/A','Thành viên',null]];
+sh.getRange('C9').values=[[5]];
+wb.recalculate();
+const preview=await wb.render({sheetName:'Thông tin nhóm',range:'B11:G18',scale:1.5,format:'png'});
+await fs.writeFile(`${dir}/five-members.png`,new Uint8Array(await preview.arrayBuffer()));
+await (await SpreadsheetFile.exportXlsx(wb)).save(`${dir}/five-authored.xlsx`);

@@ -10,9 +10,9 @@ import { TEMPLATES, FONTS, SECTION_LABELS, ITEM_DEFAULTS, defaultDesign, normali
 import '../../styles/cv-builder.css';
 import { fontStyles } from '../../../../shared/cv/fonts.mjs';
 
-const emptyCV = () => normalizeCV({ experiences: [{ ...ITEM_DEFAULTS.experiences }], educations: [{ ...ITEM_DEFAULTS.educations }],
+const emptyCV = () => normalizeCV({ personal: { fullName: 'CV_Name' }, experiences: [{ ...ITEM_DEFAULTS.experiences }], educations: [{ ...ITEM_DEFAULTS.educations }],
   design: { ...defaultDesign('minimal'), hidden: ['awards', 'interests', 'activities', 'references', 'additional', 'projects', 'certifications', 'languages'] } }, 'minimal');
-const initial = { title: 'CV của tôi', template: 'minimal', cvData: emptyCV(), isPrimary: false };
+const initial = { title: 'Jobtimize CV', template: 'minimal', cvData: emptyCV(), isPrimary: false };
 const serialize = value => JSON.stringify(value);
 const asDataURL = blob => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
 
@@ -60,19 +60,19 @@ export default function CVBuilderPage() {
           if (!response.success || !row?.CvData) throw new Error('Không tìm thấy dữ liệu CV online.');
           const template = TEMPLATES[row.Template] ? row.Template : 'modern';
           const raw = typeof row.CvData === 'string' ? JSON.parse(row.CvData) : row.CvData;
-          next = { title: row.Title || 'CV của tôi', template, isPrimary: !!row.IsPrimary, cvData: normalizeCV(raw, template) };
+          next = { title: row.Title || 'Jobtimize CV', template, isPrimary: !!row.IsPrimary, cvData: normalizeCV(raw, template) };
         } else {
           const { data: response } = await api.get('/candidate/profile');
           const p = response.data || {};
           let bio = {};
           try { bio = typeof p.Bio === 'string' && p.Bio.startsWith('{') ? JSON.parse(p.Bio) : {}; } catch { /* Keep plain profile data. */ }
           const cvData = emptyCV();
-          cvData.personal = { ...cvData.personal, fullName: p.FullName || '', headline: p.Headline || '', email: p.Email || '', phone: p.Phone || '', location: p.CurrentLocation || '', ...Object.fromEntries(['linkedin', 'github', 'portfolio'].map(k => [k, bio.links?.[k] || ''])) };
+          cvData.personal = { ...cvData.personal, fullName: 'CV_Name', headline: p.Headline || '', email: p.Email || '', phone: p.Phone || '', location: p.CurrentLocation || '', ...Object.fromEntries(['linkedin', 'github', 'portfolio'].map(k => [k, bio.links?.[k] || ''])) };
           cvData.summary = bio.bioText || bio.bio || (p.Bio && !p.Bio.startsWith('{') ? p.Bio : '') || '';
           const fromProfile = normalizeCV({ experiences: bio.experiences, educations: bio.educations, skills: bio.skills, ...bio.additionalInfo }, 'minimal');
           for (const key of Object.keys(ITEM_DEFAULTS)) if (fromProfile[key].length) { cvData[key] = fromProfile[key]; cvData.design.hidden = cvData.design.hidden.filter(k => k !== key); }
           cvData.skills = fromProfile.skills;
-          next = { title: p.FullName ? `CV ${p.FullName}` : 'CV của tôi', template: 'minimal', cvData, isPrimary: false };
+          next = { title: 'Jobtimize CV', template: 'minimal', cvData, isPrimary: false };
         }
         if (!cancelled) { editor.reset(next); setSaved(serialize(next)); loadedId.current = id; }
       } catch (err) { if (!cancelled) setLoadError(err.response?.data?.message || err.message || 'Không tải được CV.'); }

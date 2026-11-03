@@ -1,18 +1,33 @@
 const { sql, config } = require('../src/config/db');
 const jobs = require('./data/browseJobs');
 
-async function seedBrowseJobs(pool) {
+async function seedBrowseJobs(pool, { onlyMissing = false } = {}) {
   const transaction = new sql.Transaction(pool);
   await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
   try {
     let inserted = 0;
     let migrated = 0;
+    let skipped = 0;
     for (const job of jobs) {
+      if (onlyMissing) {
+        const existing = await new sql.Request(transaction)
+          .input('CategoryName', sql.NVarChar(100), job.categoryName)
+          .query(`SELECT TOP 1 jp.JobID FROM JobPostings jp
+            JOIN JobCategories c ON c.CategoryID = jp.CategoryID
+            JOIN Employers e ON e.EmployerID = jp.EmployerID
+            JOIN Users u ON u.UserID = e.UserID
+            WHERE c.CategoryName = @CategoryName AND jp.Status = 'Published'
+              AND (jp.ExpiresAt IS NULL OR jp.ExpiresAt > GETDATE()) AND u.Status = 'Active'`);
+        if (existing.recordset.length) { skipped++; continue; }
+      }
       if (!job.company) throw new Error('Missing demo company for ' + job.categoryName);
       const employer = await new sql.Request(transaction)
         .input('Email', sql.NVarChar(255), 'browse-demo-' + job.company.slug + '@jobtimize.example.invalid')
         .input('CompanyName', sql.NVarChar(200), job.company.companyName)
         .input('Logo', sql.NVarChar(500), job.company.companyLogoUrl)
+        .input('CompanyDescription', sql.NVarChar(sql.MAX), `${job.company.companyName} hoạt động trong lĩnh vực ${job.categoryName.toLowerCase()}. Đội ngũ chú trọng đào tạo chuyên môn, chất lượng dịch vụ và phát triển nhân viên. Doanh nghiệp và thông tin liên hệ là dữ liệu minh họa Jobtimize, không phải thông báo tuyển dụng thực tế.`)
+        .input('Address', sql.NVarChar(500), `Tòa nhà Jobtimize Demo, ${job.location}, Việt Nam (địa chỉ minh họa)`)
+        .input('Website', sql.NVarChar(255), `https://${job.company.slug}.example.invalid`)
         .query(`
           DECLARE @UserID INT, @EmployerID INT;
           SELECT @UserID = UserID FROM Users WHERE Email = @Email;
@@ -30,12 +45,16 @@ async function seedBrowseJobs(pool) {
           SELECT @EmployerID = EmployerID FROM Employers WHERE UserID = @UserID;
           IF @EmployerID IS NULL
           BEGIN
-            INSERT INTO Employers (UserID, CompanyName, CompanyLogoUrl, Description, CompanySize, Address, KYCStatus)
-            VALUES (@UserID, @CompanyName, @Logo, N'Dữ liệu minh họa Jobtimize. Không phải doanh nghiệp hoặc tin tuyển dụng thực tế.',
-              N'100 - 500 nhân viên', N'Việt Nam', 'Pending');
+            INSERT INTO Employers (UserID, CompanyName, CompanyLogoUrl, Website, Description, CompanySize, Address, KYCStatus)
+            VALUES (@UserID, @CompanyName, @Logo, @Website, @CompanyDescription,
+              N'100 - 500 nhân viên', @Address, 'Pending');
             SET @EmployerID = SCOPE_IDENTITY();
           END
-          ELSE UPDATE Employers SET CompanyName = @CompanyName, CompanyLogoUrl = @Logo WHERE EmployerID = @EmployerID;
+          ELSE UPDATE Employers SET CompanyName = @CompanyName, CompanyLogoUrl = @Logo,
+            Website = COALESCE(NULLIF(Website, ''), @Website),
+            Description = @CompanyDescription, Address = @Address,
+            CompanySize = COALESCE(NULLIF(CompanySize, ''), N'100 - 500 nhân viên')
+            WHERE EmployerID = @EmployerID;
           SELECT @EmployerID AS EmployerID;
         `);
       const employerId = employer.recordset[0].EmployerID;
@@ -70,13 +89,21 @@ async function seedBrowseJobs(pool) {
             VALUES (@EmployerID, @CategoryID, @Title, @Description, @Requirements, @SalaryRange, @Location, 'Published', DATEADD(day, 90, GETDATE()));
             SET @Inserted = 1;
           END;
+          ${onlyMissing ? `ELSE
+          BEGIN
+            -- Reopen only the owned demo fixture when its category has no live listing.
+            UPDATE JobPostings SET Status = 'Published', ExpiresAt = DATEADD(day, 90, GETDATE()),
+              Description = @Description, Requirements = @Requirements,
+              SalaryRange = @SalaryRange, Location = @Location
+            WHERE EmployerID = @EmployerID AND Title = @Title;
+          END;` : ''}
           SELECT @Inserted AS Inserted, @Migrated AS Migrated;
         `);
       inserted += result.recordset[0].Inserted;
       migrated += result.recordset[0].Migrated;
     }
     await transaction.commit();
-    return { inserted, migrated, categories: jobs.length };
+    return { inserted, migrated, skipped, categories: jobs.length };
   } catch (error) {
     await transaction.rollback();
     throw error;
@@ -87,7 +114,7 @@ async function main() {
   // Use a direct pool: seeding browse data does not run unrelated startup migrations.
   const pool = await new sql.ConnectionPool(config).connect();
   try {
-    console.log('Browse seed:', await seedBrowseJobs(pool));
+    console.log('Browse seed:', await seedBrowseJobs(pool, { onlyMissing: process.argv.includes('--only-missing') }));
   } finally {
     await pool.close();
   }

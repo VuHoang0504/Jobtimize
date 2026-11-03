@@ -1,101 +1,62 @@
 const path = require('path');
-const sql = require('mssql');
-const bcrypt = require('bcryptjs');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+const { pathToFileURL } = require('url');
+const { sql, getPool } = require('../src/config/db');
+const normal = require('../src/services/cvNormalization');
+const candidates = require('./data/demoCandidates');
+const { buildDemoCV } = require('./data/buildDemoCV');
 
-const candidates = [
-  {
-    email: 'ungvien01@example.com', fullName: 'Nguyễn Minh Anh',
-    headline: 'Frontend Developer — React, JavaScript', location: 'Hà Nội', salary: 18000000,
-    bioText: 'Hồ sơ ứng viên mẫu để kiểm thử. Có 2 năm kinh nghiệm phát triển giao diện web.',
-    hardSkills: ['React.js', 'JavaScript', 'HTML', 'CSS']
-  },
-  {
-    email: 'ungvien02@example.com', fullName: 'Trần Hoàng Nam',
-    headline: 'Backend Developer — Node.js, SQL Server', location: 'TP. Hồ Chí Minh', salary: 22000000,
-    bioText: 'Hồ sơ ứng viên mẫu để kiểm thử. Có 3 năm kinh nghiệm xây dựng API và cơ sở dữ liệu.',
-    hardSkills: ['Node.js', 'Express.js', 'SQL Server', 'Git']
-  },
-  {
-    email: 'ungvien03@example.com', fullName: 'Lê Thu Hà',
-    headline: 'UI/UX Designer — Figma, User Research', location: 'Đà Nẵng', salary: 16000000,
-    bioText: 'Hồ sơ ứng viên mẫu để kiểm thử. Có 2 năm kinh nghiệm thiết kế trải nghiệm người dùng.',
-    hardSkills: ['UI/UX (Figma)', 'User Research', 'Prototyping', 'Design System']
-  }
-];
-
-async function main() {
-  const pool = new sql.ConnectionPool({
-    user: process.env.DB_USER || 'sa',
-    password: process.env.DB_PASSWORD || '123',
-    server: process.env.DB_SERVER || '127.0.0.1',
-    port: Number(process.env.DB_PORT || 1433),
-    database: process.env.DB_NAME || 'JobtimizeDB',
-    connectionTimeout: 10000,
-    options: {
-      encrypt: process.env.DB_ENCRYPT === 'true',
-      trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false'
-    }
-  });
-  let transaction;
-  let committed = false;
+async function seedDemoCandidates(pool) {
+  const { normalizeCV } = await import(pathToFileURL(path.resolve(__dirname, '../../shared/cv/model.mjs')).href);
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  const query = (text, values = {}) => {
+    const request = new sql.Request(transaction);
+    for (const [name, value] of Object.entries(values)) request.input(name, value);
+    return request.query(text);
+  };
+  const result = [];
   try {
-    await pool.connect();
-    transaction = new sql.Transaction(pool);
-    await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
-    const roles = await new sql.Request(transaction).query("SELECT RoleID FROM Roles WHERE RoleName = 'Candidate'");
-    const roleId = roles.recordset[0]?.RoleID;
-    if (!roleId) throw new Error('Candidate role not found');
-
-    const results = [];
+    const taxonomy = (await query('SELECT SkillID,SkillName,NormalizedName FROM SkillTaxonomy')).recordset;
     for (const candidate of candidates) {
-      const existing = await new sql.Request(transaction)
-        .input('Email', sql.NVarChar(255), candidate.email)
-        .query('SELECT UserID FROM Users WITH (UPDLOCK, HOLDLOCK) WHERE Email = @Email');
-      if (existing.recordset.length) {
-        results.push({ email: candidate.email, result: 'Already exists; unchanged' });
-        continue;
-      }
-
-      const passwordHash = await bcrypt.hash('Candidate@123', 10);
-      const bio = JSON.stringify({
-        bioText: candidate.bioText,
-        skills: { hardSkills: candidate.hardSkills, softSkills: ['Làm việc nhóm', 'Giao tiếp'], languages: ['Tiếng Việt', 'Tiếng Anh'] },
-        links: {}
+      const email = `talent-demo-${candidate.slug}@jobtimize.example.invalid`;
+      const existing = (await query('SELECT UserID FROM Users WHERE Email=@Email', { Email: email })).recordset[0];
+      // Repeated runs do not change demo profiles that have subsequently been edited.
+      if (existing) { result.push({ name: candidate.name, email, status: 'Already exists' }); continue; }
+      const userId = (await query(`INSERT Users(Email,FullName,Status,IsEmailVerified)
+        OUTPUT INSERTED.UserID VALUES(@Email,@Name,'Active',0)`, { Email: email, Name: candidate.name })).recordset[0].UserID;
+      await query(`IF NOT EXISTS(SELECT 1 FROM Roles WHERE RoleName='Candidate') INSERT Roles(RoleName) VALUES('Candidate');
+        INSERT UserRoles(UserID,RoleID) SELECT @ID,RoleID FROM Roles WHERE RoleName='Candidate'`, { ID: userId });
+      const summary = `${candidate.years} năm kinh nghiệm. ${candidate.work}`;
+      const bio = { bioText: summary, skills: { hardSkills: candidate.skills, softSkills: ['Làm việc nhóm', 'Giải quyết vấn đề'] }, isDemo: true };
+      const profileId = (await query(`INSERT CandidateProfiles(UserID,Headline,Bio,DesiredSalary,CurrentLocation,IsLookingForJob)
+        OUTPUT INSERTED.ProfileID VALUES(@UserID,@Headline,@Bio,@Salary,@City,1)`, {
+        UserID: userId, Headline: candidate.role, Bio: JSON.stringify(bio), Salary: candidate.salary, City: candidate.city
+      })).recordset[0].ProfileID;
+      const cvData = buildDemoCV(candidate, candidates.indexOf(candidate), email, normalizeCV);
+      await query('UPDATE Users SET Phone=@Phone WHERE UserID=@UserID', { Phone: cvData.personal.phone, UserID: userId });
+      const builder = JSON.stringify(cvData);
+      const analysis = JSON.stringify(normal.fromBuilder(cvData, taxonomy));
+      const title = `CV ${candidate.name}`;
+      const cvId = (await query(`INSERT CVs(ProfileID,Title,FileUrl,CvType,CvData,Template,IsPrimary,IsArchived)
+        OUTPUT INSERTED.CVID VALUES(@ProfileID,@Title,'','OnlineBuilder',@Builder,'minimal',1,0)`, {
+        ProfileID: profileId, Title: title, Builder: builder
+      })).recordset[0].CVID;
+      // Identical hash and schema to cvAnalysisService.capture; no synthetic score is stored.
+      await query(`INSERT CVDocumentVersions(CVID,ProfileID,VersionNumber,ContentHash,SourceType,BuilderJson,Template,
+        Status,ParsedJson,ConfirmedJson,ParseMethod,ConfirmedAt)
+        VALUES(@CVID,@ProfileID,1,@Hash,'OnlineBuilder',@Builder,'minimal','Ready',@Analysis,@Analysis,'structured',SYSUTCDATETIME())`, {
+        CVID: cvId, ProfileID: profileId, Hash: normal.hash(builder + '\nminimal'), Builder: builder, Analysis: analysis
       });
-      const inserted = await new sql.Request(transaction)
-        .input('Email', sql.NVarChar(255), candidate.email)
-        .input('PasswordHash', sql.NVarChar(255), passwordHash)
-        .input('FullName', sql.NVarChar(100), candidate.fullName)
-        .input('RoleID', sql.Int, roleId)
-        .input('Headline', sql.NVarChar(255), candidate.headline)
-        .input('Bio', sql.NVarChar(sql.MAX), bio)
-        .input('Location', sql.NVarChar(100), candidate.location)
-        .input('Salary', sql.Decimal(18, 2), candidate.salary)
-        .query(`
-          INSERT INTO Users (Email, PasswordHash, FullName, Status, IsEmailVerified)
-          VALUES (@Email, @PasswordHash, @FullName, 'Active', 1);
-          DECLARE @UserID INT = SCOPE_IDENTITY();
-          INSERT INTO UserRoles (UserID, RoleID) VALUES (@UserID, @RoleID);
-          INSERT INTO CandidateProfiles (UserID, Headline, Bio, CurrentLocation, DesiredSalary, IsLookingForJob)
-          VALUES (@UserID, @Headline, @Bio, @Location, @Salary, 1);
-          SELECT @UserID AS UserID;
-        `);
-      results.push({ email: candidate.email, fullName: candidate.fullName, userId: inserted.recordset[0].UserID, result: 'Created' });
+      result.push({ name: candidate.name, email, profileId, cvId, status: 'Created' });
     }
     await transaction.commit();
-    committed = true;
-    console.table(results);
-    console.log('New demo accounts use password: Candidate@123');
-  } catch (error) {
-    if (transaction && !committed) await transaction.rollback().catch(() => {});
-    throw error;
-  } finally {
-    await pool.close();
-  }
+    return result;
+  } catch (error) { await transaction.rollback(); throw error; }
 }
 
-main().catch(error => {
-  console.error('Demo candidate creation failed:', error.message);
-  process.exitCode = 1;
-});
+async function main() {
+  const pool = await getPool();
+  try { console.table(await seedDemoCandidates(pool)); } finally { await pool.close(); }
+}
+if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+module.exports = { seedDemoCandidates };

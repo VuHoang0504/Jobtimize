@@ -4,6 +4,7 @@ import api from '../../services/api';
 import { openProtectedCV } from '../../services/cv';
 import EmployerInvitations from '../../components/employer/EmployerInvitations';
 import InviteCandidateModal from '../../components/employer/InviteCandidateModal';
+import CandidateMatching from '../../components/employer/CandidateMatching';
 import {
   Search,
   MapPin,
@@ -137,6 +138,7 @@ export default function CandidateSearchPage() {
 
       {activeTab === 'search' ? (
         <>
+          <CandidateMatching onInvited={fetchInvitations} />
           {/* Filter Bar */}
           <div className="bg-white rounded-3xl p-6 border border-gray-200/80 shadow-card space-y-4">
             <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

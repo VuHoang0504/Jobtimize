@@ -9,7 +9,7 @@ function createRelevance(cv, taxonomy) {
   const ignored = new Set(['senior', 'junior', 'middle', 'intern', 'fresher', 'nhan', 'vien', 'chuyen', 'cong', 'ty', 'kinh', 'nghiem', 'tong', 'hop', 'truong', 'nhom', 'quan', 'cao', 'cap', 'trach', 'nhiem', 'manager', 'management', 'specialist', 'engineer', 'leader', 'lead', 'head', 'staff', 'the', 'and', 'with', 'for', 'test', 'candidate', 'cv']);
   const roleWords = [...new Set(fold(roleText).split(/[^\p{L}\p{N}+#.]+/u).filter(word => word.length >= 3 && !ignored.has(word)))];
   return job => {
-    if (job.matchedCount > 0) return { related: true, reason: `Khớp ${job.matchedCount} kỹ năng trong CV`, rank: 3 };
+    if (job.matchedCount > 0) return { related: true, reason: `${job.matchedCount} kỹ năng đạt yêu cầu`, rank: 3 };
     if (categories.has(job.CategoryID)) return { related: true, reason: 'Cùng ngành nghề với kỹ năng trong CV', rank: 2 };
     if (roleWords.some(word => positiveMention(job.Title || '', word))) return { related: true, reason: 'Liên quan chức danh hoặc kinh nghiệm trong CV', rank: 1 };
     return { related: false, reason: '', rank: 0 };

@@ -86,6 +86,20 @@ export default function EmployerPricingPage() {
     fetchData();
   }, []);
 
+  // Refresh automatic payment results and the five-minute display timeout.
+  useEffect(() => {
+    if (!history.some((item) => item.Status === 'Pending')) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get('/employer/payment/history');
+        if (res.data.success) setHistory(res.data.data);
+      } catch (err) {
+        console.error('Refresh payment history error:', err);
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [history]);
+
   // Polling for PayOS payment confirmation
   useEffect(() => {
     let interval = null;
@@ -175,30 +189,30 @@ export default function EmployerPricingPage() {
 
       {/* Current Subscription Active Banner */}
       {subscription && (
-        <div className="bg-linear-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-emerald-700/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="bg-emerald-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-emerald-700/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="px-3 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-extrabold uppercase tracking-wider backdrop-blur-xs">
-                Gói Đang Sử Dụng
+                {subscription.IsExpired ? 'Gói đã hết hạn' : 'Gói đang sử dụng'}
               </span>
               <span className="text-emerald-200 text-xs font-semibold">
-                Hạn đến: {new Date(subscription.EndDate).toLocaleDateString('vi-VN')}
+                {subscription.IsExpired ? 'Đã hết hạn: ' : 'Hạn đến: '}{new Date(subscription.EndDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </span>
             </div>
             <h3 className="text-2xl font-black">{subscription.PackageName}</h3>
             <p className="text-xs text-emerald-100 max-w-xl">
-              Bạn đang sở hữu đặc quyền tiếp cận ứng viên cao cấp và công cụ phân tích độ phù hợp kỹ năng.
+              {subscription.IsExpired ? 'Gia hạn gói dịch vụ để tiếp tục đăng tin và tìm kiếm ứng viên.' : 'Bạn đang sở hữu đặc quyền tiếp cận ứng viên cao cấp và công cụ phân tích độ phù hợp kỹ năng.'}
             </p>
           </div>
 
           <div className="flex items-center gap-4 w-full md:w-auto">
             <div className="bg-white/10 backdrop-blur-xs rounded-2xl p-4 border border-white/20 text-center flex-1 md:w-36">
               <p className="text-[10px] uppercase font-bold text-emerald-200">Tin đăng còn lại</p>
-              <p className="text-2xl font-black">{subscription.RemainingPosts}</p>
+              <p className="text-2xl font-black">{subscription.IsExpired ? 0 : subscription.RemainingPosts}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-xs rounded-2xl p-4 border border-white/20 text-center flex-1 md:w-36">
               <p className="text-[10px] uppercase font-bold text-emerald-200">Lượt tìm kiếm CV</p>
-              <p className="text-2xl font-black">{subscription.RemainingSearches}</p>
+              <p className="text-2xl font-black">{subscription.IsExpired ? 0 : subscription.RemainingSearches}</p>
             </div>
           </div>
         </div>
@@ -293,10 +307,18 @@ export default function EmployerPricingPage() {
                     <span><strong>{pack.SearchLimit}</strong> lượt tra cứu kho CV thụ động</span>
                   </div>
 
-                  <div className="flex items-center gap-2.5 text-xs text-gray-700 font-semibold">
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Tự động đánh giá độ phù hợp của ứng viên</span>
-                  </div>
+                  {Number(pack.Price) > 0 && (
+                    <>
+                      <div className="flex items-center gap-2.5 text-xs text-gray-700 font-semibold">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Tự động đánh giá độ phù hợp của ứng viên</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 text-xs text-gray-700 font-semibold">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Tự động tìm kiếm ứng viên phù hợp với tin tuyển dụng</span>
+                      </div>
+                    </>
+                  )}
 
                   <div className="flex items-center gap-2.5 text-xs text-gray-700 font-semibold">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -305,7 +327,7 @@ export default function EmployerPricingPage() {
 
                   <div className="flex items-center gap-2.5 text-xs text-gray-700 font-semibold">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Lên lịch phỏng vấn Google Meet/Zoom tự động</span>
+                    <span>Lên lịch phỏng vấn</span>
                   </div>
                 </div>
               </div>
@@ -346,22 +368,30 @@ export default function EmployerPricingPage() {
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-card space-y-6">
         <div className="flex items-center justify-between border-b border-gray-100 pb-4">
           <div className="flex items-center gap-2.5">
-            <History className="w-5 h-5 text-brand-blue" />
-            <h2 className="text-base font-bold text-gray-900">Lịch sử Giao dịch & Hóa đơn</h2>
+            <div className="p-2.5 rounded-xl bg-brand-greenLight text-brand-greenDark"><History className="w-5 h-5" aria-hidden="true" /></div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Lịch sử Giao dịch &amp; Hóa đơn</h2>
+              <p className="text-sm text-gray-500 mt-1">Thanh toán được xác nhận tự động. Giao dịch chưa thanh toán sau 5 phút sẽ hiển thị thất bại.</p>
+            </div>
           </div>
           <span className="text-xs font-semibold text-gray-500">{history.length} giao dịch</span>
         </div>
 
         {history.length === 0 ? (
-          <div className="text-center py-8 text-xs text-gray-500">Chưa có lịch sử giao dịch nào phát sinh.</div>
+          <div className="text-center py-10 text-sm">
+            <CreditCard className="w-8 h-8 mx-auto mb-4 text-gray-400" aria-hidden="true" />
+            <p className="font-semibold text-gray-900">Chưa có giao dịch</p>
+            <p className="text-gray-500 mt-2">Các giao dịch sẽ xuất hiện tại đây khi bạn đăng ký gói dịch vụ.</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto rounded-xl border border-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green" tabIndex={0} role="region" aria-label="Lịch sử giao dịch, cuộn ngang để xem đầy đủ">
+            <table className="w-full min-w-[850px] text-left text-sm">
+              <caption className="sr-only">Lịch sử thanh toán gói dịch vụ tuyển dụng</caption>
               <thead>
-                <tr className="border-b border-gray-100 text-gray-400 font-bold uppercase text-[10px]">
+                <tr className="border-b border-gray-100 bg-gray-50 text-gray-600 font-semibold text-xs [&>th]:px-4 [&>th]:py-3">
                   <th className="pb-3">Mã tham chiếu</th>
                   <th className="pb-3">Gói dịch vụ</th>
-                  <th className="pb-3">Số tiền</th>
+                  <th className="pb-3 text-right">Số tiền</th>
                   <th className="pb-3">Phương thức</th>
                   <th className="pb-3">Thời gian</th>
                   <th className="pb-3 text-right">Trạng thái</th>
@@ -369,17 +399,18 @@ export default function EmployerPricingPage() {
               </thead>
               <tbody className="divide-y divide-gray-50 font-medium">
                 {history.map((item) => (
-                  <tr key={item.PaymentID} className="hover:bg-gray-50/50">
-                    <td className="py-3 font-mono font-bold text-gray-900">{item.TransactionRef}</td>
+                  <tr key={item.PaymentID} className="hover:bg-gray-50/50 [&>td]:px-4 [&>td]:py-4">
+                    <td className="py-3 font-semibold text-gray-900">{item.TransactionRef || `#${item.PaymentID}`}</td>
                     <td className="py-3 font-bold text-gray-800">{item.PackageName}</td>
-                    <td className="py-3 text-emerald-600 font-bold">{Number(item.Amount).toLocaleString()} đ</td>
-                    <td className="py-3">{item.PaymentMethod}</td>
-                    <td className="py-3 text-gray-500">{new Date(item.CreatedAt).toLocaleString('vi-VN')}</td>
+                    <td className="py-3 text-gray-900 font-bold text-right tabular-nums whitespace-nowrap">{Number(item.Amount).toLocaleString('vi-VN')} đ</td>
+                    <td className="py-3 text-gray-600">{item.PaymentMethod === 'FreeTrial' ? 'Dùng thử miễn phí' : item.PaymentMethod}</td>
+                    <td className="py-3 text-gray-500">{new Date(item.CreatedAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
                     <td className="py-3 text-right">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                        item.Status === 'Success' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold ${
+                        item.Status === 'Success' ? 'bg-brand-greenLight text-brand-greenDark' : item.Status === 'Pending' ? 'bg-amber-50 text-amber-800' : item.Status === 'Failed' ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {item.Status === 'Success' ? 'Thành công' : 'Đang chờ'}
+                        {item.Status === 'Success' ? <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> : item.Status === 'Pending' ? <Clock className="w-3.5 h-3.5" aria-hidden="true" /> : <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />}
+                        {{ Success: 'Thành công', Pending: 'Chờ thanh toán', Failed: 'Thất bại', Cancelled: 'Đã hủy', Canceled: 'Đã hủy' }[item.Status] || 'Chưa xác định'}
                       </span>
                     </td>
                   </tr>
@@ -458,7 +489,7 @@ export default function EmployerPricingPage() {
                     </div>
                     <div className="flex justify-between py-1">
                       <span className="text-gray-600">Hạn sử dụng đến:</span>
-                      <span className="font-bold text-gray-900">{new Date(paidSuccessData.quota.endDate).toLocaleDateString('vi-VN')}</span>
+                      <span className="font-bold text-gray-900">{new Date(paidSuccessData.quota.endDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                     </div>
                   </div>
                 )}
@@ -480,7 +511,6 @@ export default function EmployerPricingPage() {
                 <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200 text-center space-y-3">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold">
 
-                    <span>Tự động kích hoạt sau khi thanh toán thành công • Không cần tải bill</span>
                   </div>
 
                   {checkoutData && (

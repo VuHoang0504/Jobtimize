@@ -349,6 +349,7 @@ export default function Navbar() {
                             Hồ sơ cá nhân
                           </Link>
                           <Link to="/candidate/dashboard?tab=cvs" onClick={() => setProfileDropdownOpen(false)} className="block px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100">Quản lý CV</Link>
+                          <Link to="/candidate/dashboard?tab=applications" onClick={() => setProfileDropdownOpen(false)} className="block px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 transition-colors">Việc làm đã ứng tuyển</Link>
                           <Link
                             to="/candidate/cv-builder"
                             onClick={() => setProfileDropdownOpen(false)}
@@ -526,6 +527,7 @@ export default function Navbar() {
                     Hồ sơ cá nhân
                   </Link>
                   <Link to="/candidate/dashboard?tab=cvs" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-900 hover:bg-slate-100">Quản lý CV</Link>
+                  <Link to="/candidate/dashboard?tab=applications" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-900 hover:bg-slate-100">Việc làm đã ứng tuyển</Link>
                   <Link
                     to="/candidate/cv-builder"
                     onClick={() => setMobileMenuOpen(false)}

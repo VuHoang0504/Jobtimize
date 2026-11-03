@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const recruitment = require('../controllers/recruitmentController');
+const candidateMatching = require('../controllers/candidateMatchingController');
 const employerController = require('../controllers/employerController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 const kycUpload = require('../middleware/kycUploadMiddleware');
@@ -41,6 +42,8 @@ router.get('/payment/history', employerController.getPaymentHistory);
 
 // 6. Passive Talent Hunting & Invitations (UC-E11, UC-E12)
 router.get('/candidates', employerController.searchCandidates);
+router.get('/candidate-matching/jobs', candidateMatching.getJobs);
+router.get('/jobs/:jobId/candidate-matches', candidateMatching.findCandidates);
 router.post('/invite-candidate', employerController.inviteCandidate);
 router.get('/invitations', employerController.getCandidateInvitations);
 

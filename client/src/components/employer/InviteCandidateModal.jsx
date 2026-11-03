@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import '../common/recruitment.css';
 
-export default function InviteCandidateModal({ isOpen, onClose, candidate, onInvited }) {
+export default function InviteCandidateModal({ isOpen, onClose, candidate, onInvited, initialJobId }) {
   const [jobs, setJobs] = useState([]), [jobId, setJobId] = useState('');
   const [message, setMessage] = useState(`Chào ${candidate?.FullName || 'bạn'},\nChúng tôi mời bạn tìm hiểu vị trí tuyển dụng dưới đây. Nếu quan tâm, vui lòng phản hồi trên Jobtimize để chúng tôi sắp xếp phỏng vấn.`);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [success, setSuccess] = useState('');
@@ -12,7 +12,8 @@ export default function InviteCandidateModal({ isOpen, onClose, candidate, onInv
   useEffect(() => {
     const controller = new AbortController();
     api.get('/employer/jobs', { signal: controller.signal }).then(res => {
-      const openJobs = res.data.data.filter(item => item.Status === 'Published'); setJobs(openJobs); setJobId(openJobs[0]?.JobID || '');
+      const openJobs = res.data.data.filter(item => item.Status === 'Published' && (!item.ExpiresAt || new Date(item.ExpiresAt) > new Date()));
+      setJobs(openJobs); setJobId(openJobs.find(item => String(item.JobID) === String(initialJobId))?.JobID || openJobs[0]?.JobID || '');
     }).catch(() => { if (!controller.signal.aborted) setError('Chưa tải được tin tuyển dụng. Đóng cửa sổ và thử lại.'); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     const previous = document.activeElement;
     dialog.current?.querySelector('button')?.focus();

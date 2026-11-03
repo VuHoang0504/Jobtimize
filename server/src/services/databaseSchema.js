@@ -5,7 +5,7 @@ const structureMarker = '-- @schema:structure';
 
 async function sqlBatches(filename) {
   const source = await fs.readFile(path.resolve(__dirname, '../../../database', filename), 'utf8');
-  if (filename === 'seed.sql') {
+  if (filename === 'seed.sql' || filename === 'categories.sql') {
     // The CLI already selects DB_NAME; never switch a pooled connection to the default DB.
     return source.replace(/^USE JobtimizeDB;\s*GO\s*/m, '')
       .split(/^\s*GO\s*$/im).map(batch => batch.trim()).filter(Boolean);
@@ -26,13 +26,18 @@ async function applySql(query, filename) {
 }
 
 const applySchema = query => applySql(query, 'schema.sql');
-const applySeed = query => applySql(query, 'seed.sql');
+const applyCategories = query => applySql(query, 'categories.sql');
+const applySeed = async query => {
+  await applyCategories(query);
+  return applySql(query, 'seed.sql');
+};
 
 let initialization;
 function ensureSchema() {
   if (!initialization) initialization = applySchema(text => require('../config/db').executeQuery(text))
+    .then(() => applyCategories(text => require('../config/db').executeQuery(text)))
     .catch(error => { initialization = null; throw error; });
   return initialization;
 }
 
-module.exports = { applySchema, applySeed, ensureSchema };
+module.exports = { applySchema, applySeed, applyCategories, ensureSchema };

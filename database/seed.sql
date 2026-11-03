@@ -123,8 +123,8 @@ IF NOT EXISTS (SELECT 1 FROM SubscriptionPackages WHERE PackageName = N'Gói Kh�
 BEGIN
     INSERT INTO SubscriptionPackages (PackageName, Price, DurationDays, PostLimit, SearchLimit) VALUES
     (N'Gói Khởi Nghiệp (Starter)', 0, 30, 3, 10),
-    (N'Gói Tiêu Chuẩn (Pro Recruiter)', 1990000, 30, 15, 100),
-    (N'Gói Doanh Nghiệp (Enterprise AI)', 4990000, 90, 50, 500);
+    (N'Gói Tiêu Chuẩn (Pro Recruiter)', 100000, 30, 15, 100),
+    (N'Gói Doanh Nghiệp (Enterprise AI)', 200000, 90, 50, 500);
 END
 GO
 
@@ -386,8 +386,8 @@ IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'EmployerSubscriptions')
         DECLARE @ChoTotID INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%Chợ Tốt%');
 
         DECLARE @PkgStarter INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE Price = 0);
-        DECLARE @PkgPro INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE Price > 0 AND Price < 3000000);
-        DECLARE @PkgEnterprise INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE Price >= 3000000);
+        DECLARE @PkgPro INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE PackageName = N'Gói Tiêu Chuẩn (Pro Recruiter)');
+        DECLARE @PkgEnterprise INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE PackageName = N'Gói Doanh Nghiệp (Enterprise AI)');
 
         IF @FptID IS NOT NULL AND @PkgEnterprise IS NOT NULL
           INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
@@ -395,11 +395,11 @@ IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'EmployerSubscriptions')
 
         IF @VngID IS NOT NULL AND @PkgEnterprise IS NOT NULL
           INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
-          VALUES (@VngID, @PkgEnterprise, DATEADD(MONTH, -4, GETDATE()), DATEADD(MONTH, -1, GETDATE()), 42, 450, 4990000, 'VNPay', 'Completed', 'TXN-202606-VNG02', DATEADD(MONTH, -4, GETDATE()));
+          VALUES (@VngID, @PkgEnterprise, DATEADD(DAY, -1, GETDATE()), DATEADD(DAY, (SELECT DurationDays FROM SubscriptionPackages WHERE PackageID = @PkgEnterprise) - 1, GETDATE()), 42, 450, 4990000, 'VNPay', 'Completed', 'TXN-202606-VNG02', DATEADD(MONTH, -4, GETDATE()));
 
         IF @KmsID IS NOT NULL AND @PkgPro IS NOT NULL
           INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)
-          VALUES (@KmsID, @PkgPro, DATEADD(MONTH, -3, GETDATE()), DATEADD(MONTH, -2, GETDATE()), 10, 80, 1990000, 'MoMo', 'Completed', 'TXN-202607-KMS03', DATEADD(MONTH, -3, GETDATE()));
+          VALUES (@KmsID, @PkgPro, DATEADD(DAY, -1, GETDATE()), DATEADD(DAY, (SELECT DurationDays FROM SubscriptionPackages WHERE PackageID = @PkgPro) - 1, GETDATE()), 10, 80, 1990000, 'MoMo', 'Completed', 'TXN-202607-KMS03', DATEADD(MONTH, -3, GETDATE()));
 
         IF @VinAIID IS NOT NULL AND @PkgEnterprise IS NOT NULL
           INSERT INTO EmployerSubscriptions (EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches, AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt)

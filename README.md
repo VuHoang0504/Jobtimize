@@ -1,5 +1,7 @@
 # Jobtimize - AI-Powered Recruitment Platform 🚀
 
+Cập nhật tài liệu: **04/11/2026**.
+
 Nền tảng tuyển dụng thông minh tích hợp AI (lấy cảm hứng từ TopCV & LinkedIn), hỗ trợ tính toán tự động **Match Score (%)** giữa CV và JD, phát hiện **Lỗ hổng kỹ năng (Skill Gap)** và đề xuất **Lộ trình khóa học (Courses)** bù đắp thiếu hụt.
 
 ## Quản lý CV và đối chiếu kỹ năng
@@ -21,7 +23,7 @@ Jobtimize/
 ├── client/                     # Frontend (React + Vite + Tailwind CSS + Lucide Icons)
 │   ├── src/
 │   │   ├── components/         # Navbar, Footer, MatchScoreBadge, Modal
-│   │   ├── context/            # AuthContext (JWT Authentication & Google Mock Login)
+│   │   ├── context/            # AuthContext (JWT Authentication & Google OAuth)
 │   │   ├── pages/
 │   │   │   ├── auth/           # LoginPage, RegisterPage
 │   │   │   ├── candidate/      # CandidateDashboard (CVs, Applications, Saved Jobs), SkillGapAnalysisPage
@@ -44,11 +46,14 @@ Jobtimize/
 │   ├── scripts/
 │   │   ├── initDb.js           # Script tự động tạo DB, chạy schema & nạp seed
 │   │   └── seedJobs.js         # Nạp thêm dữ liệu JD mẫu đa dạng
-│   ├── uploads/                # Lưu trữ file CV tải lên (PDF, DOCX)
+│   ├── uploads/                # Logo, ảnh đại diện và tài liệu tải lên
+│   ├── private/cv-documents/   # CV riêng tư, truy cập qua API kiểm tra quyền
 │   ├── .env.example            # Mẫu biến môi trường
-│   ├── .env                    # Cấu hình kết nối SQL Server (sa / 123)
+│   ├── .env                    # Cấu hình local, không commit
 │   └── package.json
 │
+├── shared/                     # Mô hình CV, bộ dựng PDF và nhóm việc làm dùng chung
+├── docs/                       # Tài liệu tuyển dụng, thông báo và quản trị
 ├── database/
 │   ├── schema.sql              # DDL Script tạo CSDL JobtimizeDB và toàn bộ cấu trúc bảng
 │   ├── seed.sql                # Dữ liệu ban đầu (Roles, Ngành nghề, Từ điển Kỹ năng, Khóa học, JD mẫu)
@@ -65,7 +70,13 @@ Jobtimize/
 
 ## 2. Hướng dẫn Khởi chạy Nhanh (Quick Start)
 
-Dự án đã được tối ưu hóa để có thể chạy trên **bất kỳ máy tính nào** chỉ với 3 bước:
+Chuẩn bị Node.js/npm và SQL Server hoặc Docker có thể chạy SQL Server 2022. Chạy các lệnh từ thư mục gốc. Cài dependencies trước khi chạy script database:
+
+```bash
+npm run install:all
+```
+
+Nếu PowerShell chặn `npm.ps1`, dùng `npm.cmd` thay cho `npm`.
 
 ### Bước 1: Cấu hình Môi trường (`.env`)
 Tại thư mục `server/`, tạo file `.env` từ file mẫu:
@@ -76,7 +87,7 @@ Copy-Item server/.env.example server/.env
 # Linux / macOS / Git Bash:
 cp server/.env.example server/.env
 ```
-*(File cấu hình mặc định sẵn kết nối `127.0.0.1`, cổng `1433`, user `sa`, mật khẩu `123`, CSDL `JobtimizeDB`)*.
+Sửa `DB_SERVER`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` theo SQL Server thực tế và thay `JWT_SECRET`. File mẫu dùng mật khẩu `YourPassword123`, trong khi Docker Compose dùng `YourPassword123!`; nếu dùng Docker phải sửa `server/.env` cho khớp. Không commit `.env`.
 
 ---
 
@@ -90,11 +101,12 @@ npm run db:init
 *(Script sẽ tự động kết nối SQL Server, tạo CSDL `JobtimizeDB`, chạy cấu trúc bảng `schema.sql` và nạp toàn bộ `seed.sql` mà **không cần mở SSMS**).*
 
 > [!NOTE]
-> **Dành cho Windows:** Nếu gặp lỗi `ConnectionError: Failed to connect to 127.0.0.1:1433`, hãy nhấp đúp vào file [enable-sql-tcp.bat](file:///c:/Users/duong/Desktop/Jobtimize/enable-sql-tcp.bat) ngoài thư mục gốc và chọn **Yes** khi Windows hỏi quyền Admin để kích hoạt cổng 1433.
+> **Dành cho Windows:** Nếu gặp lỗi `ConnectionError: Failed to connect to 127.0.0.1:1433`, hãy nhấp đúp vào file [enable-sql-tcp.bat](enable-sql-tcp.bat) ngoài thư mục gốc và chọn **Yes** khi Windows hỏi quyền Admin để kích hoạt cổng 1433.
 
 #### 👉 Cách B: Dùng Docker (Dành cho macOS, Linux hoặc không muốn cài SQL Server)
 ```bash
 docker compose up -d
+# Đợi SQL Server sẵn sàng nhận kết nối trước khi khởi tạo:
 npm run db:init
 ```
 
@@ -148,23 +160,19 @@ Hệ thống đã nạp sẵn các tài khoản mẫu để bạn kiểm thử n
 | **Nhà tuyển dụng (VNG)** | `career@vng.com.vn` | `Admin@123` | Đăng tin JD Frontend & UI/UX |
 | **Nhà tuyển dụng (KMS Tech)** | `career-dn@kms-technology.com` | `Admin@123` | Đăng tin JD .NET & QA Automation |
 | **Nhà tuyển dụng (VinAI)** | `career@vinai.io` | `Admin@123` | Đăng tin JD Python & AI / MLOps |
-| **Ứng viên — Nguyễn Minh Anh** | `ungvien01@example.com` | `Candidate@123` | Frontend Developer, Hà Nội |
-| **Ứng viên — Trần Hoàng Nam** | `ungvien02@example.com` | `Candidate@123` | Backend Developer, TP. Hồ Chí Minh |
-| **Ứng viên — Lê Thu Hà** | `ungvien03@example.com` | `Candidate@123` | UI/UX Designer, Đà Nẵng |
-| **Ứng viên (Candidate)** | *Tự đăng ký mới* | *Tùy chọn* | Hoặc dùng nút **Đăng nhập 1-Click giả lập Google** |
+| **Ứng viên (Candidate)** | *Tự đăng ký bằng email thật hoặc Google* | *Tùy tài khoản* | Đăng ký email cần nhận OTP qua SMTP đã cấu hình |
 
-Ba tài khoản `ungvien01`–`ungvien03` đã được kích hoạt và có hồ sơ cơ bản. Email `example.com` chỉ dùng để đăng nhập kiểm thử, không nhận OTP.
+Tài khoản Admin và Employer trong bảng thuộc dữ liệu seed, chỉ dùng cho phát triển. Tài khoản đã tồn tại có thể đã đổi mật khẩu; mật khẩu mẫu không đảm bảo là mật khẩu hiện hành trong database đang dùng.
 
-Khi cài trên máy khác với database mới, sau khi cài dependencies và khởi tạo database, chạy lệnh sau từ thư mục gốc để tạo ba tài khoản này:
+Để bổ sung hồ sơ và CV online mẫu cho kho ứng viên, chạy:
 
 ```bash
 node server/scripts/seedDemoCandidates.js
 ```
 
-Script bỏ qua email đã tồn tại, không ghi đè tài khoản hoặc mật khẩu hiện có.
+Script hiện tạo email dạng `talent-demo-…@jobtimize.example.invalid`, không có mật khẩu và chưa xác thực email. Đây là dữ liệu kho ứng viên, **không phải tài khoản để đăng nhập**. Script bỏ qua email đã tồn tại. Dùng Candidate tự đăng ký để kiểm thử ứng tuyển và luyện phỏng vấn.
 
-> [!TIP]
-> Bạn có thể bấm vào nút **"Đăng nhập nhanh với tư cách Ứng viên / Nhà tuyển dụng"** ngay trên giao diện trang Đăng nhập mà không cần nhập mật khẩu.
+Google sử dụng OAuth thật. Cấu hình `VITE_GOOGLE_CLIENT_ID` trong `client/.env` và `GOOGLE_CLIENT_ID` phía server cùng Google OAuth client đã đăng ký; cấu hình origin frontend trên Google Cloud rồi khởi động lại frontend/backend. Không có luồng Google giả lập bỏ qua xác thực token.
 
 ---
 
@@ -173,19 +181,38 @@ Script bỏ qua email đã tồn tại, không ghi đè tài khoản hoặc mậ
 ### A. Dành cho Ứng viên (Job Seeker):
 - **Tìm kiếm & Bộ lọc Việc làm thông minh:** Tìm việc theo từ khóa, ngành nghề (IT, AI & Data, Cloud/DevOps, UI/UX, QA), địa điểm (Hà Nội, TP.HCM, Đà Nẵng).
 - **Quản lý CV Đa phiên bản (UC-C05, UC-C06):** Tải lên nhiều file CV (PDF, DOCX), xem trước CV, chọn CV chính làm mặc định.
-- **Ứng tuyển 1-Click & Chấm điểm AI Match Score (UC-C13):** Khi ứng tuyển bằng CV mặc định, thuật toán AI sẽ tự động phân tích độ tương thích giữa kỹ năng trong CV và yêu cầu của JD, hiển thị điểm phần trăm trực quan.
+- **Ứng tuyển 1-Click & Chấm điểm AI Match Score (UC-C13):** Khi ứng tuyển bằng CV được chọn (hoặc CV mặc định), thuật toán AI sẽ tự động phân tích độ tương thích giữa kỹ năng đã xác nhận trong CV được chọn và yêu cầu của JD, hiển thị điểm phần trăm trực quan.
 - **Phân tích Lỗ hổng Kỹ năng (Skill Gap) & Lộ trình Học tập (UC-C11, UC-C12, UC-AI01):** Đối chiếu kỹ năng của ứng viên với yêu cầu thị trường, chỉ ra kỹ năng còn thiếu và đề xuất khóa học bù đắp chất lượng từ Coursera / Udemy.
 - **Bật/Tắt Trạng thái Tìm việc (IsLookingForJob):** Nút gạt nhanh trên Navigation bar và Dashboard để cho phép nhà tuyển dụng tìm thấy hồ sơ.
 
 ### B. Dành cho Nhà tuyển dụng (Employer ATS):
 - **Đăng tin Tuyển dụng (UC-E05):** Soạn thảo JD, mức lương, khu vực và gắn thẻ các kỹ năng yêu cầu (Bắt buộc / Ưu tiên).
-- **Hệ thống Quản lý Ứng viên ATS thông minh (UC-E08):** Tự động sắp xếp các ứng viên đã nộp đơn theo thứ hạng **Match Score (%)** từ cao xuống thấp, giúp sàng lọc hồ sơ nhanh gấp 5 lần.
-- **Quản lý Vòng Tuyển dụng:** Chuyển đổi trạng thái linh hoạt: `Applied` ➔ `Screening` ➔ `Interviewing` ➔ `Offered` ➔ `Rejected`.
+- **Hệ thống Quản lý Ứng viên ATS (UC-E08):** Xem CV, lọc hồ sơ và cập nhật tiến trình. Tài khoản có gói trả phí được xem điểm, chi tiết kỹ năng và sắp xếp hồ sơ theo Match Score.
+- **Quản lý Vòng Tuyển dụng:** Các trạng thái gồm `Applied`, `Screening`, `Interviewing`, `Offered`, `Rejected`; từ chối là nhánh xử lý, không phải bước bắt buộc sau `Offered`.
 - **Lên lịch Phỏng vấn (UC-E10):** Điền thời gian, link họp Google Meet/Zoom và gửi thông báo trực tiếp đến ứng viên.
 
 ### C. Quản trị & Xác thực (Admin & Auth):
 - **Phân quyền người dùng:** Admin, Employer, Candidate với bảo mật mã hóa JWT & mật khẩu băm `bcrypt`.
-- **Đăng nhập Google OAuth:** Hỗ trợ cả đăng nhập thực tế và đăng nhập 1-Click giả lập dành cho demo / testing.
+- **Đăng nhập Google OAuth:** Xác minh Google ID token phía server, hỗ trợ liên kết tài khoản và tạo mật khẩu cho tài khoản Google chưa có mật khẩu.
+- **Xác thực email và bảo mật:** OTP đăng ký, quên/đặt lại mật khẩu, đổi mật khẩu và đăng xuất.
+- **Quản lý tài khoản:** Xem ứng viên/doanh nghiệp, khóa/mở khóa và cấp lại mật khẩu.
+- **Kiểm duyệt:** Duyệt/từ chối KYC, duyệt tin trước khi công khai và xử lý báo cáo vi phạm.
+- **Danh mục:** Thêm/sửa/xóa ngành nghề và kỹ năng, kiểm tra liên kết dữ liệu khi xóa.
+- **Báo cáo:** Thống kê hoạt động, doanh thu, giao dịch, bộ lọc thời gian và xuất CSV. Chế độ dữ liệu mẫu được ghi nhãn, không phải xác nhận thanh toán thật.
+
+### D. Các chức năng bổ sung hiện có
+
+- **Candidate:** Tạo CV online từ mẫu và xuất PDF; lưu/bỏ lưu việc; quản lý tiêu chí Job Alerts và xem tin phù hợp; luyện phỏng vấn AI với câu hỏi, đánh giá câu trả lời và lịch sử; theo dõi đơn ứng tuyển, lời mời và lịch phỏng vấn.
+- **Employer:** Cập nhật hồ sơ/bảo mật công ty; nộp KYC; soạn JD bằng AI; tìm hồ sơ đang bật tìm việc theo từ khóa, kỹ năng, địa điểm, lương mong muốn; đối chiếu ứng viên theo tin và mời ứng tuyển; mua/nâng cấp gói, theo dõi hạn mức và lịch sử thanh toán PayOS.
+- **Thông báo:** Chuông theo tài khoản, số chưa đọc, phân trang, đánh dấu đã đọc; thông báo các sự kiện tuyển dụng, kiểm duyệt và gợi ý việc theo CV chính.
+
+### E. Phạm vi chưa hoàn thiện
+
+- Chưa có màn hình/API Admin quản lý vai trò và quyền nội bộ, quản lý khóa học hoặc thêm/sửa/xóa gói dịch vụ.
+- Job Alerts hiện quản lý tiêu chí và xem việc phù hợp; chưa có luồng tự động gửi theo lịch/tiêu chí khi có tin mới.
+- Bộ lọc cấp độ và lương của danh sách việc còn suy luận từ văn bản. Kho ứng viên chưa có bộ lọc số năm kinh nghiệm riêng.
+- Điểm phù hợp là đối chiếu kỹ năng có trọng số, chưa phải báo cáo năng lực AI toàn diện và không phải xác suất trúng tuyển.
+- Có nộp/duyệt KYC, nhưng API tạo tin hiện chưa bắt buộc KYC `Approved`; tin mới vẫn phải qua kiểm duyệt trước khi công khai.
 
 ---
 
@@ -195,15 +222,26 @@ Script bỏ qua email đã tồn tại, không ghi đè tài khoản hoặc mậ
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/auth/register` | Public | Đăng ký tài khoản (Ứng viên / Doanh nghiệp) |
 | `POST` | `/api/auth/login` | Public | Đăng nhập hệ thống, trả về JWT Token |
-| `GET` | `/api/jobs` | Public | Lấy danh sách việc làm (tìm kiếm & phân trang) |
+| `GET` | `/api/jobs` | Public | Lấy danh sách việc làm và tìm kiếm |
 | `GET` | `/api/jobs/:id` | Public | Xem thông tin chi tiết một tin tuyển dụng |
-| `POST` | `/api/candidate/cv/upload` | Candidate | Tải lên file CV (PDF / DOCX) |
-| `POST` | `/api/jobs/:id/apply` | Candidate | Nộp đơn ứng tuyển 1-Click & tính AI Match Score |
-| `GET` | `/api/ai/skill-gap` | Candidate | Phân tích Skill Gap & đề xuất khóa học |
+| `POST` | `/api/candidate/cv` | Candidate | Tải lên file CV (PDF / DOCX) |
+| `POST` | `/api/jobs/apply` | Candidate | Nộp đơn ứng tuyển 1-Click & tính AI Match Score |
+| `GET` | `/api/candidate/skill-gap` | Candidate | Phân tích Skill Gap & đề xuất khóa học |
 | `POST` | `/api/employer/jobs` | Employer | Đăng tin tuyển dụng mới kèm kỹ năng yêu cầu |
-| `GET` | `/api/employer/jobs/:id/candidates` | Employer | Xem danh sách ứng viên xếp hạng theo AI Match Score |
-| `PUT` | `/api/employer/applications/:id/status`| Employer | Cập nhật trạng thái vòng tuyển dụng ứng viên |
-| `GET` | `/api/metadata/categories` | Public | Lấy danh mục ngành nghề và từ điển kỹ năng |
+| `GET` | `/api/employer/jobs/:jobId/ats` | Employer | Xem danh sách ứng viên xếp hạng theo AI Match Score |
+| `PATCH` | `/api/employer/applications/:id/status`| Employer | Cập nhật trạng thái vòng tuyển dụng ứng viên |
+| `GET` | `/api/metadata/categories` | Public | Lấy danh mục ngành nghề; kỹ năng tại `/api/metadata/skills` |
+
+Các API chính khác:
+
+- `POST /api/ai/interview/start`, `POST /api/ai/interview/evaluate`, `GET /api/ai/interview/history`: luyện phỏng vấn Candidate.
+- `GET/POST /api/cv-documents`, `PUT /api/cv-documents/:cvId/analysis`: quản lý file và xác nhận dữ liệu CV.
+- `GET/PUT /api/employer/profile`, `POST /api/employer/kyc`: hồ sơ doanh nghiệp và nộp KYC.
+- `GET /api/employer/candidates`, `GET /api/employer/jobs/:jobId/candidate-matches`, `POST /api/employer/invite-candidate`: tìm, đối chiếu và mời ứng viên.
+- `POST /api/employer/interviews`: hẹn phỏng vấn; `POST /api/payments/create`: tạo đơn PayOS.
+- `GET /api/admin/analytics`, `GET /api/admin/transactions`, `GET /api/admin/analytics/export`: báo cáo và xuất dữ liệu.
+
+Danh sách đầy đủ và kiểm tra quyền nằm trong `server/src/routes/` và các controller tương ứng.
 
 ---
 
@@ -222,14 +260,14 @@ Script bỏ qua email đã tồn tại, không ghi đè tài khoản hoặc mậ
 
 ### ❓ Lỗi: `ConnectionError: Failed to connect to 127.0.0.1:1433 - Could not connect (sequence)`
 - **Nguyên nhân:** Khi cài đặt SQL Server trên Windows, giao thức TCP/IP trên cổng 1433 bị tắt mặc định.
-- **Cách khắc phục:** Nhấp chuột phải vào file [enable-sql-tcp.bat](file:///c:/Users/duong/Desktop/Jobtimize/enable-sql-tcp.bat) và chọn **"Run as administrator"** (hoặc mở PowerShell Admin dán lệnh trong [fix-sql.ps1](file:///c:/Users/duong/Desktop/Jobtimize/fix-sql.ps1)), sau đó khởi động lại server.
+- **Cách khắc phục:** Nhấp chuột phải vào file [enable-sql-tcp.bat](enable-sql-tcp.bat) và chọn **"Run as administrator"** (hoặc mở PowerShell Admin dán lệnh trong [fix-sql.ps1](fix-sql.ps1)), sau đó khởi động lại server.
 
 ### ❓ Lỗi: Chưa có dữ liệu việc làm hiển thị trên trang chủ
 - **Cách khắc phục:** Mở terminal chạy lệnh:
   ```bash
   npm run db:init
   ```
-  Lệnh này sẽ tự động nạp toàn bộ 13 tin tuyển dụng mẫu, các công ty và kỹ năng vào database.
+  Lệnh này áp dụng schema và dữ liệu seed. Có thể bổ sung tin bằng `npm run seed:jobs` hoặc `npm run seed:browse`; số lượng phụ thuộc phiên bản dữ liệu mẫu.
 
 ### ❓ Lỗi: Xung đột cổng `EADDRINUSE: port 5000` hoặc `3000`
 - **Cách khắc phục:** Đảm bảo không có tiến trình server hoặc client cũ đang chạy ngầm. Trên Windows PowerShell, bạn có thể tìm và tắt bằng:
@@ -245,6 +283,20 @@ Script bỏ qua email đã tồn tại, không ghi đè tài khoản hoặc mậ
 - **Backend:** Node.js, Express.js, mssql (Tedious Driver), Multer, JsonWebToken, Bcrypt.js, Mammoth, Pdf-parse.
 - **Database:** Microsoft SQL Server (Transact-SQL), Docker MSSQL 2022.
 - **AI Engine:** Heuristic Weighted AI Matching Algorithm & Skill Gap Taxonomy Mapping.
+
+### Kiểm thử tổng quát
+
+```bash
+npm --prefix server run test:otp
+npm run build
+npm run test:ai
+npm run test:payos
+npm run test:notifications
+```
+
+Các lệnh trên kiểm tra OTP, build frontend và các suite dịch vụ; không thay thế kiểm tra trực tiếp SMTP, Google OAuth, AI hoặc thanh toán thật. Các suite SQL/UI bên dưới có yêu cầu riêng: đọc script trước khi chạy, dùng database thử nghiệm và khởi động Vite khi kiểm thử giao diện. Không chạy tùy tiện script tích hợp trên database có dữ liệu thật.
+
+Khi triển khai, sao lưu database cùng thư mục CV riêng tư và file upload cần thiết. Không commit khóa dịch vụ, CV thật, `.env`, dependencies hoặc build output.
 
 ## Trình tạo CV trực tiếp
 
@@ -278,7 +330,7 @@ Kiểm thử CV dùng dữ liệu giả lập, kiểm tra 12 tổ hợp mẫu/fo
 
 ### Dữ liệu mẫu cho menu việc làm
 
-Chạy `npm run seed:browse` để bổ sung 19 tin tuyển dụng mẫu và các ngành nghề cho menu vị trí/lĩnh vực. Script chỉ thêm dữ liệu còn thiếu, chạy trong transaction và không tạo tin trùng khi chạy lại. Tin thuộc doanh nghiệp mẫu được ghi rõ là dữ liệu minh họa. Lệnh `npm run seed:jobs` cũng bao gồm bước này.
+Chạy `npm run seed:browse` để bổ sung tin tuyển dụng mẫu và các ngành nghề cho menu vị trí/lĩnh vực. Script chỉ thêm dữ liệu còn thiếu, chạy trong transaction và không tạo tin trùng khi chạy lại. Tin thuộc doanh nghiệp mẫu được ghi rõ là dữ liệu minh họa. Lệnh `npm run seed:jobs` cũng bao gồm bước này.
 
 Danh sách nhóm và ánh xạ ngành dùng chung cho giao diện/API nằm trong `shared/jobBrowseGroups.json`. Nhóm Senior lọc theo cấp bậc trong chức danh; các nhóm còn lại lọc theo danh mục ngành nghề, độc lập với từ khóa tìm kiếm.
 
@@ -303,16 +355,16 @@ Khởi động lại API sau khi thay đổi cấu hình. OpenAI được nối 
 `AI_PROVIDER=auto` ưu tiên OpenAI nếu có khóa, tiếp theo Gemini, cuối cùng xử lý cục bộ khi không có khóa. `gemini` và `local` cho phép chọn rõ dịch vụ. Lỗi OpenAI được báo về chức năng thay vì trả kết quả mẫu hoặc chuyển CV sang nhà cung cấp khác. Model được chọn ở server qua `OPENAI_MODEL`.
 
 - `npm run check:ai`: xem trạng thái cấu hình, không in khóa và không gọi dịch vụ.
-- `npm run check:ai -- --live`: gửi yêu cầu kiểm tra tổng hợp nhỏ tới OpenAI, không gửi CV hoặc dữ liệu người dùng. Yêu cầu này sử dụng hạn mức API.
+- `npm run check:ai -- --live`: gửi yêu cầu tổng hợp nhỏ tới các dịch vụ có khóa, không gửi CV hoặc dữ liệu người dùng. Yêu cầu này sử dụng hạn mức API.
 - `npm run test:ai`: kiểm tra độc lập bằng HTTP giả lập, không gọi nhà cung cấp.
 
 Tích hợp dùng [Responses API và JSON mode](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses), hỗ trợ ảnh mã hóa base64 và đặt `store: false`.
 
 Lệnh `npm run check:ai` hiển thị cấu hình cả OpenAI và Gemini. `npm run check:ai -- --live` kiểm tra độc lập tất cả dịch vụ đã có khóa, vẫn tiếp tục nếu một dịch vụ lỗi. Có thể kiểm tra riêng bằng `npm run check:ai -- --live --provider=gemini` hoặc `--provider=openai`. Tham số kiểm tra không thay đổi dịch vụ website đang dùng; `AI_PROVIDER` quyết định dịch vụ thực tế. `GEMINI_MODEL` cho phép chọn model Gemini trên server.
 
-### Model đang dùng cho website
+### Lựa chọn dịch vụ AI cho website
 
-Các chức năng soạn tin tuyển dụng, đọc CV và luyện phỏng vấn dùng cấu hình server: `AI_PROVIDER=gemini` và `GEMINI_MODEL=gemini-3-flash-preview`. Khởi động lại backend sau khi thay đổi cấu hình. Model được chọn rõ sẽ được sử dụng cho các chức năng này.
+Dịch vụ thực tế phụ thuộc `server/.env`, không cố định trong README. File mẫu dùng `AI_PROVIDER=auto`; muốn dùng Gemini, đặt `AI_PROVIDER=gemini`, `GEMINI_API_KEY` và `GEMINI_MODEL`. Muốn dùng OpenAI, đặt `AI_PROVIDER=openai`, `OPENAI_API_KEY` và `OPENAI_MODEL`. Khởi động lại backend sau khi đổi cấu hình và chạy `npm run check:ai` để kiểm tra.
 
 ## Tìm việc từ CV và nhận xét AI
 
@@ -342,11 +394,11 @@ Chuông lưu thông báo thật theo tài khoản cho ứng tuyển, lời mời
 
 Backend tự áp dụng migration bổ sung khi khởi động. Có thể chạy riêng `npm --prefix server run db:notifications`; chạy kiểm thử bằng `npm run test:notifications`. Xem [luồng nghiệp vụ, cơ chế outbox và hướng dẫn kiểm thử](docs/notifications.md).
 
-Admin date-filtered reports, CSV export, automatic Premium and confirmed-violation bans: [setup and verification](docs/admin-enhancements.md).
+Báo cáo Admin theo thời gian, xuất CSV, kích hoạt Premium và xử lý tài khoản vi phạm: [thiết lập và kiểm tra](docs/admin-enhancements.md). Quy trình ứng tuyển/phỏng vấn: [luồng tuyển dụng](docs/recruitment-workflow.md).
 
 ### Thiết lập PayOS trên máy local
 
-SDK `@payos/node` đã khai báo trong backend; sau khi pull chạy `npm --prefix server install`. Tạo tài khoản và kênh thanh toán tại https://my.payos.vn rồi điền vào `server/.env`:
+SDK `@payos/node` đã khai báo trong backend; sau khi pull chạy `npm --prefix server install`. Tạo tài khoản và kênh thanh toán tại [PayOS](https://my.payos.vn) rồi điền vào `server/.env`:
 
 ```env
 PAYOS_CLIENT_ID=

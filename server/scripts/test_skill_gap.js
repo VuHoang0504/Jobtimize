@@ -2,7 +2,19 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { recommendations, searchSuggestions, catalogue } = require('../src/services/courseRecommendations');
 const { createRelevance } = require('../src/services/cvJobRelevance');
-const { normalize } = require('../src/services/skillGapInsights');
+const { normalize, insightFailure } = require('../src/services/skillGapInsights');
+
+test('AI failures expose actionable quota and configuration codes without provider secrets', () => {
+  const quota = insightFailure({ status: 429, message: 'secret provider response' }, 'gemini');
+  assert.equal(quota.status, 'Unavailable');
+  assert.equal(quota.code, 'GEMINI_RATE_LIMITED');
+  assert.match(quota.message, /hạn mức/);
+  assert.ok(!JSON.stringify(quota).includes('secret'));
+  assert.equal(insightFailure({ status: 403 }, 'gemini').code, 'GEMINI_ACCESS_DENIED');
+  assert.equal(insightFailure({ status: 404 }, 'gemini').code, 'GEMINI_MODEL_NOT_FOUND');
+  assert.match(insightFailure({ code: 'OPENAI_BILLING_REQUIRED' }, 'openai').message, /thanh toán/);
+  assert.match(insightFailure(new Error('secret'), 'gemini').message, /tạm thời/);
+});
 
 test('course recommendations cover missing skills only and merge overlapping course pages', () => {
   const missing = [{ skillId: 1, skillName: 'Node.js', isMandatory: true }, { skillId: 2, skillName: 'Express.js', isMandatory: false }];
