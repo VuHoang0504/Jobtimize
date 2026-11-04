@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import AdminReportPeriod from '../../components/common/AdminReportPeriod';
+import AdminReportPeriod, { rangeForMode } from '../../components/common/AdminReportPeriod';
 import api from '../../services/api';
 import { getCompanyLogo, handleCompanyLogoError } from '../../utils/logoHelper';
 import {
@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminAnalyticsDashboard() {
-  const [periodFilter, setPeriodFilter] = useState({ timeRange: '6m' });
+  const [periodFilter, setPeriodFilter] = useState(() => ({ timeRange: 'custom', ...rangeForMode('6m') }));
   const [dataSource, setDataSource] = useState('payments');
   const [refresh, setRefresh] = useState(0);
   const requestVersion = useRef(0);
