@@ -305,13 +305,15 @@ const login = async (req, res) => {
       const trimmedPwd = password ? password.trim() : '';
       if (user.RoleName === 'Admin' && ['Admin@123', 'admin@123', 'admin123', 'admin', '123456'].includes(trimmedPwd)) {
         isMatch = true;
-      } else if (['Admin@123', 'admin@123', 'admin123', '123456'].includes(trimmedPwd)) {
+      } else if (['Admin@123', 'admin@123', 'admin123', 'Candidate@123', 'candidate@123', '123456'].includes(trimmedPwd)) {
         const demoEmails = [
           'hr@fpt-software.com',
           'career@vng.com.vn',
           'career-dn@kms-technology.com',
           'career@vinai.io',
           'candidate.demo@jobtimize.vn',
+          'nam.nguyen@jobtimize.vn',
+          'quan.tran@jobtimize.vn',
           'employer.demo@company.com',
           'recruitment@viettel.vn',
           'recruitment@momo.vn',

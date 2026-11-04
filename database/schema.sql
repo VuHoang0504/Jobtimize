@@ -344,6 +344,23 @@ CREATE TABLE dbo.Courses (
 );
 END;
 GO
+IF COL_LENGTH('Courses', 'Price') IS NULL
+    ALTER TABLE Courses ADD Price DECIMAL(18,2) DEFAULT 0 WITH VALUES;
+IF COL_LENGTH('Courses', 'Currency') IS NULL
+    ALTER TABLE Courses ADD Currency NVARCHAR(10) DEFAULT 'VND' WITH VALUES;
+IF COL_LENGTH('Courses', 'IsFree') IS NULL
+    ALTER TABLE Courses ADD IsFree BIT DEFAULT 0 WITH VALUES;
+IF COL_LENGTH('Courses', 'CertificateName') IS NULL
+    ALTER TABLE Courses ADD CertificateName NVARCHAR(200) NULL;
+IF COL_LENGTH('Courses', 'Duration') IS NULL
+    ALTER TABLE Courses ADD Duration NVARCHAR(50) NULL;
+IF COL_LENGTH('Courses', 'Level') IS NULL
+    ALTER TABLE Courses ADD Level NVARCHAR(50) NULL;
+IF COL_LENGTH('Courses', 'Rating') IS NULL
+    ALTER TABLE Courses ADD Rating FLOAT DEFAULT 4.8 WITH VALUES;
+IF COL_LENGTH('Courses', 'ThumbnailUrl') IS NULL
+    ALTER TABLE Courses ADD ThumbnailUrl NVARCHAR(500) NULL;
+GO
 
 -- Lộ trình học tập cá nhân hóa của Ứng viên (UC-C12, UC-AI01)
 IF OBJECT_ID(N'dbo.LearningPaths', N'U') IS NULL

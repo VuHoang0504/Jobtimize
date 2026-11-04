@@ -356,6 +356,109 @@ BEGIN
 END
 GO
 
+-- 7.10. Viettel Solutions (Hà Nội) - Doanh nghiệp đang chờ phê duyệt KYC (Pending)
+IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'recruitment@viettel.vn')
+BEGIN
+    DECLARE @EmpRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Employer');
+    DECLARE @CatAI INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Trí tuệ nhân tạo / Dữ liệu (AI & Data)');
+
+    INSERT INTO Users (Email, PasswordHash, FullName, Phone, AvatarUrl, Status, IsEmailVerified)
+    VALUES ('recruitment@viettel.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Viettel Solutions Talent Acquisition', '02462556789', '/logos/viettel.svg', 'Active', 1);
+    DECLARE @ViettelUserID INT = SCOPE_IDENTITY();
+    INSERT INTO UserRoles (UserID, RoleID) VALUES (@ViettelUserID, @EmpRoleID);
+
+    INSERT INTO Employers (UserID, CompanyName, CompanyLogoUrl, Website, CompanySize, Address, Description, KYCStatus)
+    VALUES (@ViettelUserID, N'Viettel Solutions', '/logos/viettel.svg', 'https://viettelsolutions.vn', N'5,000+ nhân viên', N'Số 1 Trần Hữu Dực, Nam Từ Liêm, Hà Nội', N'Tổng Công ty Giải pháp Doanh nghiệp Viettel - Tiên phong chuyển đổi số quốc gia.', 'Pending');
+    DECLARE @ViettelEmpID INT = SCOPE_IDENTITY();
+
+    INSERT INTO KYCDocuments (EmployerID, BusinessLicenseUrl, TaxCode, SubmittedAt)
+    VALUES (@ViettelEmpID, '/kyc/giay-phep-kd-viettel.svg', '0108475629', DATEADD(HOUR, -3, GETDATE()));
+
+    INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status, ExpiresAt)
+    VALUES (@ViettelEmpID, @CatAI, N'Kỹ sư Trí tuệ Nhân tạo / Machine Learning Engineer (Python)', N'Nghiên cứu, phát triển các mô hình AI/LLM và Computer Vision ứng dụng vào giải pháp chuyển đổi số thông minh cho chính phủ và doanh nghiệp.
+- Xây dựng mô hình xử lý ngôn ngữ tự nhiên (NLP) và nhận dạng hình ảnh với Python.
+- Tinh chỉnh các mô hình mã nguồn mở (LLMs) phục vụ chatbot và trợ lý ảo thông minh.
+- Triển khai mô hình AI lên production với độ trễ thấp và độ chính xác cao.', N'- Tốt nghiệp đại học chuyên ngành CNTT, Khoa học Máy tính hoặc Toán Tin.
+- Sử dụng thành thạo Python, PyTorch / TensorFlow.
+- Hiểu sâu về các thuật toán Machine Learning, Deep Learning, Transformer.
+- Có kinh nghiệm làm việc với RAG, LLM fine-tuning là ưu thế lớn.', N'35 - 60 triệu VNĐ', N'Hà Nội', 'PendingApproval', DATEADD(DAY, 45, GETDATE()));
+    DECLARE @ViettelJobID INT = SCOPE_IDENTITY();
+
+    INSERT INTO JobSkillRequirements (JobID, SkillID, IsMandatory)
+    SELECT @ViettelJobID, SkillID, 1 FROM SkillTaxonomy WHERE SkillName IN ('Python', 'Machine Learning', 'Generative AI / LLM');
+END
+GO
+
+-- 7.11. MoMo (M-Service) (TP. Hồ Chí Minh) - Doanh nghiệp đang chờ phê duyệt KYC (Pending)
+IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'recruitment@momo.vn')
+BEGIN
+    DECLARE @EmpRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Employer');
+    DECLARE @CatIT INT = (SELECT CategoryID FROM JobCategories WHERE CategoryName = N'Công nghệ thông tin / Phần mềm');
+
+    INSERT INTO Users (Email, PasswordHash, FullName, Phone, AvatarUrl, Status, IsEmailVerified)
+    VALUES ('recruitment@momo.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'MoMo Talent Acquisition', '02873065555', '/logos/momo.svg', 'Active', 1);
+    DECLARE @MomoUserID INT = SCOPE_IDENTITY();
+    INSERT INTO UserRoles (UserID, RoleID) VALUES (@MomoUserID, @EmpRoleID);
+
+    INSERT INTO Employers (UserID, CompanyName, CompanyLogoUrl, Website, CompanySize, Address, Description, KYCStatus)
+    VALUES (@MomoUserID, N'MoMo (M-Service)', '/logos/momo.svg', 'https://momo.vn', N'2,000+ nhân viên', N'Tòa nhà Phú Mỹ Hưng, Hoàng Văn Thái, Quận 7, TP. Hồ Chí Minh', N'Siêu ứng dụng thanh toán và tài chính số hàng đầu tại Việt Nam.', 'Pending');
+    DECLARE @MomoEmpID INT = SCOPE_IDENTITY();
+
+    INSERT INTO KYCDocuments (EmployerID, BusinessLicenseUrl, TaxCode, SubmittedAt)
+    VALUES (@MomoEmpID, '/kyc/giay-phep-kd-momo.svg', '0305289147', DATEADD(HOUR, -1, GETDATE()));
+
+    INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status, ExpiresAt)
+    VALUES (@MomoEmpID, @CatIT, N'Backend Developer (Node.js / Express / Redis / Microservices)', N'Xây dựng và tối ưu các dịch vụ Backend phục vụ hàng chục triệu giao dịch tài chính tốc độ cao.
+- Thiết kế API chuẩn RESTful/gRPC cho ứng dụng di động.
+- Xử lý bài toán chịu tải cao, caching nhiều tầng với Redis và RabbitMQ.
+- Đảm bảo độ sẵn sàng 99.99% và an toàn bảo mật dữ liệu tài chính.', N'- Từ 2+ năm kinh nghiệm Backend với Node.js, Express/NestJS.
+- Am hiểu sâu sắc về kiến trúc Microservices, Event-Driven Architecture.
+- Thành thạo CSDL PostgreSQL/MySQL và Caching với Redis.
+- Kỹ năng tư duy logic và giải quyết vấn đề tốt.', N'25 - 45 triệu VNĐ', N'TP. Hồ Chí Minh', 'PendingApproval', DATEADD(DAY, 45, GETDATE()));
+    DECLARE @MomoJobID INT = SCOPE_IDENTITY();
+
+    INSERT INTO JobSkillRequirements (JobID, SkillID, IsMandatory)
+    SELECT @MomoJobID, SkillID, 1 FROM SkillTaxonomy WHERE SkillName IN ('Node.js', 'Express.js', 'Redis', 'PostgreSQL');
+END
+GO
+
+-- 8. Nạp 2 Tài khoản Người tìm việc (Candidate) kèm bộ CV đang bật tìm việc (IsLookingForJob = 1)
+IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'nam.nguyen@jobtimize.vn')
+BEGIN
+    DECLARE @CandRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Candidate');
+
+    INSERT INTO Users (Email, PasswordHash, FullName, Phone, AvatarUrl, Status, IsEmailVerified)
+    VALUES ('nam.nguyen@jobtimize.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Nguyễn Hoàng Nam', '0912345601', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80', 'Active', 1);
+    DECLARE @NamUserID INT = SCOPE_IDENTITY();
+    INSERT INTO UserRoles (UserID, RoleID) VALUES (@NamUserID, @CandRoleID);
+
+    INSERT INTO CandidateProfiles (UserID, Headline, Bio, DesiredSalary, CurrentLocation, IsLookingForJob)
+    VALUES (@NamUserID, N'Senior Fullstack Engineer (React.js, Node.js, TypeScript)', N'{"bioText":"5+ năm kinh nghiệm phát triển các hệ thống Web Fullstack phục vụ hàng triệu người dùng với React.js, Next.js, TypeScript và Node.js.","skills":{"hardSkills":["React.js","Node.js","TypeScript","Next.js","PostgreSQL","Docker"],"softSkills":["Làm việc nhóm","Quản lý thời gian","Giao tiếp kỹ thuật"]}}', 35000000, N'Hà Nội', 1);
+    DECLARE @NamProfileID INT = SCOPE_IDENTITY();
+
+    INSERT INTO CVs (ProfileID, Title, FileUrl, CvType, Template, IsPrimary, IsArchived)
+    VALUES (@NamProfileID, N'CV Nguyễn Hoàng Nam - Senior Fullstack Engineer', '/api/cv-documents/talent/' + CAST(@NamProfileID AS NVARCHAR(20)) + '/file', 'OnlineBuilder', 'modern', 1, 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'quan.tran@jobtimize.vn')
+BEGIN
+    DECLARE @CandRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Candidate');
+
+    INSERT INTO Users (Email, PasswordHash, FullName, Phone, AvatarUrl, Status, IsEmailVerified)
+    VALUES ('quan.tran@jobtimize.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Trần Minh Quân', '0912345602', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&q=80', 'Active', 1);
+    DECLARE @QuanUserID INT = SCOPE_IDENTITY();
+    INSERT INTO UserRoles (UserID, RoleID) VALUES (@QuanUserID, @CandRoleID);
+
+    INSERT INTO CandidateProfiles (UserID, Headline, Bio, DesiredSalary, CurrentLocation, IsLookingForJob)
+    VALUES (@QuanUserID, N'AI & Machine Learning Engineer (Python, PyTorch, GenAI)', N'{"bioText":"4+ năm kinh nghiệm nghiên cứu và triển khai các mô hình LLM, RAG và Computer Vision vào sản phẩm thực tế với Python, PyTorch, FastAPI và Docker.","skills":{"hardSkills":["Python","Machine Learning","Generative AI / LLM","Docker","PostgreSQL","Redis"],"softSkills":["Tư duy phản biện","Giải quyết vấn đề","Nghiên cứu độc lập"]}}', 42000000, N'TP. Hồ Chí Minh', 1);
+    DECLARE @QuanProfileID INT = SCOPE_IDENTITY();
+
+    INSERT INTO CVs (ProfileID, Title, FileUrl, CvType, Template, IsPrimary, IsArchived)
+    VALUES (@QuanProfileID, N'CV Trần Minh Quân - AI & Machine Learning Engineer', '/api/cv-documents/talent/' + CAST(@QuanProfileID AS NVARCHAR(20)) + '/file', 'OnlineBuilder', 'modern', 1, 0);
+END
+GO
+
 PRINT 'JobtimizeDB Seed Data completed!';
 
 GO

@@ -49,18 +49,23 @@ const sampleEmployers = [
   {
     email: 'recruitment@viettel.vn',
     fullName: 'Viettel Solutions Talent Acquisition',
+    phone: '02462556789',
     companyName: 'Viettel Solutions',
     companyLogoUrl: '/logos/viettel.svg',
     website: 'https://viettelsolutions.vn',
     companySize: '5,000+ nhân viên',
     address: 'Số 1 Trần Hữu Dực, Nam Từ Liêm, Hà Nội',
     description: 'Tổng Công ty Giải pháp Doanh nghiệp Viettel - Tiên phong chuyển đổi số quốc gia.',
+    kycStatus: 'Pending',
+    businessLicenseUrl: '/kyc/giay-phep-kd-viettel.svg',
+    taxCode: '0108475629',
     jobs: [
       {
         title: 'Kỹ sư Trí tuệ Nhân tạo / Machine Learning Engineer (Python)',
         categoryName: 'Trí tuệ nhân tạo / Dữ liệu (AI & Data)',
         salaryRange: '35 - 60 triệu VNĐ',
         location: 'Hà Nội',
+        status: 'PendingApproval',
         skills: ['Python', 'Machine Learning', 'Generative AI / LLM'],
         description: `Nghiên cứu, phát triển các mô hình AI/LLM và Computer Vision ứng dụng vào giải pháp chuyển đổi số thông minh cho chính phủ và doanh nghiệp.
 - Xây dựng mô hình xử lý ngôn ngữ tự nhiên (NLP) và nhận dạng hình ảnh với Python.
@@ -252,18 +257,23 @@ const sampleEmployers = [
   {
     email: 'recruitment@momo.vn',
     fullName: 'MoMo Talent Acquisition',
+    phone: '02873065555',
     companyName: 'MoMo (M-Service)',
     companyLogoUrl: '/logos/momo.svg',
     website: 'https://momo.vn',
     companySize: '2,000+ nhân viên',
     address: 'Tòa nhà Phú Mỹ Hưng, Hoàng Văn Thái, Quận 7, TP. Hồ Chí Minh',
     description: 'Siêu ứng dụng thanh toán và tài chính số hàng đầu tại Việt Nam.',
+    kycStatus: 'Pending',
+    businessLicenseUrl: '/kyc/giay-phep-kd-momo.svg',
+    taxCode: '0305289147',
     jobs: [
       {
         title: 'Backend Developer (Node.js / Express / Redis / Microservices)',
         categoryName: 'Công nghệ thông tin / Phần mềm',
         salaryRange: '25 - 45 triệu VNĐ',
         location: 'TP. Hồ Chí Minh',
+        status: 'PendingApproval',
         skills: ['Node.js', 'Express.js', 'Redis', 'PostgreSQL'],
         description: `Xây dựng và tối ưu các dịch vụ Backend phục vụ hàng chục triệu giao dịch tài chính tốc độ cao.
 - Thiết kế API chuẩn RESTful/gRPC cho ứng dụng di động.
@@ -425,19 +435,21 @@ async function seedJobs() {
 
       if (userRes.recordset.length > 0) {
         userId = userRes.recordset[0].UserID;
-        await executeQuery('UPDATE Users SET AvatarUrl = @AvatarUrl WHERE UserID = @UserID', {
+        await executeQuery('UPDATE Users SET AvatarUrl = @AvatarUrl, Phone = COALESCE(@Phone, Phone) WHERE UserID = @UserID', {
           AvatarUrl: empData.companyLogoUrl,
+          Phone: empData.phone || null,
           UserID: userId
         });
       } else {
         const insertUserRes = await executeQuery(`
-          INSERT INTO Users (Email, PasswordHash, FullName, AvatarUrl, Status, IsEmailVerified, CreatedAt)
-          VALUES (@Email, @PasswordHash, @FullName, @AvatarUrl, 'Active', 1, GETDATE());
+          INSERT INTO Users (Email, PasswordHash, FullName, Phone, AvatarUrl, Status, IsEmailVerified, CreatedAt)
+          VALUES (@Email, @PasswordHash, @FullName, @Phone, @AvatarUrl, 'Active', 1, GETDATE());
           SELECT SCOPE_IDENTITY() AS UserID;
         `, {
           Email: empData.email,
           PasswordHash: defaultPasswordHash,
           FullName: empData.fullName,
+          Phone: empData.phone || null,
           AvatarUrl: empData.companyLogoUrl
         });
         userId = insertUserRes.recordset[0].UserID;
@@ -452,6 +464,7 @@ async function seedJobs() {
       // 2. Kiểm tra / Tạo Employer Profile
       let empRes = await executeQuery('SELECT EmployerID FROM Employers WHERE UserID = @UserID', { UserID: userId });
       let employerId;
+      const kycStatus = empData.kycStatus || 'Approved';
 
       if (empRes.recordset.length > 0) {
         employerId = empRes.recordset[0].EmployerID;
@@ -459,7 +472,7 @@ async function seedJobs() {
         await executeQuery(`
           UPDATE Employers 
           SET CompanyName = @CompanyName, CompanyLogoUrl = @CompanyLogoUrl, Website = @Website,
-              CompanySize = @CompanySize, Address = @Address, Description = @Description, KYCStatus = 'Approved'
+              CompanySize = @CompanySize, Address = @Address, Description = @Description, KYCStatus = @KYCStatus
           WHERE EmployerID = @EmployerID
         `, {
           EmployerID: employerId,
@@ -468,12 +481,13 @@ async function seedJobs() {
           Website: empData.website,
           CompanySize: empData.companySize,
           Address: empData.address,
-          Description: empData.description
+          Description: empData.description,
+          KYCStatus: kycStatus
         });
       } else {
         const insertEmpRes = await executeQuery(`
           INSERT INTO Employers (UserID, CompanyName, CompanyLogoUrl, Website, CompanySize, Address, Description, KYCStatus)
-          VALUES (@UserID, @CompanyName, @CompanyLogoUrl, @Website, @CompanySize, @Address, @Description, 'Approved');
+          VALUES (@UserID, @CompanyName, @CompanyLogoUrl, @Website, @CompanySize, @Address, @Description, @KYCStatus);
           SELECT SCOPE_IDENTITY() AS EmployerID;
         `, {
           UserID: userId,
@@ -482,9 +496,22 @@ async function seedJobs() {
           Website: empData.website,
           CompanySize: empData.companySize,
           Address: empData.address,
-          Description: empData.description
+          Description: empData.description,
+          KYCStatus: kycStatus
         });
         employerId = insertEmpRes.recordset[0].EmployerID;
+      }
+
+      if (empData.businessLicenseUrl) {
+        await executeQuery(`
+          IF NOT EXISTS (SELECT 1 FROM KYCDocuments WHERE EmployerID = @EmployerID)
+          INSERT INTO KYCDocuments (EmployerID, BusinessLicenseUrl, TaxCode, SubmittedAt)
+          VALUES (@EmployerID, @BusinessLicenseUrl, @TaxCode, GETDATE());
+        `, {
+          EmployerID: employerId,
+          BusinessLicenseUrl: empData.businessLicenseUrl,
+          TaxCode: empData.taxCode || null
+        });
       }
 
       // 3. Tạo Job Postings
@@ -500,12 +527,13 @@ async function seedJobs() {
         );
 
         let jobId;
+        const jobStatus = job.status || 'Published';
         if (existingJobRes.recordset.length > 0) {
           jobId = existingJobRes.recordset[0].JobID;
           await executeQuery(`
             UPDATE JobPostings
             SET CategoryID = @CategoryID, Description = @Description, Requirements = @Requirements,
-                SalaryRange = @SalaryRange, Location = @Location, Status = 'Published'
+                SalaryRange = @SalaryRange, Location = @Location, Status = @Status
             WHERE JobID = @JobID
           `, {
             JobID: jobId,
@@ -513,12 +541,13 @@ async function seedJobs() {
             Description: job.description,
             Requirements: job.requirements,
             SalaryRange: job.salaryRange,
-            Location: job.location
+            Location: job.location,
+            Status: jobStatus
           });
         } else {
           const insertJobRes = await executeQuery(`
             INSERT INTO JobPostings (EmployerID, CategoryID, Title, Description, Requirements, SalaryRange, Location, Status, CreatedAt)
-            VALUES (@EmployerID, @CategoryID, @Title, @Description, @Requirements, @SalaryRange, @Location, 'Published', GETDATE());
+            VALUES (@EmployerID, @CategoryID, @Title, @Description, @Requirements, @SalaryRange, @Location, @Status, GETDATE());
             SELECT SCOPE_IDENTITY() AS JobID;
           `, {
             EmployerID: employerId,
@@ -527,7 +556,8 @@ async function seedJobs() {
             Description: job.description,
             Requirements: job.requirements,
             SalaryRange: job.salaryRange,
-            Location: job.location
+            Location: job.location,
+            Status: jobStatus
           });
           jobId = insertJobRes.recordset[0].JobID;
         }

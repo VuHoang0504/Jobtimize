@@ -30,9 +30,9 @@ function resolvePeriod(input = {}, now = new Date()) {
     previousFrom = new Date(Date.UTC(Number(input.year) - 1, 0, 1)); previousEnd = from;
   } else if (mode === 'custom') {
     from = parseDay(input.fromDate); end = addDays(parseDay(input.toDate), 1);
-  } else if (['7d', '30d', '6m', '1y'].includes(mode)) {
+  } else if (['7d', '30d', '3m', '6m', '1y'].includes(mode)) {
     end = addDays(today, 1);
-    from = mode.endsWith('d') ? addDays(end, -Number(mode.slice(0, -1))) : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (mode === '6m' ? 5 : 11), 1));
+    from = mode.endsWith('d') ? addDays(end, -Number(mode.slice(0, -1))) : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (mode === '3m' ? 2 : mode === '6m' ? 5 : 11), 1));
   } else throw bad('Bộ lọc thời gian không hợp lệ.');
   const days = (end - from) / DAY;
   if (days < 1 || days > 1830) throw bad('Khoảng thời gian phải từ 1 ngày đến tối đa 5 năm.');
