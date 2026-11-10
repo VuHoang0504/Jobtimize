@@ -428,7 +428,7 @@ BEGIN
     DECLARE @CandRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Candidate');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Phone, AvatarUrl, Status, IsEmailVerified)
-    VALUES ('nam.nguyen@jobtimize.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Nguyễn Hoàng Nam', '0912345601', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80', 'Active', 1);
+    VALUES ('nam.nguyen@jobtimize.vn', '$2a$10$ugRyym2Jgxc0BlOKZNWHKuUlJxohk7dgU8.vMO1YyCuuuNGO/8/Dm', N'Nguyễn Hoàng Nam', '0912345601', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80', 'Active', 1);
     DECLARE @NamUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@NamUserID, @CandRoleID);
 
@@ -446,7 +446,7 @@ BEGIN
     DECLARE @CandRoleID INT = (SELECT RoleID FROM Roles WHERE RoleName = 'Candidate');
 
     INSERT INTO Users (Email, PasswordHash, FullName, Phone, AvatarUrl, Status, IsEmailVerified)
-    VALUES ('quan.tran@jobtimize.vn', '$2a$10$.LLrpoVU5Y.tlwHpvWBrSeLjXS7gT/KwSK5k61n7ZEcVC0j4Vkt3a', N'Trần Minh Quân', '0912345602', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&q=80', 'Active', 1);
+    VALUES ('quan.tran@jobtimize.vn', '$2a$10$ugRyym2Jgxc0BlOKZNWHKuUlJxohk7dgU8.vMO1YyCuuuNGO/8/Dm', N'Trần Minh Quân', '0912345602', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&q=80', 'Active', 1);
     DECLARE @QuanUserID INT = SCOPE_IDENTITY();
     INSERT INTO UserRoles (UserID, RoleID) VALUES (@QuanUserID, @CandRoleID);
 
