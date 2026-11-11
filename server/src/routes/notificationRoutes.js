@@ -3,17 +3,24 @@ const { authenticate } = require('../middleware/authMiddleware');
 const { executeQuery } = require('../config/db');
 const router = express.Router();
 router.use(authenticate);
+router.get('/stream', require('../services/notificationRealtime').stream);
 
 const visible = `n.UserID=@UserID AND n.RecipientRole=@Role AND n.IsActive=1 AND n.Type<>'login'
-  AND (n.Type<>'job_match' OR EXISTS(SELECT 1 FROM JobPostings j JOIN Employers e ON e.EmployerID=j.EmployerID
+  AND (n.Type NOT IN ('job_match','job_match_alert') OR EXISTS(SELECT 1 FROM JobPostings j JOIN Employers e ON e.EmployerID=j.EmployerID
     JOIN Users eu ON eu.UserID=e.UserID JOIN CVs c ON c.CVID=n.CVID JOIN CandidateProfiles p ON p.ProfileID=c.ProfileID
+    CROSS APPLY(SELECT TOP 1 VersionID,Status FROM CVDocumentVersions WHERE CVID=c.CVID ORDER BY VersionNumber DESC)v
     WHERE j.JobID=n.JobID AND j.Status='Published' AND eu.Status='Active' AND (j.ExpiresAt IS NULL OR j.ExpiresAt>GETDATE())
-    AND p.UserID=@UserID AND p.IsLookingForJob=1 AND c.IsPrimary=1
+    AND p.UserID=@UserID AND p.IsLookingForJob=1 AND c.IsPrimary=1 AND c.IsArchived=0 AND v.Status='Ready'
+    AND (n.Type<>'job_match_alert' OR n.EventKey LIKE CONCAT('job-alert:',n.JobID,':',v.VersionID,':%'))
+    AND (n.Type<>'job_match' OR NOT EXISTS(SELECT 1 FROM Notifications alert WHERE alert.UserID=n.UserID AND alert.JobID=n.JobID
+      AND alert.CVID=n.CVID AND alert.Type='job_match_alert' AND alert.IsActive=1
+      AND alert.EventKey LIKE CONCAT('job-alert:',n.JobID,':',v.VersionID,':%')))
     AND NOT EXISTS(SELECT 1 FROM JobApplications a WHERE a.JobID=j.JobID AND a.ProfileID=p.ProfileID)))`;
 const params = req => ({ UserID: req.user.userId, Role: req.user.role });
 const fail = res => res.status(503).json({ success: false, message: 'Thông báo tạm thời chưa sẵn sàng. Vui lòng thử lại.' });
 const inboxOrder = `CASE WHEN n.ReadAt IS NULL THEN 0 ELSE 1 END,
-  CASE WHEN @Role='Candidate' AND n.Type IN ('invitation','job_match') THEN 0
+  CASE WHEN @Role='Candidate' AND n.Type='job_match_alert' THEN -1
+    WHEN @Role='Candidate' AND n.Type IN ('invitation','job_match') THEN 0
     WHEN @Role='Employer' AND n.Type IN ('application','job_status') THEN 0 ELSE 1 END,
   n.NotificationID DESC`;
 
@@ -25,9 +32,12 @@ router.get('/', async (req, res) => {
     const filter = req.query.filter === 'unread' ? 'AND n.ReadAt IS NULL' : '';
     const result = await executeQuery(`SELECT COUNT(*) total,SUM(CASE WHEN n.ReadAt IS NULL THEN 1 ELSE 0 END) unread FROM Notifications n WHERE ${visible};
       SELECT n.NotificationID id,n.Type type,n.Title title,n.Body body,n.Href href,n.CreatedAt createdAt,n.ReadAt readAt
-      FROM Notifications n WHERE ${visible} ${filter} ORDER BY ${inboxOrder} OFFSET @Offset ROWS FETCH NEXT 20 ROWS ONLY;`, p);
+      FROM Notifications n WHERE ${visible} ${filter} ORDER BY ${inboxOrder} OFFSET @Offset ROWS FETCH NEXT 20 ROWS ONLY;
+      SELECT TOP 1 n.NotificationID id,n.Type type,n.Title title,n.Body body,n.Href href,n.CreatedAt createdAt,n.ReadAt readAt
+      FROM Notifications n WHERE ${visible} AND n.Type='job_match_alert' AND n.ReadAt IS NULL ORDER BY n.NotificationID DESC;`, p);
     const counts = result.recordsets[0][0];
-    res.json({ success: true, data: result.recordsets[1], total: counts.total, unread: counts.unread || 0, page, limit });
+    res.json({ success: true, data: result.recordsets[1], total: counts.total, unread: counts.unread || 0, page, limit,
+      latestOpportunity: result.recordsets[2]?.[0] || null });
   } catch (error) { console.error('List notifications:', error.message); fail(res); }
 });
 router.patch('/read-all', async (req, res) => {

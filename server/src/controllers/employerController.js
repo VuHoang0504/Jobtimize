@@ -1,4 +1,5 @@
 const { withTransaction, enqueue } = require('../services/notificationStore');
+const { enqueueJobMatch, currentFingerprint } = require('../services/jobMatchAlerts');
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
 const { canViewApplicantMatching, applicantMatchDetails } = require('../services/applicantMatchingAccess');
@@ -337,57 +338,62 @@ const updateJob = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác' });
     }
 
-    const checkJob = await executeQuery(
-      'SELECT JobID FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID',
-      { JobID: jobId, EmployerID: emp.EmployerID }
-    );
-    if (!checkJob.recordset || checkJob.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy tin tuyển dụng' });
-    }
-
-    // Update JobPostings
-    await executeQuery(
-      `UPDATE JobPostings
-       SET Title = @Title,
-           CategoryID = @CategoryID,
-           Description = @Description,
-           Requirements = @Requirements,
-           SalaryRange = @SalaryRange,
-           Location = @Location
-       WHERE JobID = @JobID AND EmployerID = @EmployerID`,
-      {
-        JobID: jobId,
-        EmployerID: emp.EmployerID,
-        Title: title,
-        CategoryID: categoryId ? parseInt(categoryId, 10) : null,
-        Description: description,
-        Requirements: requirements,
-        SalaryRange: salaryRange || 'Thỏa thuận',
-        Location: location || 'Toàn quốc'
+    await withTransaction(async query => {
+      const checkJob = await query(
+        'SELECT JobID FROM JobPostings WITH(UPDLOCK,ROWLOCK) WHERE JobID = @JobID AND EmployerID = @EmployerID',
+        { JobID: jobId, EmployerID: emp.EmployerID }
+      );
+      if (!checkJob.recordset || checkJob.recordset.length === 0) {
+        throw Object.assign(new Error('Không tìm thấy tin tuyển dụng'), { status: 404 });
       }
-    );
 
-    // Refresh JobSkillRequirements
-    await executeQuery('DELETE FROM JobSkillRequirements WHERE JobID = @JobID', { JobID: jobId });
+      // Update JobPostings
+      const previousFingerprint = await currentFingerprint(query, jobId);
+      await query(
+        `UPDATE JobPostings
+         SET Title = @Title,
+             CategoryID = @CategoryID,
+             Description = @Description,
+             Requirements = @Requirements,
+             SalaryRange = @SalaryRange,
+             Location = @Location
+         WHERE JobID = @JobID AND EmployerID = @EmployerID`,
+        {
+          JobID: jobId,
+          EmployerID: emp.EmployerID,
+          Title: title,
+          CategoryID: categoryId ? parseInt(categoryId, 10) : null,
+          Description: description,
+          Requirements: requirements,
+          SalaryRange: salaryRange || 'Thỏa thuận',
+          Location: location || 'Toàn quốc'
+        }
+      );
 
-    if (Array.isArray(skills) && skills.length > 0) {
-      for (const skill of skills) {
-        const skillId = typeof skill === 'object' ? skill.skillId : skill;
-        const isMandatory = typeof skill === 'object' && skill.isMandatory !== undefined ? (skill.isMandatory ? 1 : 0) : 1;
+      // Refresh JobSkillRequirements
+      await query('DELETE FROM JobSkillRequirements WHERE JobID = @JobID', { JobID: jobId });
 
-        if (skillId) {
-          await executeQuery(
-            `INSERT INTO JobSkillRequirements (JobID, SkillID, IsMandatory)
-             VALUES (@JobID, @SkillID, @IsMandatory)`,
-            {
-              JobID: jobId,
-              SkillID: skillId,
-              IsMandatory: isMandatory
-            }
-          );
+      if (Array.isArray(skills) && skills.length > 0) {
+        for (const skill of skills) {
+          const skillId = typeof skill === 'object' ? skill.skillId : skill;
+          const isMandatory = typeof skill === 'object' && skill.isMandatory !== undefined ? (skill.isMandatory ? 1 : 0) : 1;
+
+          if (skillId) {
+            await query(
+              `INSERT INTO JobSkillRequirements (JobID, SkillID, IsMandatory)
+               VALUES (@JobID, @SkillID, @IsMandatory)`,
+              {
+                JobID: jobId,
+                SkillID: skillId,
+                IsMandatory: isMandatory
+              }
+            );
+          }
         }
       }
-    }
+
+      await enqueueJobMatch(query, jobId, previousFingerprint);
+    });
 
     return res.json({
       success: true,
@@ -395,7 +401,7 @@ const updateJob = async (req, res) => {
     });
   } catch (error) {
     console.error('updateJob error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 
@@ -416,18 +422,21 @@ const updateJobStatus = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác' });
     }
 
-    const checkJob = await executeQuery(
-      'SELECT JobID FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID',
-      { JobID: jobId, EmployerID: emp.EmployerID }
-    );
-    if (!checkJob.recordset || checkJob.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy tin tuyển dụng' });
-    }
+    await withTransaction(async query => {
+      const checkJob = await query(
+        'SELECT JobID,Status FROM JobPostings WITH(UPDLOCK,ROWLOCK) WHERE JobID = @JobID AND EmployerID = @EmployerID',
+        { JobID: jobId, EmployerID: emp.EmployerID }
+      );
+      if (!checkJob.recordset || checkJob.recordset.length === 0) {
+        throw Object.assign(new Error('Không tìm thấy tin tuyển dụng'), { status: 404 });
+      }
 
-    await executeQuery(
-      `UPDATE JobPostings SET Status = @Status WHERE JobID = @JobID AND EmployerID = @EmployerID`,
-      { JobID: jobId, EmployerID: emp.EmployerID, Status: status }
-    );
+      await query(
+        `UPDATE JobPostings SET Status = @Status WHERE JobID = @JobID AND EmployerID = @EmployerID`,
+        { JobID: jobId, EmployerID: emp.EmployerID, Status: status }
+      );
+      if (status === 'Published' && checkJob.recordset[0].Status !== 'Published') await enqueueJobMatch(query, jobId);
+    });
 
     const message = status === 'Closed'
       ? 'Đã đóng (tạm dừng) tin tuyển dụng thành công!'
@@ -440,7 +449,7 @@ const updateJobStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('updateJobStatus error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 

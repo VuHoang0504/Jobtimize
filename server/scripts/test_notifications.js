@@ -382,6 +382,7 @@ test('notification workflows on an isolated SQL Server database', { timeout: 180
     assert.equal((await inbox(employer)).data.filter(n => n.type === 'application' && n.href.startsWith(`/employer/ats/${id}?`)).length, 1);
   });
   await require('./admin_regression_cases')({ t, call, executeQuery, seedUser, admin, candidate, employer, base, headers });
+  await require('./job_alert_regression_cases')({ t, call, executeQuery, seedUser, admin, base, headers });
 });
 
 test('ranking uses exact threshold, mandatory weights, stable top three and applied exclusion', () => {

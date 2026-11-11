@@ -11,6 +11,7 @@
     "check:smtp": "node scripts/check_smtp.js",
     "test:otp": "node --test scripts/test_otp.js",
     "test:notifications": "node --test scripts/test_notifications.js",
+    "test:job-alerts": "node --test scripts/test_job_match_alerts.js",
     "benchmark:notifications": "node scripts/benchmark_notifications.js",
     "db:notifications": "node scripts/migrateNotifications.js",
     "cv:browser": "node ../scripts/installCVBrowser.mjs",

@@ -470,6 +470,8 @@ BEGIN
     UpdatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
   );
 END;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.Notifications') AND name='IX_Notifications_JobAlerts')
+  CREATE INDEX IX_Notifications_JobAlerts ON dbo.Notifications(JobID,Type,IsActive) INCLUDE(UserID,RecipientRole,EventKey,CVID);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.JobApplications') AND name='IX_JobApplications_NotificationLookup')
   CREATE INDEX IX_JobApplications_NotificationLookup ON dbo.JobApplications(ProfileID,JobID) INCLUDE(ApplicationID);
 

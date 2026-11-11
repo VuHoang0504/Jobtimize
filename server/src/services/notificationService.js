@@ -1,6 +1,7 @@
 const { executeQuery } = require('../config/db');
 const { withTransaction, enqueue, putNotification } = require('./notificationStore');
 const { refreshRecommendations } = require('./notificationRecommendations');
+const realtime = require('./notificationRealtime');
 
 async function eventNotifications(query, event) {
   const p = JSON.parse(event.Payload);
@@ -82,7 +83,13 @@ async function drainOutbox(limit = 50) {
           WHERE ProcessedAt IS NULL AND AvailableAt<=SYSUTCDATETIME() ORDER BY OutboxID`)).recordset[0];
         if (!event) return false;
         id = event.OutboxID;
-        for (const n of await eventNotifications(query, event)) await putNotification(query, n);
+        const batch = event.EventType === 'job_match_alert' ? await require('./jobMatchAlerts').matchBatch(query, event) : null;
+        for (const n of batch ? batch.notices : await eventNotifications(query, event)) await putNotification(query, n);
+        if (batch && !batch.done) {
+          await query('UPDATE NotificationOutbox SET Payload=@Payload,Attempts=0,LastError=NULL WHERE OutboxID=@ID', { ID: id, Payload: JSON.stringify(batch.payload) });
+          query.outboxQueued = true;
+          return true;
+        }
         await query('UPDATE NotificationOutbox SET ProcessedAt=SYSUTCDATETIME(),LastError=NULL WHERE OutboxID=@ID', { ID: id });
         return true;
       });
@@ -117,8 +124,17 @@ async function initialize() {
 }
 
 function startWorker() {
-  let stopped = false, timer, lastRecommendations = 0;
+  let stopped = false, timer, lastRecommendations = 0, running = false, requested = false;
+  const idleWaiters = [];
+  function wake() {
+    if (stopped) return;
+    if (running) { requested = true; return; }
+    clearTimeout(timer);
+    timer = setTimeout(tick, 0); timer.unref();
+  }
   async function tick() {
+    if (stopped || running) return;
+    running = true; requested = false;
     try {
       await drainOutbox();
       if (Date.now() - lastRecommendations >= 30000) {
@@ -126,10 +142,16 @@ function startWorker() {
         lastRecommendations = Date.now();
       }
     } catch (error) { console.error('Notification worker failed:', error.message); }
-    if (!stopped) { timer = setTimeout(tick, 5000); timer.unref(); }
+    running = false;
+    idleWaiters.splice(0).forEach(resolve => resolve());
+    if (!stopped) { timer = setTimeout(tick, requested ? 0 : 5000); timer.unref(); }
   }
+  const unsubscribe = realtime.onOutbox(wake);
   void tick();
-  return () => { stopped = true; clearTimeout(timer); };
+  return () => {
+    stopped = true; unsubscribe(); clearTimeout(timer);
+    return running ? new Promise(resolve => idleWaiters.push(resolve)) : Promise.resolve();
+  };
 }
 
 module.exports = { initialize, startWorker, drainOutbox, eventNotifications };

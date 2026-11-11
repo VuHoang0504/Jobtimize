@@ -1,6 +1,7 @@
 const { withTransaction, enqueue } = require('../services/notificationStore');
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
+const { enqueueJobMatch } = require('../services/jobMatchAlerts');
 
 
 async function saveKYCReview(employerId, status, note) {
@@ -701,6 +702,7 @@ const moderateJob = async (req, res) => {
       if (previous && (previous.Status !== status || (previous.AdminNote || '') !== (adminNote?.trim() || ''))) {
         await enqueue(query, 'job_status', { jobId, status, note: adminNote?.trim() || '' });
       }
+      if (previous && previous.Status !== 'Published' && status === 'Published') await enqueueJobMatch(query, jobId);
       return result;
     });
 

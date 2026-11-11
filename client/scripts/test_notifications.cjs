@@ -9,9 +9,9 @@ const esbuild = require('esbuild');
 
 async function component(name, mockAuth = true) {
   const result = await esbuild.build({ entryPoints: [path.resolve(__dirname, '../src', name)], write: false,
-    bundle: true, platform: 'node', format: 'cjs', external: ['react', 'react-router-dom'], define: { 'import.meta.env': '{}' },
+    bundle: true, platform: 'node', format: 'cjs', external: ['react', 'react-router-dom'], define: { 'import.meta.env': '{}' }, loader: { '.css': 'empty' },
     plugins: [{ name: 'isolated-services', setup(build) {
-      build.onResolve({ filter: /services\/api$/ }, () => ({ path: 'api', namespace: 'test-mocks' }));
+      build.onResolve({ filter: /(?:services\/api|^\.\/api)$/ }, () => ({ path: 'api', namespace: 'test-mocks' }));
       if (mockAuth) build.onResolve({ filter: /context\/AuthContext$/ }, () => ({ path: 'auth', namespace: 'test-mocks' }));
       build.onLoad({ filter: /.*/, namespace: 'test-mocks' }, args => ({ loader: 'js', contents: args.path === 'api'
         ? 'module.exports = globalThis.notificationTestApi;'
@@ -43,6 +43,106 @@ function tree(Inbox, user) {
 }
 const candidate = { userId: 1, role: 'Candidate' };
 const notice = { id: 17, type: 'invitation', title: 'Lời mời thật', body: 'Công ty mời bạn ứng tuyển', href: '/candidate/dashboard?tab=invitations&invitationId=2', createdAt: '2026-10-28T03:00:00Z', readAt: null };
+
+test('new job matches show a special accessible notice once and navigate to the exact job', async () => {
+  const env = globals(); let mounted, data = [];
+  const opportunity = { ...notice, id: 31, type: 'job_match_alert', title: 'Có việc làm phù hợp với bạn!', body: 'React Developer — khớp 100% kỹ năng.', href: '/jobs/41' };
+  notificationTestApi = { get: async () => ({ data: { data, total: data.length, unread: data.length } }), patch: async () => ({ data: { success: true } }) };
+  try {
+    const Inbox = (await component('components/common/NotificationInbox.jsx')).default;
+    await renderer.act(async () => { mounted = renderer.create(tree(Inbox, candidate)); });
+    assert.equal(mounted.root.findAllByProps({ 'aria-label': 'Việc làm phù hợp mới' }).length, 0);
+    data = [opportunity];
+    await renderer.act(async () => { window.dispatchEvent(new Event('notifications-changed')); });
+    assert.equal(mounted.root.findAllByProps({ 'aria-label': 'Việc làm phù hợp mới' }).length, 1);
+    assert.ok(button(mounted.root, 'Thông báo').props['aria-label'].includes('1 chưa đọc'));
+    await renderer.act(async () => { button(mounted.root, 'Ẩn gợi ý việc làm').props.onClick(); });
+    await renderer.act(async () => { window.dispatchEvent(new Event('notifications-changed')); });
+    assert.equal(mounted.root.findAllByProps({ 'aria-label': 'Việc làm phù hợp mới' }).length, 0, 'A repeated signal must not repeat a dismissed popup');
+    data = [{ ...opportunity, id: 32 }];
+    await renderer.act(async () => { window.dispatchEvent(new Event('notifications-changed')); });
+    await renderer.act(async () => { button(mounted.root, 'Xem việc làm').props.onClick(); });
+    assert.equal(text(mounted.root.findByType('output')), '/jobs/41');
+  } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
+});
+
+test('a matching opportunity still appears while the user browses older notification pages', async () => {
+  const env = globals(); let mounted, latestOpportunity = null;
+  const history = Array.from({ length: 20 }, (_, index) => ({ ...notice, id: index + 1 }));
+  notificationTestApi = { get: async () => ({ data: { data: history, total: 40, unread: 40, latestOpportunity } }), patch: async () => ({}) };
+  try {
+    const Inbox = (await component('components/common/NotificationInbox.jsx')).default;
+    await renderer.act(async () => { mounted = renderer.create(tree(Inbox, candidate)); });
+    await renderer.act(async () => { button(mounted.root, 'Thông báo').props.onClick(); });
+    await renderer.act(async () => { button(mounted.root, 'Sau').props.onClick(); });
+    latestOpportunity = { ...notice, id: 100, type: 'job_match_alert', title: 'Có việc làm phù hợp với bạn!', href: '/jobs/41' };
+    await renderer.act(async () => { window.dispatchEvent(new Event('notifications-changed')); });
+    assert.equal(mounted.root.findAllByProps({ 'aria-label': 'Việc làm phù hợp mới' }).length, 1);
+    assert.ok(text(mounted.root).includes('Trang 2/2'), 'Realtime updates must not force the reader back to page one');
+  } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
+});
+
+test('authenticated realtime stream handles split frames and disconnects when the page is hidden', async () => {
+  const env = globals(); const previousStorage = global.localStorage;
+  notificationTestApi = { defaults: { baseURL: '/api' } };
+  global.localStorage = { getItem: () => 'fixture-stream-token' };
+  let stream, signal, received = 0, url, authorization, unsubscribe;
+  window.fetch = async (requestUrl, options) => {
+    url = requestUrl; signal = options.signal; authorization = options.headers.Authorization;
+    const body = new ReadableStream({ start(controller) {
+      stream = controller;
+      signal.addEventListener('abort', () => controller.error(new DOMException('Cancelled', 'AbortError')), { once: true });
+    } });
+    return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+  };
+  try {
+    const { subscribeNotifications } = await component('services/notificationStream.js');
+    unsubscribe = subscribeNotifications(() => received++);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(url, '/api/notifications/stream'); assert.equal(authorization, 'Bearer fixture-stream-token');
+    assert.ok(!url.includes('token'));
+    const encoder = new TextEncoder();
+    for (const part of ['event: con', 'nected\ndata: {}\n\n: heartbeat\n\nevent: notifications-', 'changed\ndata: {}\n\n']) stream.enqueue(encoder.encode(part));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(received, 2, 'One initial catch-up and one actual change');
+    document.hidden = true; document.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(signal.aborted, true);
+  } finally { unsubscribe?.(); await new Promise(resolve => setImmediate(resolve)); global.localStorage = previousStorage; env.restore(); }
+});
+
+test('a late unauthorized SSE response for an old token cannot disable the new session', async () => {
+  const env = globals(); const previousStorage = global.localStorage;
+  notificationTestApi = { defaults: { baseURL: '/api' } };
+  let token = 'old-token', completeOld, changes = 0, unsubscribe;
+  global.localStorage = { getItem: () => token };
+  const calls = [], retries = new Map(); let timerId = 0;
+  const realTimeout = global.setTimeout, realClearTimeout = global.clearTimeout;
+  window.fetch = async (url, options) => {
+    calls.push(options.headers.Authorization);
+    if (calls.length === 1) return new Promise(resolve => { completeOld = resolve; });
+    return new Response(new ReadableStream({ start(controller) {
+      options.signal.addEventListener('abort', () => controller.error(new DOMException('Cancelled', 'AbortError')), { once: true });
+    } }), { headers: { 'content-type': 'text/event-stream' } });
+  };
+  try {
+    const { subscribeNotifications } = await component('services/notificationStream.js');
+    global.setTimeout = fn => { retries.set(++timerId, fn); return timerId; };
+    global.clearTimeout = id => retries.delete(id);
+    unsubscribe = subscribeNotifications(() => changes++);
+    await new Promise(resolve => setImmediate(resolve));
+    token = 'new-token'; completeOld(new Response(null, { status: 401 }));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(changes, 0, 'Old credentials cannot interrupt the active account');
+    assert.equal(retries.size, 1, 'Reconnect with the latest token instead of permanently stopping SSE');
+    for (const retry of [...retries.values()]) void retry();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, ['Bearer old-token', 'Bearer new-token']);
+  } finally {
+    unsubscribe?.(); await new Promise(resolve => setImmediate(resolve));
+    global.setTimeout = realTimeout; global.clearTimeout = realClearTimeout;
+    global.localStorage = previousStorage; env.restore();
+  }
+});
 
 test('admin period form supports exact day, month, year and inclusive range, only applies on submit', async () => {
   const Period = (await component('components/common/AdminReportPeriod.jsx')).default;
@@ -270,7 +370,7 @@ test('an expired response from an old session cannot log out a newly signed-in a
 test('reopening another notification for the same invitation reloads its latest message', async () => {
   const env = globals(); let mounted, calls = 0;
   const href = '/candidate/dashboard?tab=invitations&invitationId=2';
-  notificationTestApi = { get: async () => ({ data: { data: [{ InvitationID: 2, JobID: 1, Title: 'Developer', CompanyName: 'Company', SentAt: notice.createdAt, Status: 'Sent', Message: `Lời mời lần ${++calls}` }], hasMore: false } }) };
+  notificationTestApi = { get: async url => url === '/candidate/interviews' ? { data: { data: [] } } : ({ data: { data: [{ InvitationID: 2, JobID: 1, Title: 'Developer', CompanyName: 'Company', SentAt: notice.createdAt, Status: 'Sent', Message: `Lời mời lần ${++calls}` }], hasMore: false } }) };
   try {
     const Invitations = (await component('components/candidate/CandidateInvitations.jsx')).default;
     function Reopen() { const navigate = useNavigate(); return React.createElement('button', { onClick: () => navigate(href) }, 'Mở lại lời mời'); }
