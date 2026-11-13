@@ -1,0 +1,54 @@
+{
+  "title": "Employer Screen Flow",
+  "rows": [
+    [
+      "Company Profile & Security",
+      "Edit Company Profile"
+    ],
+    [
+      "KYC Submission (dialog)",
+      "Upload Business Documents"
+    ],
+    [
+      "Create Job Posting",
+      "JD Form / AI Generator"
+    ],
+    [
+      "Job Postings",
+      "Job Details"
+    ],
+    [
+      "Job Postings",
+      "Edit Job (dialog)"
+    ],
+    [
+      "Applicants (ATS)",
+      "CV Preview"
+    ],
+    [
+      "Applicants (ATS)",
+      "Schedule Interview (dialog)"
+    ],
+    [
+      "Applicants (ATS)",
+      "Confirm / Reject (dialog)"
+    ],
+    [
+      "Candidate Search / Matching",
+      "View CV / Invite (dialog)"
+    ],
+    [
+      "Invitations & Interviews",
+      "Invitation / Interview Details"
+    ],
+    [
+      "Subscription Packages",
+      "PayOS Checkout",
+      "Payment Status"
+    ],
+    [
+      "Subscription Packages",
+      "Transaction History"
+    ]
+  ]
+}

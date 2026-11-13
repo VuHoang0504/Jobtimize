@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, Eye, FileText, Loader2, MapPin, Search, Send, Wand2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, Eye, FileText, Loader2, MapPin, Search, Send, Wand2, X, Sliders, Plus } from 'lucide-react';
 
 const inputClass = 'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50';
 const levels = ['Intern / Thực tập sinh', 'Fresher / Mới tốt nghiệp', 'Junior (1 - 2 năm)', 'Middle (2 - 4 năm)', 'Senior (5+ năm)', 'Trưởng nhóm / Quản lý'];
@@ -21,6 +21,11 @@ export default function PostJobPage() {
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [skillSearch, setSkillSearch] = useState('');
   const [allSkills, setAllSkills] = useState(false);
+  const [screeningLevel, setScreeningLevel] = useState('Balanced');
+  const [minGpa, setMinGpa] = useState('');
+  const [gpaScale, setGpaScale] = useState(4);
+  const [mandatoryCertificates, setMandatoryCertificates] = useState([]);
+  const [certInput, setCertInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -67,8 +72,21 @@ export default function PostJobPage() {
   const checks = [
     { label: 'Thông tin vị trí', done: Boolean(title.trim() && categoryId && location.trim()), href: '#job-basics' },
     { label: 'Nội dung tuyển dụng', done: Boolean(description.trim() && requirements.trim()), href: '#job-content' },
-    { label: 'Kỹ năng yêu cầu', done: selectedSkills.length > 0, href: '#job-skills', optional: true }
+    { label: 'Kỹ năng yêu cầu', done: selectedSkills.length > 0, href: '#job-skills', optional: true },
+    { label: 'Tiêu chí sàng lọc', done: true, href: '#job-screening', optional: true }
   ];
+
+  const handleAddCert = () => {
+    const val = certInput.trim();
+    if (val && !mandatoryCertificates.some(c => c.toLowerCase() === val.toLowerCase())) {
+      setMandatoryCertificates([...mandatoryCertificates, val]);
+      setCertInput('');
+    }
+  };
+
+  const handleRemoveCert = index => {
+    setMandatoryCertificates(mandatoryCertificates.filter((_, i) => i !== index));
+  };
 
   const toggleSkill = skillId => setSelectedSkills(prev => prev.some(item => item.skillId === skillId)
     ? prev.filter(item => item.skillId !== skillId)
@@ -122,7 +140,11 @@ export default function PostJobPage() {
     try {
       const { data } = await api.post('/employer/jobs', {
         title: title.trim(), categoryId, salaryRange: salaryRange.trim(), location: location.trim(),
-        description: description.trim(), requirements: requirements.trim(), skills: selectedSkills
+        description: description.trim(), requirements: requirements.trim(), skills: selectedSkills,
+        screeningLevel,
+        minGpa: minGpa.trim() ? parseFloat(minGpa) : null,
+        gpaScale: minGpa.trim() ? Number(gpaScale) : null,
+        mandatoryCertificates
       });
       if (!data?.success) throw new Error('Post rejected');
       setSubmitted(true);
@@ -398,6 +420,119 @@ export default function PostJobPage() {
                     {skill.SkillName}
                   </button>; })}
                   {!metaLoading && !visibleSkills.length && <p className="text-sm leading-6 text-slate-500">Chưa có kỹ năng phù hợp. Thử từ khóa khác hoặc hiển thị kỹ năng của tất cả ngành nghề. Bạn vẫn có thể gửi tin mà không chọn kỹ năng.</p>}
+                </div>
+              </section>
+
+              <section id="job-screening" className="scroll-mt-24 border-t border-slate-200 p-5 sm:p-7">
+                <div className="mb-5">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Tiêu chí sàng lọc nâng cao <span className="ml-1 rounded-md bg-blue-50 px-2 py-0.5 text-xs font-normal text-blue-600">Gói trả phí</span>
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    Hệ thống sẽ dựa vào các tiêu chí này để tự động phân loại ứng viên vào Đạt, Cần xem thêm hoặc Chưa đạt trong ATS.
+                  </p>
+                </div>
+
+                {/* Screening Levels */}
+                <div className="mb-6">
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Mức độ sàng lọc
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[
+                      { key: 'Relaxed', name: 'Nới lỏng', pct: 50, desc: 'Ngưỡng 50%. Sàng lọc mở rộng, không bắt buộc chặt chẽ kỹ năng bắt buộc.' },
+                      { key: 'Balanced', name: 'Cân bằng', pct: 70, desc: 'Ngưỡng 70%. Kỹ năng bắt buộc có trọng số cao; thiếu kỹ năng bắt buộc chuyển sang Cần xem thêm.' },
+                      { key: 'Strict', name: 'Nghiêm ngặt', pct: 85, desc: 'Ngưỡng 85%. Tiêu chuẩn chọn lọc cao, chỉ hồ sơ xuất sắc mới vào nhóm Đạt.' }
+                    ].map(item => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setScreeningLevel(item.key)}
+                        className={`flex flex-col text-left rounded-xl border p-3.5 transition-all ${
+                          screeningLevel === item.key ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-600/20' : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-slate-900">{item.name}</span>
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">{item.pct}%</span>
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-500">{item.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* GPA Requirement */}
+                <div className="mb-6 border-t border-slate-100 pt-5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      GPA tối thiểu <span className="font-normal text-slate-400">(Tùy chọn)</span>
+                    </label>
+                    <span className="text-xs text-slate-400">Dưới ngưỡng: Chưa đạt · Không có GPA trong CV: Cần xem thêm</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 max-w-md">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={gpaScale === 10 ? 10 : 4}
+                      placeholder={`Ví dụ: ${gpaScale === 10 ? '7.5' : '3.0'}`}
+                      value={minGpa}
+                      onChange={e => setMinGpa(e.target.value)}
+                      className={inputClass}
+                    />
+                    <select
+                      value={gpaScale}
+                      onChange={e => setGpaScale(Number(e.target.value))}
+                      className={inputClass}
+                    >
+                      <option value={4}>Thang điểm 4.0</option>
+                      <option value={10}>Thang điểm 10.0</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Mandatory Certificates */}
+                <div className="border-t border-slate-100 pt-5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Chứng chỉ bắt buộc <span className="font-normal text-slate-400">(Tùy chọn)</span>
+                    </label>
+                    <span className="text-xs text-slate-400">Không phân biệt hoa thường · Mọi chứng chỉ khai báo đều bắt buộc</span>
+                  </div>
+                  <div className="flex gap-2 max-w-lg">
+                    <input
+                      type="text"
+                      placeholder="Ví dụ: AWS Certified, IELTS 6.5, PMP..."
+                      value={certInput}
+                      onChange={e => setCertInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCert(); } }}
+                      className={inputClass}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCert}
+                      className="rounded-lg bg-blue-600 px-4 py-3 text-xs font-semibold text-white hover:bg-blue-700 flex-shrink-0"
+                    >
+                      Thêm
+                    </button>
+                  </div>
+                  {mandatoryCertificates.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {mandatoryCertificates.map((cert, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-800">
+                          {cert}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCert(idx)}
+                            className="text-slate-400 hover:text-red-600"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </section>
             </fieldset>

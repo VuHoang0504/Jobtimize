@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticate, authorize } = require('../middleware/authMiddleware');
 const { executeQuery } = require('../config/db');
 const router = express.Router();
 router.use(authenticate);
@@ -9,12 +9,16 @@ const visible = `n.UserID=@UserID AND n.RecipientRole=@Role AND n.IsActive=1 AND
   AND (n.Type NOT IN ('job_match','job_match_alert') OR EXISTS(SELECT 1 FROM JobPostings j JOIN Employers e ON e.EmployerID=j.EmployerID
     JOIN Users eu ON eu.UserID=e.UserID JOIN CVs c ON c.CVID=n.CVID JOIN CandidateProfiles p ON p.ProfileID=c.ProfileID
     CROSS APPLY(SELECT TOP 1 VersionID,Status FROM CVDocumentVersions WHERE CVID=c.CVID ORDER BY VersionNumber DESC)v
+    LEFT JOIN JobNotificationPreferences prefs ON prefs.UserID=p.UserID
     WHERE j.JobID=n.JobID AND j.Status='Published' AND eu.Status='Active' AND (j.ExpiresAt IS NULL OR j.ExpiresAt>GETDATE())
     AND p.UserID=@UserID AND p.IsLookingForJob=1 AND c.IsPrimary=1 AND c.IsArchived=0 AND v.Status='Ready'
     AND (n.Type<>'job_match_alert' OR n.EventKey LIKE CONCAT('job-alert:',n.JobID,':',v.VersionID,':%'))
     AND (n.Type<>'job_match' OR NOT EXISTS(SELECT 1 FROM Notifications alert WHERE alert.UserID=n.UserID AND alert.JobID=n.JobID
       AND alert.CVID=n.CVID AND alert.Type='job_match_alert' AND alert.IsActive=1
       AND alert.EventKey LIKE CONCAT('job-alert:',n.JobID,':',v.VersionID,':%')))
+    AND COALESCE(prefs.Enabled,1)=1
+    AND (COALESCE(prefs.CategoryIds,N'[]')=N'[]' OR EXISTS(
+      SELECT 1 FROM OPENJSON(prefs.CategoryIds) selected WHERE TRY_CONVERT(INT,selected.value)=j.CategoryID))
     AND NOT EXISTS(SELECT 1 FROM JobApplications a WHERE a.JobID=j.JobID AND a.ProfileID=p.ProfileID)))`;
 const params = req => ({ UserID: req.user.userId, Role: req.user.role });
 const fail = res => res.status(503).json({ success: false, message: 'Thông báo tạm thời chưa sẵn sàng. Vui lòng thử lại.' });
@@ -23,6 +27,42 @@ const inboxOrder = `CASE WHEN n.ReadAt IS NULL THEN 0 ELSE 1 END,
     WHEN @Role='Candidate' AND n.Type IN ('invitation','job_match') THEN 0
     WHEN @Role='Employer' AND n.Type IN ('application','job_status') THEN 0 ELSE 1 END,
   n.NotificationID DESC`;
+
+const candidateOnly = authorize(['Candidate']);
+router.get('/job-preferences', candidateOnly, async (req, res) => {
+  try {
+    const { recordset: [saved] } = await executeQuery(
+      'SELECT Enabled,CategoryIds FROM JobNotificationPreferences WHERE UserID=@UserID', params(req));
+    res.json({ success: true, data: {
+      enabled: saved ? saved.Enabled : true,
+      categoryIds: saved ? JSON.parse(saved.CategoryIds) : []
+    } });
+  } catch (error) { console.error('Load job notification preferences:', error.message); fail(res); }
+});
+
+router.put('/job-preferences', candidateOnly, async (req, res) => {
+  const { enabled, categoryIds } = req.body || {};
+  const invalid = () => res.status(400).json({ success: false, message: 'Lựa chọn ngành nghề không hợp lệ.' });
+  if (typeof enabled !== 'boolean' || !Array.isArray(categoryIds) ||
+    categoryIds.length > 500 || categoryIds.some(id => !Number.isInteger(id) || id < 1 || id > 2147483647)) return invalid();
+  const ids = [...new Set(categoryIds)].sort((a, b) => a - b);
+  try {
+    const values = { UserID: req.user.userId, Enabled: enabled, CategoryIds: JSON.stringify(ids) };
+    const { recordset: [result] } = await executeQuery(`
+      IF (SELECT COUNT(*) FROM JobCategories c JOIN OPENJSON(@CategoryIds) ids
+        ON c.CategoryID=CONVERT(INT,ids.value)) <> @CategoryCount
+        SELECT CAST(0 AS BIT) AS Saved;
+      ELSE BEGIN
+        MERGE JobNotificationPreferences WITH (HOLDLOCK) AS target
+        USING (SELECT @UserID AS UserID) AS source ON target.UserID=source.UserID
+        WHEN MATCHED THEN UPDATE SET Enabled=@Enabled,CategoryIds=@CategoryIds
+        WHEN NOT MATCHED THEN INSERT (UserID,Enabled,CategoryIds) VALUES (@UserID,@Enabled,@CategoryIds);
+        SELECT CAST(1 AS BIT) AS Saved;
+      END;`, { ...values, CategoryCount: ids.length });
+    if (!result.Saved) return invalid();
+    res.json({ success: true, data: { enabled, categoryIds: ids } });
+  } catch (error) { console.error('Save job notification preferences:', error.message); fail(res); }
+});
 
 router.get('/', async (req, res) => {
   try {

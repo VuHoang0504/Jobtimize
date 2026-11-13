@@ -1,4 +1,4 @@
-# Jobtimize - AI-Powered Recruitment Platform 🚀
+# Jobtimize - AI-Powered Recruitment Platform 🚀 hí ộ
 
 Cập nhật tài liệu: **04/11/2026**.
 

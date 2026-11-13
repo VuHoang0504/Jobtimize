@@ -28,9 +28,7 @@ export default function KYCModal({ isOpen, onClose, onKycUpdated, initialStatus 
       const res = await api.get('/employer/kyc-status');
       if (res.data.success) {
         setCurrentKyc(res.data.data);
-        if (res.data.data.document?.TaxCode) {
-          setTaxCode(res.data.data.document.TaxCode);
-        }
+        setTaxCode(res.data.data.document?.TaxCode || '');
       }
     } catch (err) {
       console.error('Fetch KYC error:', err);
@@ -43,6 +41,8 @@ export default function KYCModal({ isOpen, onClose, onKycUpdated, initialStatus 
     if (isOpen) {
       setError('');
       setSuccessMsg('');
+      setBusinessLicenseFile(null);
+      setTaxCertificateFile(null);
       fetchKycStatus();
     }
   }, [isOpen]);
@@ -152,12 +152,12 @@ export default function KYCModal({ isOpen, onClose, onKycUpdated, initialStatus 
             <p className="font-bold">
               {status === 'Approved' && '✓ Doanh nghiệp đã được xác thực thành công!'}
               {status === 'Rejected' && '✕ Hồ sơ pháp lý đã bị từ chối'}
-              {status === 'Pending' && '⏳ Hồ sơ KYC đang chờ kiểm duyệt'}
+              {status === 'Pending' && (doc ? '⏳ Hồ sơ KYC đang chờ kiểm duyệt' : 'Chưa nộp hồ sơ KYC')}
             </p>
             <p className="text-gray-600 leading-relaxed">
               {status === 'Approved' && 'Huy hiệu "Doanh nghiệp đã xác thực" đang hiển thị trên trang chủ, bảng tin và chi tiết tin tuyển dụng của công ty.'}
               {status === 'Rejected' && (doc?.RejectionReason || 'Vui lòng kiểm tra lại ảnh chụp rõ nét Giấy phép kinh doanh và mã số thuế đúng với cơ quan nhà nước.')}
-              {status === 'Pending' && 'Hồ sơ pháp lý đang được Ban Quản trị Jobtimize đối chiếu thông tin trên Cổng Đăng ký Doanh nghiệp Quốc gia.'}
+              {status === 'Pending' && (doc ? 'Hồ sơ pháp lý đang được Ban Quản trị Jobtimize đối chiếu thông tin trên Cổng Đăng ký Doanh nghiệp Quốc gia.' : 'Vui lòng nhập mã số thuế và tải lên giấy phép kinh doanh để gửi xác minh.')}
             </p>
             {doc?.SubmittedAt && (
               <p className="text-[11px] text-gray-500 pt-1">

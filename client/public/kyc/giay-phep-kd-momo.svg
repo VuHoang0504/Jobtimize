@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1050" viewBox="0 0 800 1050">
+  <rect width="800" height="1050" fill="#f8fafc"/>
+  <rect x="40" y="40" width="720" height="970" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="52" y="52" width="696" height="946" rx="4" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text x="400" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="bold" fill="#1e293b">SỞ KẾ HOẠCH VÀ ĐẦU TƯ THÀNH PHỐ HỒ CHÍ MINH</text>
+  <text x="400" y="128" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#334155">PHÒNG ĐĂNG KÝ KINH DOANH</text>
+  <line x1="310" y1="140" x2="490" y2="140" stroke="#64748b" stroke-width="1.5"/>
+
+  <text x="400" y="195" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#b91c1c">GIẤY CHỨNG NHẬN ĐĂNG KÝ DOANH NGHIỆP</text>
+  <text x="400" y="222" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="bold" fill="#1e293b">CÔNG TY CỔ PHẦN</text>
+  <text x="400" y="255" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#0f172a">Mã số doanh nghiệp: 0305289147</text>
+  <text x="400" y="278" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#475569">Đăng ký lần đầu: ngày 02 tháng 11 năm 2017</text>
+
+  <g font-family="Arial, sans-serif" font-size="14" fill="#1e293b">
+    <text x="90" y="340" font-weight="bold">1. Tên công ty</text>
+    <text x="110" y="368">Tên công ty viết bằng tiếng Việt: <tspan font-weight="bold">CÔNG TY CỔ PHẦN DỊCH VỤ DI ĐỘNG TRỰC TUYẾN</tspan></text>
+    <text x="110" y="394">Tên công ty viết bằng tiếng nước ngoài: ONLINE MOBILE SERVICES JOINT STOCK COMPANY</text>
+    <text x="110" y="420">Tên công ty viết tắt: <tspan font-weight="bold">M_SERVICE JSC (MOMO)</tspan></text>
+
+    <text x="90" y="465" font-weight="bold">2. Địa chỉ trụ sở chính</text>
+    <text x="110" y="493">Tầng 6, Tòa nhà Phú Mỹ Hưng, số 8 Hoàng Văn Thái, Phường Tân Phú, Quận 7, TP. Hồ Chí Minh</text>
+    <text x="110" y="519">Điện thoại: 028 7306 5555 &#160;&#160;&#160; Email: recruitment@momo.vn &#160;&#160;&#160; Website: https://momo.vn</text>
+
+    <text x="90" y="565" font-weight="bold">3. Ngành, nghề kinh doanh chính</text>
+    <text x="110" y="593">- Trung gian thanh toán điện tử, công nghệ tài chính Fintech &amp; Ví điện tử (Mã ngành: 6419)</text>
+    <text x="110" y="619">- Xuất bản phần mềm, phát triển nền tảng ứng dụng di động &amp; AI (Mã ngành: 5820)</text>
+
+    <text x="90" y="665" font-weight="bold">4. Vốn điều lệ</text>
+    <text x="110" y="693">600.000.000.000 đồng (Bằng chữ: Sáu trăm tỷ đồng)</text>
+
+    <text x="90" y="740" font-weight="bold">5. Người đại diện theo pháp luật của công ty</text>
+    <text x="110" y="768">Họ và tên: <tspan font-weight="bold">PHẠM THÀNH ĐỨC</tspan> &#160;&#160;&#160;&#160; Chức danh: Tổng Giám đốc</text>
+  </g>
+
+  <g transform="translate(470, 815)">
+    <text x="110" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">TRƯỞNG PHÒNG</text>
+    <circle cx="110" cy="78" r="44" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="4,2"/>
+    <circle cx="110" cy="78" r="36" fill="none" stroke="#dc2626" stroke-width="1"/>
+    <text x="110" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#dc2626">ĐÃ XÁC THỰC</text>
+    <text x="110" y="88" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#dc2626">SAO Y BẢN CHÍNH</text>
+    <text x="110" y="145" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">Lê Hoàng Nam</text>
+  </g>
+</svg>
+

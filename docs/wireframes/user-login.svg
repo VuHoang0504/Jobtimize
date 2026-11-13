@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="650" height="620" viewBox="0 0 650 620">
+<rect width="650" height="620" fill="white"/>
+<text x="45" y="38" font-family="Arial,sans-serif" font-size="20" text-decoration="underline">UI Design — User Login</text>
+<rect x="45" y="60" width="560" height="515" fill="white" stroke="black" stroke-width="1.5"/>
+<text x="90" y="125" font-family="Arial,sans-serif" font-size="34" font-weight="bold">User Login</text>
+<text x="90" y="185" font-family="Times New Roman,serif" font-size="21">Email*</text>
+<rect x="90" y="200" width="470" height="45" fill="white" stroke="#777"/>
+<text x="90" y="288" font-family="Times New Roman,serif" font-size="21">Password*</text>
+<rect x="90" y="303" width="470" height="45" fill="white" stroke="#777"/>
+<rect x="90" y="385" width="130" height="43" fill="white" stroke="#777"/>
+<text x="155" y="413" text-anchor="middle" font-family="Times New Roman,serif" font-size="21">Login</text>
+<rect x="245" y="385" width="130" height="43" fill="white" stroke="#777"/>
+<text x="310" y="413" text-anchor="middle" font-family="Times New Roman,serif" font-size="21">Register</text>
+<text x="90" y="475" font-family="Arial,sans-serif" font-size="21" text-decoration="underline">Forgot Password?</text>
+<text x="90" y="523" font-family="Arial,sans-serif" font-size="21" text-decoration="underline">Login with Google</text>
+</svg>

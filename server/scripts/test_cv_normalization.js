@@ -35,3 +35,32 @@ test('builder normalization reads content fields only and respects hidden sectio
   assert.equal(visible.skills[0].skillId, 1);
   assert.equal(visible.skills[0].verified, true);
 });
+
+test('GPA normalization extracts explicit and contextual GPA on scale 4 and scale 10', () => {
+  const sample1 = normal.normalizeAnalysis({
+    personal: { fullName: 'Trần Văn A' },
+    educations: [
+      { school: 'Đại học Bách Khoa', degree: 'Kỹ sư CNTT', gpa: '3.6', gpaScale: '4', evidence: 'Tốt nghiệp loại Giỏi, GPA: 3.6/4' }
+    ]
+  }, taxonomy, 'Trần Văn A Đại học Bách Khoa Kỹ sư CNTT Tốt nghiệp loại Giỏi, GPA: 3.6/4');
+  assert.equal(sample1.educations[0].gpa, 3.6);
+  assert.equal(sample1.educations[0].gpaScale, 4);
+
+  const sample2 = normal.normalizeAnalysis({
+    personal: { fullName: 'Lê Thị B' },
+    educations: [
+      { school: 'Đại học Quốc gia', degree: 'Cử nhân', evidence: 'Điểm trung bình tích lũy: 8.4/10' }
+    ]
+  }, taxonomy, 'Lê Thị B Đại học Quốc gia Cử nhân Điểm trung bình tích lũy: 8.4/10');
+  assert.equal(sample2.educations[0].gpa, 8.4);
+  assert.equal(sample2.educations[0].gpaScale, 10);
+
+  const sample3 = normal.normalizeAnalysis({
+    personal: { fullName: 'Phạm C' },
+    educations: [
+      { school: 'Đại học Kinh tế', degree: 'Cử nhân', gpa: '3,2', evidence: 'GPA 3,2' }
+    ]
+  }, taxonomy, 'Phạm C Đại học Kinh tế Cử nhân GPA 3,2');
+  assert.equal(sample3.educations[0].gpa, 3.2);
+  assert.equal(sample3.educations[0].gpaScale, 4);
+});

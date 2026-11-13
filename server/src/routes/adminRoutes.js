@@ -17,12 +17,18 @@ router.get('/analytics/export', analyticsController.exportReport);
 router.get('/candidates', adminController.getCandidates);
 router.get('/candidates/:userId', adminController.getCandidateDetail);
 
-// 3. Quản lý Doanh nghiệp (Employers) & KYC
+// 3. Quản lý Doanh nghiệp (Employers) & KYC & Gói Dịch Vụ
 router.get('/employers', adminController.getEmployers);
 router.get('/employers/:employerId', adminController.getEmployerDetail);
 router.patch('/employers/:employerId/kyc', adminController.updateEmployerKYC);
+router.delete('/employers/:employerId/kyc', adminController.deleteEmployerKYC);
 router.get('/kyc/pending', adminController.getPendingKYCList);
 router.post('/kyc/:employerId/review', adminController.reviewEmployerKYC);
+
+// Mở khóa gói trả phí & Quản lý gói cho Doanh nghiệp (Admin Unlock)
+router.get('/subscription-packages', adminController.getSubscriptionPackagesAdmin);
+router.post('/employers/:employerId/unlock-package', adminController.unlockEmployerPackage);
+router.get('/employers/:employerId/subscription', adminController.getEmployerSubscriptionAdmin);
 
 // 4. Kiểm duyệt Tin tuyển dụng (Job Postings Moderation)
 router.get('/jobs', adminController.getModerationJobs);

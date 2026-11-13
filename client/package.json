@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "test:notifications": "node --test scripts/test_notifications.cjs",
+    "test:kyc": "node --test scripts/test_kyc_delete.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

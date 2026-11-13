@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import AdminReportPeriod from '../../components/common/AdminReportPeriod';
+import AdminReportPeriod, { rangeForMode } from '../../components/common/AdminReportPeriod';
 import api from '../../services/api';
 import { getCompanyLogo, handleCompanyLogoError } from '../../utils/logoHelper';
 import {
@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminAnalyticsDashboard() {
-  const [periodFilter, setPeriodFilter] = useState({ timeRange: '6m' });
+  const [periodFilter, setPeriodFilter] = useState(() => ({ timeRange: 'custom', ...rangeForMode('6m') }));
   const [dataSource, setDataSource] = useState('payments');
   const [refresh, setRefresh] = useState(0);
   const requestVersion = useRef(0);
@@ -265,7 +265,7 @@ export default function AdminAnalyticsDashboard() {
                 <option value="demo">Dữ liệu mẫu có sẵn</option>
               </select>
             </label>
-            <AdminReportPeriod disabled={loading} onApply={value => { setTxPage(1); setPeriodFilter(value); }} />
+            <AdminReportPeriod onApply={value => { setTxPage(1); setPeriodFilter(value); }} />
 
             <div role="group" aria-label="Thao tác báo cáo" className="flex min-w-0 flex-wrap items-center gap-2.5">
               {/* Refresh Button */}

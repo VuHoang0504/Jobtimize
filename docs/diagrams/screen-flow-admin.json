@@ -1,0 +1,50 @@
+{
+  "title": "Admin Screen Flow",
+  "rows": [
+    [
+      "Analytics Dashboard",
+      "Date / Metric Filters",
+      "Charts & KPI Results"
+    ],
+    [
+      "Analytics Dashboard",
+      "Transactions List",
+      "CSV Export"
+    ],
+    [
+      "Employer Accounts",
+      "Employer Details (dialog)",
+      "KYC Review (dialog)"
+    ],
+    [
+      "Employer Accounts",
+      "Lock / Unlock (dialog)"
+    ],
+    [
+      "Candidate Accounts",
+      "Candidate Details (dialog)"
+    ],
+    [
+      "Candidate Accounts",
+      "Lock / Unlock (dialog)"
+    ],
+    [
+      "Job Moderation",
+      "Job Details (dialog)",
+      "Approve / Reject (dialog)"
+    ],
+    [
+      "Violation Reports",
+      "Report Review (dialog)",
+      "Resolve / Dismiss"
+    ],
+    [
+      "Skill Taxonomy",
+      "Add / Edit Skill (dialog)"
+    ],
+    [
+      "Job Categories",
+      "Add / Edit Category (dialog)"
+    ]
+  ]
+}

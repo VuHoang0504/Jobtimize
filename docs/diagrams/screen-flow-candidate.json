@@ -1,0 +1,51 @@
+{
+  "title": "Candidate Screen Flow",
+  "rows": [
+    [
+      "Personal Profile",
+      "Edit Profile"
+    ],
+    [
+      "CV Management",
+      "Upload / Review CV",
+      "CV Preview"
+    ],
+    [
+      "Online CV Builder",
+      "Edit Template / Content",
+      "PDF Preview"
+    ],
+    [
+      "Find Jobs from CV",
+      "Skill Gap / AI Insights",
+      "Recommended Courses"
+    ],
+    [
+      "Practice AI Interview",
+      "Questions / Answers",
+      "Evaluation / History"
+    ],
+    [
+      "My Applications",
+      "Job Details"
+    ],
+    [
+      "Saved Jobs",
+      "Job Details",
+      "Apply Dialog"
+    ],
+    [
+      "Job Alerts",
+      "Create / Edit Alert",
+      "Matching Jobs"
+    ],
+    [
+      "Invitations & Interviews",
+      "Invitation / Interview Details"
+    ],
+    [
+      "Account Security",
+      "Change Password"
+    ]
+  ]
+}

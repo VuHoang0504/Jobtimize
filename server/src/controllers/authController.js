@@ -299,37 +299,7 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Tài khoản của bạn đã bị khóa hoặc chưa kích hoạt' });
     }
 
-    let isMatch = await comparePassword(password, user.PasswordHash);
-    // Hỗ trợ linh hoạt cho tài khoản Admin & các tài khoản Demo mặc định tránh nhầm lẫn hoa/thường
-    if (!isMatch) {
-      const trimmedPwd = password ? password.trim() : '';
-      if (user.RoleName === 'Admin' && ['Admin@123', 'admin@123', 'admin123', 'admin', '123456'].includes(trimmedPwd)) {
-        isMatch = true;
-      } else if (['Admin@123', 'admin@123', 'admin123', '123456'].includes(trimmedPwd)) {
-        const demoEmails = [
-          'hr@fpt-software.com',
-          'career@vng.com.vn',
-          'career-dn@kms-technology.com',
-          'career@vinai.io',
-          'candidate.demo@jobtimize.vn',
-          'employer.demo@company.com',
-          'recruitment@viettel.vn',
-          'recruitment@momo.vn',
-          'recruitment-dn@fpt.com',
-          'tuyendung@onemount.com',
-          'talent@ghtk.vn',
-          'recruitment@shopee.vn',
-          'talent@chotot.vn',
-          'career@bap.jp',
-          'hr@enclave.vn'
-        ];
-        if (demoEmails.includes((user.Email || '').toLowerCase())) {
-          isMatch = true;
-        }
-      }
-    }
-
-    if (!isMatch) {
+    if (!(await comparePassword(password, user.PasswordHash))) {
       return res.status(401).json({ success: false, message: 'Email hoặc mật khẩu không chính xác' });
     }
 

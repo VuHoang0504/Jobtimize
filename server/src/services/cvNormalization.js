@@ -25,6 +25,45 @@ function positiveMention(source, term) {
   }
   return false;
 }
+function extractGpa(item = {}, fallbackText = '') {
+  let gpaVal = null;
+  let scaleVal = null;
+  const rawGpa = item?.gpa;
+  const rawScale = item?.gpaScale;
+
+  if (rawScale === 4 || rawScale === '4') scaleVal = 4;
+  else if (rawScale === 10 || rawScale === '10') scaleVal = 10;
+
+  if (rawGpa != null && rawGpa !== '') {
+    const parsed = parseFloat(String(rawGpa).replace(',', '.'));
+    if (!isNaN(parsed) && parsed >= 0) {
+      gpaVal = parsed;
+    }
+  }
+
+  const context = [item?.evidence, item?.degree, item?.school, fallbackText].filter(Boolean).join(' ');
+  if (gpaVal == null && context) {
+    const match = context.match(/(?:gpa|cpa|điểm trung bình|diem trung binh|đtb|dtb)[:\s]*([0-9]+(?:[.,][0-9]+)?)(?:\s*\/\s*(4|10))?/i)
+      || context.match(/\b([0-9]+(?:[.,][0-9]+)?)\s*\/\s*(4|10)\b/i);
+    if (match) {
+      const parsed = parseFloat(match[1].replace(',', '.'));
+      if (!isNaN(parsed) && parsed >= 0) {
+        gpaVal = parsed;
+        if (match[2]) scaleVal = parseInt(match[2], 10);
+      }
+    }
+  }
+
+  if (gpaVal != null && !scaleVal) {
+    if (gpaVal > 4.0) scaleVal = 10;
+    else if (/\b4(?:\.0)?\b|\/4/.test(context)) scaleVal = 4;
+    else if (/\b10(?:\.0)?\b|\/10/.test(context)) scaleVal = 10;
+    else scaleVal = 4;
+  }
+
+  return { gpa: gpaVal, gpaScale: scaleVal };
+}
+
 function canonicalSkill(name, taxonomy) {
   const value = fold(name);
   return taxonomy.find(skill => aliases(skill.SkillName).includes(value) || (skill.NormalizedName && fold(skill.NormalizedName) === value));
@@ -66,7 +105,11 @@ function normalizeAnalysis(raw, taxonomy = [], source = '', options = {}) {
     personal: personalData,
     summary: text(raw.summary, 10000), skills,
     experiences: records(raw.experiences, ['company', 'role', 'startDate', 'endDate', 'description', 'evidence']),
-    educations: records(raw.educations, ['school', 'degree', 'year', 'evidence']),
+    educations: list(raw.educations).slice(0, 50).map(item => {
+      const base = Object.fromEntries(['school', 'degree', 'year', 'evidence'].map(key => [key, text(item?.[key], key === 'evidence' ? 5000 : 250)]));
+      const { gpa, gpaScale } = extractGpa(item, base.evidence);
+      return { ...base, gpa, gpaScale };
+    }),
     certifications: records(raw.certifications, ['name', 'issuer', 'year', 'evidence']),
     languages: records(raw.languages, ['language', 'proficiency']),
     warnings: [...new Set(warnings)],
@@ -87,4 +130,4 @@ function fromBuilder(raw, taxonomy) {
   }, taxonomy, source, { builder: true });
 }
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
-module.exports = { normalizeAnalysis, fromBuilder, positiveMention, canonicalSkill, aliases, fold, text, hash };
+module.exports = { normalizeAnalysis, fromBuilder, positiveMention, canonicalSkill, aliases, fold, text, hash, extractGpa };

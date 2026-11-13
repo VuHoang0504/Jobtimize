@@ -27,6 +27,12 @@ router.delete('/jobs/:jobId', employerController.deleteJob);
 
 // 4. ATS & Interview Scheduling (UC-E08, UC-E10)
 router.get('/jobs/:jobId/ats', employerController.getJobApplicantsATS);
+router.put('/jobs/:jobId/screening-config', employerController.updateJobScreeningConfig);
+router.patch('/jobs/:jobId/screening-toggle', employerController.toggleJobScreening);
+router.get('/screening-templates', employerController.getJobScreeningTemplates);
+router.post('/screening-templates', employerController.saveJobScreeningTemplate);
+router.delete('/screening-templates/:templateId', employerController.deleteJobScreeningTemplate);
+router.post('/applications/:applicationId/deep-review', employerController.generateDeepAIReview);
 router.patch('/applications/:applicationId/status', recruitment.updateApplicationStatus);
 router.post('/applications/:applicationId/email', recruitment.sendApplicationNotice);
 router.get('/interviews', recruitment.listInterviews);

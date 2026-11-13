@@ -42,8 +42,12 @@ import {
   SlidersHorizontal,
   BookmarkCheck,
   AlertOctagon,
-  BarChart3
+  BarChart3,
+  Zap,
+  Crown
 } from 'lucide-react';
+import AdminUnlockPackageModal from '../../components/admin/AdminUnlockPackageModal';
+import DeleteKYCModal from '../../components/admin/DeleteKYCModal';
 
 export default function AdminUserManagementPage() {
   const location = useLocation();
@@ -101,6 +105,8 @@ export default function AdminUserManagementPage() {
   const [empDetailModal, setEmpDetailModal] = useState({ open: false, employer: null, loading: false });
   const [candDetailModal, setCandDetailModal] = useState({ open: false, candidate: null, loading: false });
   const [kycRejectModal, setKycRejectModal] = useState({ open: false, employerId: null, companyName: '', reason: '' });
+  const [unlockModal, setUnlockModal] = useState({ open: false, employer: null });
+  const [kycDeleteTarget, setKycDeleteTarget] = useState(null);
   
   // Job Moderation Modals
   const [jobDetailModal, setJobDetailModal] = useState({ open: false, job: null, loading: false });
@@ -908,6 +914,7 @@ export default function AdminUserManagementPage() {
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 font-medium text-slate-700"
                 >
                   <option value="all">Giấy phép KD (KYC): Tất cả</option>
+                  <option value="NotSubmitted">Chưa nộp hồ sơ</option>
                   <option value="Pending">⏳ Chờ duyệt (Pending)</option>
                   <option value="Approved">✓ Đã duyệt (Approved)</option>
                   <option value="Rejected">✕ Bị từ chối (Rejected)</option>
@@ -939,6 +946,7 @@ export default function AdminUserManagementPage() {
                     <th className="py-3.5 px-4">Người Đại Diện</th>
                     <th className="py-3.5 px-4">Giấy Phép KD (KYC)</th>
                     <th className="py-3.5 px-4">Tin Tuyển Dụng</th>
+                    <th className="py-3.5 px-4">Gói Dịch Vụ</th>
                     <th className="py-3.5 px-4">Trạng Thái</th>
                     <th className="py-3.5 px-4 text-center">Hành Động</th>
                   </tr>
@@ -946,14 +954,14 @@ export default function AdminUserManagementPage() {
                 <tbody className="divide-y divide-slate-100">
                   {empLoading ? (
                     <tr>
-                      <td colSpan="6" className="py-12 text-center text-slate-400">
+                      <td colSpan="7" className="py-12 text-center text-slate-400">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
                         Đang tải danh sách doanh nghiệp...
                       </td>
                     </tr>
                   ) : employers.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="py-12 text-center text-slate-400">
+                      <td colSpan="7" className="py-12 text-center text-slate-400">
                         Không tìm thấy doanh nghiệp nào phù hợp với bộ lọc
                       </td>
                     </tr>
@@ -1021,7 +1029,10 @@ export default function AdminUserManagementPage() {
                               )}
                             </div>
                           )}
-                          {emp.KYCStatus === 'Pending' && (
+                          {emp.KYCStatus === 'Pending' && !emp.LatestKycDocumentID && (
+                            <span className="text-xs font-medium text-slate-500">Chưa nộp hồ sơ</span>
+                          )}
+                          {emp.KYCStatus === 'Pending' && emp.LatestKycDocumentID && (
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -1070,11 +1081,36 @@ export default function AdminUserManagementPage() {
                               </button>
                             </div>
                           )}
+                          {(emp.LatestKycDocumentID || ['Approved', 'Rejected'].includes(emp.KYCStatus)) && <button type="button" onClick={() => setKycDeleteTarget(emp)}
+                            className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-rose-500"
+                            aria-label={`Xóa hồ sơ KYC của ${emp.CompanyName}`}>
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />Xóa KYC
+                          </button>}
                         </td>
 
                         <td className="py-4 px-4">
                           <div className="font-bold text-slate-800">{emp.TotalJobs || 0} tin đăng</div>
                           <div className="text-xs text-slate-500">{emp.TotalApplicants || 0} ứng viên nộp</div>
+                        </td>
+
+                        <td className="py-4 px-4">
+                          {emp.CurrentPackageName ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                <Crown className="w-3.5 h-3.5 text-purple-600" />
+                                {emp.CurrentPackageName}
+                              </span>
+                              {emp.SubscriptionEndDate && (
+                                <div className="text-[11px] text-slate-500 mt-1">
+                                  Hạn: {new Date(emp.SubscriptionEndDate).toLocaleDateString('vi-VN')}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+                              Miễn phí / Hết hạn
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-4 px-4">
@@ -1091,6 +1127,14 @@ export default function AdminUserManagementPage() {
 
                         <td className="py-4 px-4 text-center">
                           <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => setUnlockModal({ open: true, employer: emp })}
+                              className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
+                              title="Mở khóa gói dịch vụ tuyển dụng"
+                            >
+                              <Zap className="w-4 h-4" />
+                            </button>
+
                             <button
                               onClick={() => openEmployerDetail(emp.EmployerID)}
                               className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -2880,12 +2924,13 @@ export default function AdminUserManagementPage() {
             </div>
 
             <div className="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <FileCheck className="w-4 h-4 text-indigo-600" />
                   Tài Liệu Giấy Phép Kinh Doanh
                 </h4>
-                <div className="flex items-center gap-2">
+                {(empDetailModal.employer?.kycDocuments?.length > 0 || ['Approved', 'Rejected'].includes(empDetailModal.employer?.KYCStatus)) && <div className="flex flex-wrap items-center gap-2">
+                  {empDetailModal.employer?.kycDocuments?.length > 0 && <>
                   <button
                     onClick={() => handleUpdateKyc(empDetailModal.employer?.EmployerID, 'Approved')}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
@@ -2898,7 +2943,15 @@ export default function AdminUserManagementPage() {
                   >
                     ✕ Từ chối Giấy phép KD
                   </button>
-                </div>
+                  </>}
+                  <button type="button" onClick={() => setKycDeleteTarget({
+                    ...empDetailModal.employer,
+                    LatestKycDocumentID: empDetailModal.employer.kycDocuments?.[0]?.DocumentID || null,
+                    KycDocumentCount: empDetailModal.employer.kycDocuments?.length || 0
+                  })} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-rose-500">
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />Xóa KYC
+                  </button>
+                </div>}
               </div>
 
               {empDetailModal.employer?.kycDocuments?.length > 0 ? (
@@ -2935,6 +2988,72 @@ export default function AdminUserManagementPage() {
               ) : (
                 <div className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-xl">
                   Doanh nghiệp chưa tải lên bản scan/ảnh giấy phép kinh doanh.
+                </div>
+              )}
+            </div>
+
+            {/* GÓI DỊCH VỤ & QUYỀN LỢI TUYỂN DỤNG */}
+            <div className="border border-purple-200 bg-purple-50/20 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-purple-600" />
+                  Gói Dịch Vụ & Quyền Lợi Tuyển Dụng
+                </h4>
+                <button
+                  onClick={() => setUnlockModal({ open: true, employer: empDetailModal.employer })}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 shadow-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <Zap className="w-3.5 h-3.5" /> Mở khóa / Nâng cấp gói
+                </button>
+              </div>
+
+              {empDetailModal.employer?.subscription ? (
+                <div className="p-3.5 rounded-xl bg-white border border-purple-200/80 text-xs space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-purple-900">
+                        {empDetailModal.employer.subscription.PackageName}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        empDetailModal.employer.subscription.IsActive
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {empDetailModal.employer.subscription.IsActive ? 'Đang hoạt động' : 'Đã hết hạn'}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Thời hạn: {new Date(empDetailModal.employer.subscription.StartDate).toLocaleDateString('vi-VN')} – {new Date(empDetailModal.employer.subscription.EndDate).toLocaleDateString('vi-VN')}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-100 text-[11px]">
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                      <span className="text-slate-500 block">Số tin tuyển dụng còn:</span>
+                      <strong className="text-slate-800 text-xs">{empDetailModal.employer.subscription.RemainingPosts} tin</strong>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                      <span className="text-slate-500 block">Lượt tìm kiếm CV còn:</span>
+                      <strong className="text-slate-800 text-xs">{empDetailModal.employer.subscription.RemainingSearches} lượt</strong>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 col-span-2 sm:col-span-1">
+                      <span className="text-slate-500 block">Phương thức:</span>
+                      <strong className="text-slate-800 text-xs">{empDetailModal.employer.subscription.PaymentMethod || 'Hệ thống'}</strong>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-white border border-slate-200 text-xs flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-700">Chưa kích hoạt gói dịch vụ trả phí</span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Doanh nghiệp chưa mua hoặc chưa được mở khóa tính năng Sàng lọc linh hoạt ATS.</p>
+                  </div>
+                  <button
+                    onClick={() => setUnlockModal({ open: true, employer: empDetailModal.employer })}
+                    className="text-xs font-bold text-purple-700 hover:underline flex items-center gap-1"
+                  >
+                    Kích hoạt ngay <Zap className="w-3 h-3" />
+                  </button>
                 </div>
               )}
             </div>
@@ -3136,6 +3255,33 @@ export default function AdminUserManagementPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: MỞ KHÓA GÓI DỊCH VỤ DOANH NGHIỆP TRỰC TIẾP (ADMIN UNLOCK) */}
+      {kycDeleteTarget && <DeleteKYCModal employer={kycDeleteTarget}
+        onCancel={() => setKycDeleteTarget(null)}
+        onDeleted={message => {
+          const employerId = kycDeleteTarget.EmployerID;
+          setKycDeleteTarget(null);
+          showNotification('success', message);
+          fetchStats();
+          fetchEmployers();
+          if (empDetailModal.open && empDetailModal.employer?.EmployerID === employerId) openEmployerDetail(employerId);
+          window.dispatchEvent(new Event('notifications-changed'));
+        }} />}
+      {unlockModal.open && unlockModal.employer && (
+        <AdminUnlockPackageModal
+          isOpen
+          employer={unlockModal.employer}
+          onClose={() => setUnlockModal({ open: false, employer: null })}
+          onSuccess={(data) => {
+            showNotification('success', data?.message || 'Đã mở khóa gói dịch vụ thành công!');
+            fetchEmployers();
+            if (empDetailModal.open && empDetailModal.employer) {
+              openEmployerDetail(empDetailModal.employer.EmployerID);
+            }
+          }}
+        />
       )}
 
       {/* ======================================================== */}

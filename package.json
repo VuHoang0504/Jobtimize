@@ -9,6 +9,7 @@
     "dev": "npx concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
     "db:init": "npm --prefix server run db:init",
     "seed:jobs": "npm --prefix server run seed:jobs",
+    "seed:qa": "npm --prefix server run seed:qa",
     "build": "npm --prefix client run build",
     "cv:browser": "node scripts/installCVBrowser.mjs",
     "test:cv": "node --test server/scripts/test_cv_builder.mjs server/scripts/test_cv_api.mjs",
@@ -25,7 +26,8 @@
     "test:skill-gap:ui": "node --test server/scripts/test_skill_gap_ui.mjs",
     "test:employer-account": "node --test server/scripts/test_employer_account.js",
     "test:employer-account:ui": "node --test server/scripts/test_employer_account_ui.mjs",
-    "test:db": "npm --prefix server run test:db"
+    "test:db": "npm --prefix server run test:db",
+    "test:kyc": "npm --prefix server run test:kyc && npm --prefix client run test:kyc"
   },
   "keywords": [
     "recruitment",

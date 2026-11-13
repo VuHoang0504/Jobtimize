@@ -14,8 +14,7 @@ try {
   process.exit(1);
 }
 
-const { getPool, executeQuery } = require('./config/db');
-const { authenticate } = require('./middleware/authMiddleware');
+const { getPool } = require('./config/db');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
@@ -39,54 +38,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Protected Route: Prevent unauthorized public access to legal KYC documents (UC-E04)
-app.get('/uploads/kyc/:filename', authenticate, async (req, res) => {
-  try {
-    const { filename } = req.params;
-    const safeFilename = path.basename(filename);
-    const filePath = path.join(__dirname, '../uploads/kyc', safeFilename);
-
-    if (!require('fs').existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Tệp tài liệu không tồn tại' });
-    }
-
-    // Admin has audit access to all KYC documents
-    if (req.user && req.user.role === 'Admin') {
-      return res.sendFile(filePath);
-    }
-
-    // Employer can only view documents belonging to their own company
-    if (req.user && req.user.role === 'Employer') {
-      const empRes = await executeQuery('SELECT EmployerID FROM Employers WHERE UserID = @UserID', { UserID: req.user.userId });
-      if (empRes.recordset && empRes.recordset.length > 0) {
-        const empId = empRes.recordset[0].EmployerID;
-        const docRes = await executeQuery(
-          `SELECT DocumentID FROM KYCDocuments 
-           WHERE EmployerID = @EmployerID 
-             AND (BusinessLicenseUrl LIKE '%' + @Filename OR TaxCertificateUrl LIKE '%' + @Filename)`,
-          { EmployerID: empId, Filename: safeFilename }
-        );
-        if (docRes.recordset && docRes.recordset.length > 0) {
-          return res.sendFile(filePath);
-        }
-      }
-    }
-
-    return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập vào tài liệu pháp lý này' });
-  } catch (error) {
-    console.error('KYC file access error:', error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
+// Deleted KYC files require a surviving database reference before downloading.
+app.use('/uploads/kyc', require('./routes/kycFileRoutes'));
 
 // Static folder for public uploaded files (logos, avatars, etc.)
 // Uploaded CVs are private documents; legacy public URLs must not expose them.
-app.use('/uploads', (req, res, next) => {
-  try {
-    if (/^cvFile-/i.test(path.basename(decodeURIComponent(req.path)))) return res.status(404).end();
-    next();
-  } catch { res.status(400).end(); }
-});
+app.use('/uploads', require('./middleware/publicUploadGuard'));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Root & Health Check API

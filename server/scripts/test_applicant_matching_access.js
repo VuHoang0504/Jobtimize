@@ -24,3 +24,21 @@ test('legacy or malformed analysis does not break applicant review', () => {
     assert.equal(result.MatchScore, null);
   }
 });
+
+test('unlocked employer receives screening group and details', () => {
+  const applicant = {
+    MatchScore: 85,
+    ScreeningScore: 85,
+    ScreeningResultGroup: 'Passed',
+    ScreeningDetailsJson: JSON.stringify({ resultGroup: 'Passed', screeningScore: 85, reasons: ['Đạt kỹ năng'] })
+  };
+  const unlocked = applicantMatchDetails(applicant, true);
+  assert.equal(unlocked.ScreeningResultGroup, 'Passed');
+  assert.equal(unlocked.ScreeningScore, 85);
+  assert.equal(unlocked.screeningDetails?.resultGroup, 'Passed');
+
+  const locked = applicantMatchDetails(applicant, false);
+  assert.equal(locked.ScreeningResultGroup, null);
+  assert.equal(locked.ScreeningScore, null);
+  assert.equal(locked.screeningDetails, null);
+});

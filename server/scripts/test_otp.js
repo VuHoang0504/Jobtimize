@@ -1,5 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const { createTransporter, getMailFrom } = require('../src/config/mail');
 const { sendOtpEmail } = require('../src/services/emailService');
@@ -24,6 +25,31 @@ async function call(handler, body) {
   await handler({ body }, res);
   return res;
 }
+
+test('login rejects demo passwords after the account password changes', async () => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'login-regression-test-secret';
+  try {
+    const password = 'ChangedPassword1!';
+    const PasswordHash = await bcrypt.hash(password, 4);
+    for (const [email, role, demoPassword] of [
+      ['hr@fpt-software.com', 'Employer', 'Candidate@123'],
+      ['admin@jobtimize.vn', 'Admin', 'Admin@123'],
+      ['nam.nguyen@jobtimize.vn', 'Candidate', 'Candidate@123']
+    ]) {
+      queryResult = { recordset: [{ UserID: 1, Email: email, PasswordHash, Status: 'Active', RoleName: role }] };
+      const rejected = await call(auth.login, { email, password: demoPassword });
+      assert.equal(rejected.statusCode, 401, role);
+      const accepted = await call(auth.login, { email, password });
+      assert.equal(accepted.statusCode, 200, role);
+      assert.equal(accepted.body.data.user.role, role);
+    }
+  } finally {
+    queryResult = { recordset: [] };
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  }
+});
 
 test('OTP email and authentication regression', async (t) => {
   const envKeys = ['EMAIL_USER', 'EMAIL_PASS', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];

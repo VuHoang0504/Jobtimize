@@ -49,7 +49,9 @@ test('unified schema and separate seed initialize a fresh SQL database and safel
         ['Interviews', 'Version'], ['CandidateInvitations', 'RespondedAt'], ['Notifications', 'ReadAt'],
         ['NotificationOutbox', 'EventKey'], ['NotificationRecommendationState', 'Fingerprint'],
         ['AccountModerationActions', 'ActorUserID'], ['UserReports', 'ResolvedByUserID'],
-        ['PaymentTransactions', 'OrderCode'], ['EmployerSubscriptions', 'AmountPaid']
+        ['PaymentTransactions', 'OrderCode'], ['EmployerSubscriptions', 'AmountPaid'],
+        ['JobApplications', 'ScreeningResultGroup'], ['JobScreeningCriteria', 'ConfigJson'],
+        ['JobScreeningTemplates', 'TemplateName'], ['AIDeepReviews', 'Summary'], ['JobScreeningQueue', 'Status']
       ]) assert.ok(columns.some(c => c.tableName === table && c.columnName === column), `${table}.${column}`);
       for (const table of ['Roles', 'Users', 'SkillTaxonomy', 'SubscriptionPackages', 'JobPostings']) {
         assert.equal((await query(`SELECT COUNT(*) n FROM ${table}`)).recordset[0].n, 0, `${table} must stay empty without seed.sql`);
@@ -63,7 +65,7 @@ test('unified schema and separate seed initialize a fresh SQL database and safel
       const seed = (await fs.readFile(path.resolve(__dirname, '../../database/seed.sql'), 'utf8')).replace(/\bJobtimizeDB\b/g, name);
       for (const batch of seed.split(/^\s*GO\s*$/im).filter(value => value.trim())) await query(batch);
       assert.equal((await query('SELECT COUNT(*) n FROM Roles')).recordset[0].n, 3);
-      for (const table of ['Users', 'SkillTaxonomy', 'SubscriptionPackages', 'JobPostings']) {
+      for (const table of ['Users', 'SkillTaxonomy', 'SubscriptionPackages', 'JobPostings', 'JobScreeningCriteria', 'JobScreeningTemplates']) {
         assert.ok((await query(`SELECT COUNT(*) n FROM ${table}`)).recordset[0].n > 0, `${table} initial data`);
       }
     });
@@ -91,7 +93,7 @@ test('unified schema and separate seed initialize a fresh SQL database and safel
       const row = (await query("SELECT COL_LENGTH('PaymentTransactions','CheckoutUrl') checkout,COL_LENGTH('KYCDocuments','TaxCode') tax")).recordset[0];
       assert.equal(row.checkout, 2000); assert.equal(row.tax, 100);
     });
-    await t.test('the actual API starts from this schema and serves jobs and categories', async () => {
+    await t.test('the actual API serves jobs and categories and signs in seeded accounts', async () => {
       const portProbe = createServer();
       await new Promise(resolve => portProbe.listen(0, '127.0.0.1', resolve));
       const port = portProbe.address().port;
@@ -116,6 +118,22 @@ test('unified schema and separate seed initialize a fresh SQL database and safel
         for (const route of ['/api/jobs', '/api/metadata/categories']) {
           const response = await fetch(`http://127.0.0.1:${port}${route}`);
           assert.equal(response.status, 200, `${route}: ${await response.text()}`);
+        }
+        for (const [email, password, role] of [
+          ['admin@jobtimize.vn', 'Admin@123', 'Admin'],
+          ['hr@fpt-software.com', 'Admin@123', 'Employer'],
+          ['nam.nguyen@jobtimize.vn', 'Candidate@123', 'Candidate'],
+          ['quan.tran@jobtimize.vn', 'Candidate@123', 'Candidate']
+        ]) {
+          const response = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+          assert.equal(response.status, 200, email);
+          const { data } = await response.json();
+          assert.equal(data.user.role, role);
+          assert.ok(data.token);
         }
         assert.doesNotMatch(output, /initialization failed|Invalid column|Invalid object/i);
       } finally {

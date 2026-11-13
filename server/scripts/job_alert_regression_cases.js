@@ -177,4 +177,24 @@ module.exports = async ({ t, call, executeQuery: query, seedUser, admin, base, h
       assert.equal((await query("SELECT COUNT(*) n FROM NotificationOutbox WHERE EventKey='test:job-alert-rollback'")).recordset[0].n, 0);
     } finally { off(); }
   });
+
+  await t.test('job alert inbox and realtime opportunity respect enabled state and category preferences', async () => {
+    const recipient = await candidate('preferences');
+    const categories = (await query('SELECT TOP 2 CategoryID FROM JobCategories ORDER BY CategoryID')).recordset;
+    assert.equal(categories.length, 2);
+    await query("UPDATE JobPostings SET Status='Published',ExpiresAt=DATEADD(day,2,GETDATE()) WHERE JobID=@ID", { ID: jobId });
+    const update = await call('PUT', `/employer/jobs/${jobId}`, owner, { ...body, categoryId: categories[0].CategoryID, location: 'Preference matching fixture' });
+    assert.equal(update.status, 200); await worker.drainOutbox();
+    assert.equal((await readAlerts(recipient.userId)).length, 1);
+    const save = async (enabled, categoryIds) => {
+      assert.equal((await call('PUT', '/notifications/job-preferences', recipient.userId, { enabled, categoryIds })).status, 200);
+      return (await call('GET', '/notifications', recipient.userId)).body;
+    };
+    const disabled = await save(false, []);
+    assert.equal(disabled.data.filter(n => n.type === 'job_match_alert').length, 0); assert.equal(disabled.latestOpportunity, null);
+    const excluded = await save(true, [categories[1].CategoryID]);
+    assert.equal(excluded.data.filter(n => n.type === 'job_match_alert').length, 0); assert.equal(excluded.latestOpportunity, null);
+    const included = await save(true, [categories[0].CategoryID]);
+    assert.equal(included.data.filter(n => n.type === 'job_match_alert').length, 1); assert.equal(included.latestOpportunity.href, `/jobs/${jobId}`);
+  });
 };
