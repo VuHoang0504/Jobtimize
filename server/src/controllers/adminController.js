@@ -8,10 +8,11 @@ async function saveKYCReview(employerId, status, note) {
     const emp = (await query('SELECT EmployerID,CompanyName,KYCStatus FROM Employers WITH(UPDLOCK,ROWLOCK) WHERE EmployerID=@ID', { ID: employerId })).recordset[0];
     if (!emp) throw Object.assign(new Error('Không tìm thấy hồ sơ doanh nghiệp'), { status: 404 });
     const doc = (await query('SELECT TOP 1 DocumentID,RejectionReason FROM KYCDocuments WHERE EmployerID=@ID ORDER BY SubmittedAt DESC,DocumentID DESC', { ID: employerId })).recordset[0];
+    if (!doc) throw Object.assign(new Error('Doanh nghiệp chưa có hồ sơ KYC để xét duyệt.'), { status: 409 });
     const reason = status === 'Rejected' ? (typeof note === 'string' ? note.trim() : '') : '';
     if (doc) await query('UPDATE KYCDocuments SET RejectionReason=@Note WHERE DocumentID=@ID', { Note: reason || null, ID: doc.DocumentID });
     await query('UPDATE Employers SET KYCStatus=@Status WHERE EmployerID=@ID', { Status: status, ID: employerId });
-    if (emp.KYCStatus !== status || (doc?.RejectionReason || '') !== reason) await enqueue(query, 'kyc_reviewed', { employerId, status, note: reason });
+    if (emp.KYCStatus !== status || (doc?.RejectionReason || '') !== reason) await enqueue(query, 'kyc_reviewed', { employerId, documentId: doc.DocumentID, status, note: reason });
     return emp;
   });
 }
@@ -50,7 +51,7 @@ const getPendingKYCList = async (req, res) => {
               kd.DocumentID, kd.BusinessLicenseUrl, kd.TaxCertificateUrl, kd.TaxCode, kd.SubmittedAt
        FROM Employers e
        JOIN Users u ON e.UserID = u.UserID
-       LEFT JOIN KYCDocuments kd ON e.EmployerID = kd.EmployerID
+       CROSS APPLY (SELECT TOP 1 * FROM KYCDocuments d WHERE d.EmployerID=e.EmployerID ORDER BY d.SubmittedAt DESC,d.DocumentID DESC) kd
        WHERE e.KYCStatus = 'Pending'
        ORDER BY kd.SubmittedAt DESC`
     );
@@ -88,11 +89,12 @@ const getDashboardStats = async (req, res) => {
         COUNT(*) AS totalEmployers,
         SUM(CASE WHEN u.Status = 'Active' THEN 1 ELSE 0 END) AS activeEmployers,
         SUM(CASE WHEN u.Status = 'Locked' THEN 1 ELSE 0 END) AS lockedEmployers,
-        SUM(CASE WHEN e.KYCStatus = 'Pending' THEN 1 ELSE 0 END) AS pendingKYC,
+        SUM(CASE WHEN e.KYCStatus = 'Pending' AND submitted.EmployerID IS NOT NULL THEN 1 ELSE 0 END) AS pendingKYC,
         SUM(CASE WHEN e.KYCStatus = 'Approved' THEN 1 ELSE 0 END) AS approvedKYC,
         SUM(CASE WHEN e.KYCStatus = 'Rejected' THEN 1 ELSE 0 END) AS rejectedKYC
       FROM Employers e
       JOIN Users u ON e.UserID = u.UserID
+      LEFT JOIN (SELECT DISTINCT EmployerID FROM KYCDocuments) submitted ON submitted.EmployerID=e.EmployerID
     `;
 
     // General platform stats
@@ -351,8 +353,11 @@ const getEmployers = async (req, res) => {
       params.Status = status;
     }
 
-    if (kycStatus) {
+    if (kycStatus === 'NotSubmitted') {
+      whereClause += ` AND e.KYCStatus='Pending' AND NOT EXISTS(SELECT 1 FROM KYCDocuments d WHERE d.EmployerID=e.EmployerID)`;
+    } else if (kycStatus) {
       whereClause += ` AND e.KYCStatus = @KYCStatus`;
+      if (kycStatus === 'Pending') whereClause += ` AND EXISTS(SELECT 1 FROM KYCDocuments d WHERE d.EmployerID=e.EmployerID)`;
       params.KYCStatus = kycStatus;
     }
 
@@ -370,7 +375,9 @@ const getEmployers = async (req, res) => {
         u.FullName, u.Email, u.Phone, u.AvatarUrl, u.Status, u.CreatedAt,
         (SELECT COUNT(*) FROM JobPostings jp WHERE jp.EmployerID = e.EmployerID) AS TotalJobs,
         (SELECT COUNT(*) FROM JobApplications ja JOIN JobPostings jp ON ja.JobID = jp.JobID WHERE jp.EmployerID = e.EmployerID) AS TotalApplicants,
-        (SELECT TOP 1 kd.BusinessLicenseUrl FROM KYCDocuments kd WHERE kd.EmployerID = e.EmployerID ORDER BY kd.SubmittedAt DESC) AS LatestLicenseUrl,
+        (SELECT TOP 1 kd.BusinessLicenseUrl FROM KYCDocuments kd WHERE kd.EmployerID = e.EmployerID ORDER BY kd.SubmittedAt DESC,kd.DocumentID DESC) AS LatestLicenseUrl,
+        (SELECT TOP 1 kd.DocumentID FROM KYCDocuments kd WHERE kd.EmployerID=e.EmployerID ORDER BY kd.SubmittedAt DESC,kd.DocumentID DESC) AS LatestKycDocumentID,
+        (SELECT COUNT(*) FROM KYCDocuments kd WHERE kd.EmployerID=e.EmployerID) AS KycDocumentCount,
         (SELECT TOP 1 sp.PackageName 
          FROM EmployerSubscriptions es
          JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
@@ -442,10 +449,10 @@ const getEmployerDetail = async (req, res) => {
 
     const [kycRes, jobsRes, subRes, historyRes] = await Promise.all([
       executeQuery(
-        `SELECT DocumentID, BusinessLicenseUrl, SubmittedAt, RejectionReason 
+        `SELECT DocumentID, BusinessLicenseUrl, TaxCertificateUrl, TaxCode, SubmittedAt, RejectionReason
          FROM KYCDocuments 
          WHERE EmployerID = @EmployerID 
-         ORDER BY SubmittedAt DESC`,
+         ORDER BY SubmittedAt DESC,DocumentID DESC`,
         { EmployerID: employer.EmployerID }
       ),
       executeQuery(
@@ -531,7 +538,20 @@ const updateEmployerKYC = async (req, res) => {
     });
   } catch (error) {
     console.error('updateEmployerKYC error:', error);
-    return res.status(error.status || 500).json({ success: false, message: 'Lỗi khi cập nhật trạng thái KYC doanh nghiệp' });
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Lỗi khi cập nhật trạng thái KYC doanh nghiệp' });
+  }
+};
+
+const deleteEmployerKYC = async (req, res) => {
+  try {
+    const data = await require('../services/kycService').deleteEmployerKYC({
+      employerId: req.params.employerId, expectedDocumentId: req.body?.expectedDocumentId,
+      actorId: req.user.userId, ipAddress: req.ip
+    });
+    return res.json({ success: true, data, message: 'Đã xóa hồ sơ KYC. Doanh nghiệp cần nộp lại để được xác minh.' });
+  } catch (err) {
+    if (!err.status) console.error('Delete employer KYC:', err.message);
+    return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : 'Chưa xóa được hồ sơ KYC. Vui lòng thử lại.' });
   }
 };
 
@@ -1392,6 +1412,7 @@ module.exports = {
   getEmployerSubscriptionAdmin,
   updateUserStatus,
   updateEmployerKYC,
+  deleteEmployerKYC,
   resetUserPassword,
   getModerationJobs,
   getJobDetail,

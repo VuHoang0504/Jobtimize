@@ -58,10 +58,18 @@ async function eventNotifications(query, event) {
         add(row.EmployerUserID, 'Employer', 'Đã gửi lịch phỏng vấn', `${row.FullName}: ${row.Title}. Đang chờ xác nhận.`, employerHref);
       } else add(row.EmployerUserID, 'Employer', p.status === 'Confirmed' ? 'Ứng viên xác nhận phỏng vấn' : 'Ứng viên không thể tham gia', `${row.FullName}: ${row.Title}.`, employerHref);
     }
-  } else if (event.EventType === 'kyc_submitted' || event.EventType === 'kyc_reviewed') {
-    const emp = (await query('SELECT UserID,CompanyName FROM Employers WHERE EmployerID=@ID', { ID: p.employerId })).recordset[0];
-    if (emp && event.EventType === 'kyc_submitted') for (const admin of await admins()) add(admin.UserID, 'Admin', 'Có hồ sơ KYC cần duyệt', `${emp.CompanyName} vừa nộp hồ sơ pháp lý.`, `/admin/users?tab=employers&employerId=${p.employerId}`);
-    if (emp && event.EventType === 'kyc_reviewed') add(emp.UserID, 'Employer', p.status === 'Approved' ? 'Hồ sơ KYC đã được duyệt' : p.status === 'Rejected' ? 'Hồ sơ KYC bị từ chối' : 'Hồ sơ KYC đang chờ xử lý',
+  } else if (['kyc_submitted', 'kyc_reviewed', 'kyc_deleted'].includes(event.EventType)) {
+    const emp = (await query(`SELECT e.UserID,e.CompanyName,e.KYCStatus,
+      (SELECT TOP 1 d.DocumentID FROM KYCDocuments d WHERE d.EmployerID=e.EmployerID ORDER BY d.SubmittedAt DESC,d.DocumentID DESC) AS LatestDocumentID
+      FROM Employers e WHERE e.EmployerID=@ID`, { ID: p.employerId })).recordset[0];
+    if (!emp) return notices;
+    if (event.EventType === 'kyc_deleted') {
+      if (!emp.LatestDocumentID) add(emp.UserID, 'Employer', 'Hồ sơ KYC đã được xóa', 'Vui lòng nộp lại hồ sơ pháp lý để xác minh doanh nghiệp.', '/employer/dashboard?section=kyc');
+      return notices;
+    }
+    if (!emp.LatestDocumentID || (p.documentId && Number(p.documentId) !== emp.LatestDocumentID)) return notices;
+    if (event.EventType === 'kyc_submitted' && emp.KYCStatus === 'Pending') for (const admin of await admins()) add(admin.UserID, 'Admin', 'Có hồ sơ KYC cần duyệt', `${emp.CompanyName} vừa nộp hồ sơ pháp lý.`, `/admin/users?tab=employers&employerId=${p.employerId}`);
+    if (event.EventType === 'kyc_reviewed' && emp.KYCStatus === p.status) add(emp.UserID, 'Employer', p.status === 'Approved' ? 'Hồ sơ KYC đã được duyệt' : p.status === 'Rejected' ? 'Hồ sơ KYC bị từ chối' : 'Hồ sơ KYC đang chờ xử lý',
       `${emp.CompanyName}${p.note ? ': ' + p.note : '.'}`, '/employer/dashboard?section=kyc');
   } else if (event.EventType === 'report_created' || event.EventType === 'report_resolved') {
     for (const admin of await admins()) {
@@ -108,7 +116,7 @@ async function initialize() {
     }
     for (const doc of (await query(`SELECT d.DocumentID,d.EmployerID FROM KYCDocuments d JOIN Employers e ON e.EmployerID=d.EmployerID WHERE e.KYCStatus='Pending'
       AND d.DocumentID=(SELECT TOP 1 DocumentID FROM KYCDocuments WHERE EmployerID=e.EmployerID ORDER BY SubmittedAt DESC,DocumentID DESC)`)).recordset) {
-      await enqueue(query, 'kyc_submitted', { employerId: doc.EmployerID }, `kyc:submitted:${doc.DocumentID}`);
+      await enqueue(query, 'kyc_submitted', { employerId: doc.EmployerID, documentId: doc.DocumentID }, `kyc:submitted:${doc.DocumentID}`);
     }
     for (const report of (await query("SELECT ReportID FROM UserReports WHERE Status='Pending'")).recordset) {
       await enqueue(query, 'report_created', { reportId: report.ReportID }, `report:created:${report.ReportID}`);

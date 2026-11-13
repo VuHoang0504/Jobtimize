@@ -21,6 +21,7 @@ router.get('/candidates/:userId', adminController.getCandidateDetail);
 router.get('/employers', adminController.getEmployers);
 router.get('/employers/:employerId', adminController.getEmployerDetail);
 router.patch('/employers/:employerId/kyc', adminController.updateEmployerKYC);
+router.delete('/employers/:employerId/kyc', adminController.deleteEmployerKYC);
 router.get('/kyc/pending', adminController.getPendingKYCList);
 router.post('/kyc/:employerId/review', adminController.reviewEmployerKYC);
 

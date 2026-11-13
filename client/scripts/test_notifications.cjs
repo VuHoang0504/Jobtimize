@@ -9,7 +9,7 @@ const esbuild = require('esbuild');
 
 async function component(name, mockAuth = true) {
   const result = await esbuild.build({ entryPoints: [path.resolve(__dirname, '../src', name)], write: false,
-    bundle: true, platform: 'node', format: 'cjs', external: ['react', 'react-router-dom'], define: { 'import.meta.env': '{}' },
+    bundle: true, platform: 'node', format: 'cjs', external: ['react', 'react-router-dom'], loader: { '.css': 'empty' }, define: { 'import.meta.env': '{}' },
     plugins: [{ name: 'isolated-services', setup(build) {
       build.onResolve({ filter: /services\/api$/ }, () => ({ path: 'api', namespace: 'test-mocks' }));
       if (mockAuth) build.onResolve({ filter: /context\/AuthContext$/ }, () => ({ path: 'auth', namespace: 'test-mocks' }));
@@ -305,16 +305,20 @@ test('an expired response from an old session cannot log out a newly signed-in a
 });
 
 test('reopening another notification for the same invitation reloads its latest message', async () => {
-  const env = globals(); let mounted, calls = 0;
+  const env = globals(); let mounted, calls = 0, interviewCalls = 0;
   const href = '/candidate/dashboard?tab=invitations&invitationId=2';
-  notificationTestApi = { get: async () => ({ data: { data: [{ InvitationID: 2, JobID: 1, Title: 'Developer', CompanyName: 'Company', SentAt: notice.createdAt, Status: 'Sent', Message: `Lời mời lần ${++calls}` }], hasMore: false } }) };
+  notificationTestApi = { get: async url => {
+    if (url === '/candidate/interviews') { interviewCalls++; return { data: { data: [] } }; }
+    assert.equal(url, '/candidate/invitations');
+    return { data: { data: [{ InvitationID: 2, JobID: 1, Title: 'Developer', CompanyName: 'Company', SentAt: notice.createdAt, Status: 'Sent', Message: `Lời mời lần ${++calls}` }], hasMore: false } };
+  } };
   try {
     const Invitations = (await component('components/candidate/CandidateInvitations.jsx')).default;
     function Reopen() { const navigate = useNavigate(); return React.createElement('button', { onClick: () => navigate(href) }, 'Mở lại lời mời'); }
     await renderer.act(async () => { mounted = renderer.create(React.createElement(MemoryRouter, { initialEntries: [href], future: { v7_startTransition: true, v7_relativeSplatPath: true } }, React.createElement(Invitations), React.createElement(Reopen))); });
-    assert.equal(calls, 1);
+    assert.equal(calls, 1); assert.equal(interviewCalls, 1);
     await renderer.act(async () => { button(mounted.root, 'Mở lại lời mời').props.onClick(); });
-    assert.equal(calls, 2); assert.ok(text(mounted.root).includes('Lời mời lần 2'));
+    assert.equal(calls, 2); assert.equal(interviewCalls, 2); assert.ok(text(mounted.root).includes('Lời mời lần 2'));
   } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
 });
 

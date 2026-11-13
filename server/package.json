@@ -23,7 +23,8 @@
     "test:cv-analysis": "node --test scripts/test_cv_normalization.js scripts/test_cv_analysis.js",
     "db:recruitment": "node scripts/migrateRecruitment.js",
     "test:recruitment-email": "node --test scripts/test_recruitment_email.js",
-    "test:db": "node --test scripts/test_database_schema.js"
+    "test:db": "node --test scripts/test_database_schema.js",
+    "test:kyc": "node --test scripts/test_kyc_delete.js"
   },
   "keywords": [
     "recruitment",

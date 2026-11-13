@@ -26,7 +26,8 @@
     "test:skill-gap:ui": "node --test server/scripts/test_skill_gap_ui.mjs",
     "test:employer-account": "node --test server/scripts/test_employer_account.js",
     "test:employer-account:ui": "node --test server/scripts/test_employer_account_ui.mjs",
-    "test:db": "npm --prefix server run test:db"
+    "test:db": "npm --prefix server run test:db",
+    "test:kyc": "npm --prefix server run test:kyc && npm --prefix client run test:kyc"
   },
   "keywords": [
     "recruitment",

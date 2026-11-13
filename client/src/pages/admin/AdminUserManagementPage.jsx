@@ -47,6 +47,7 @@ import {
   Crown
 } from 'lucide-react';
 import AdminUnlockPackageModal from '../../components/admin/AdminUnlockPackageModal';
+import DeleteKYCModal from '../../components/admin/DeleteKYCModal';
 
 export default function AdminUserManagementPage() {
   const location = useLocation();
@@ -105,6 +106,7 @@ export default function AdminUserManagementPage() {
   const [candDetailModal, setCandDetailModal] = useState({ open: false, candidate: null, loading: false });
   const [kycRejectModal, setKycRejectModal] = useState({ open: false, employerId: null, companyName: '', reason: '' });
   const [unlockModal, setUnlockModal] = useState({ open: false, employer: null });
+  const [kycDeleteTarget, setKycDeleteTarget] = useState(null);
   
   // Job Moderation Modals
   const [jobDetailModal, setJobDetailModal] = useState({ open: false, job: null, loading: false });
@@ -912,6 +914,7 @@ export default function AdminUserManagementPage() {
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 font-medium text-slate-700"
                 >
                   <option value="all">Giấy phép KD (KYC): Tất cả</option>
+                  <option value="NotSubmitted">Chưa nộp hồ sơ</option>
                   <option value="Pending">⏳ Chờ duyệt (Pending)</option>
                   <option value="Approved">✓ Đã duyệt (Approved)</option>
                   <option value="Rejected">✕ Bị từ chối (Rejected)</option>
@@ -1026,7 +1029,10 @@ export default function AdminUserManagementPage() {
                               )}
                             </div>
                           )}
-                          {emp.KYCStatus === 'Pending' && (
+                          {emp.KYCStatus === 'Pending' && !emp.LatestKycDocumentID && (
+                            <span className="text-xs font-medium text-slate-500">Chưa nộp hồ sơ</span>
+                          )}
+                          {emp.KYCStatus === 'Pending' && emp.LatestKycDocumentID && (
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -1075,6 +1081,11 @@ export default function AdminUserManagementPage() {
                               </button>
                             </div>
                           )}
+                          {(emp.LatestKycDocumentID || ['Approved', 'Rejected'].includes(emp.KYCStatus)) && <button type="button" onClick={() => setKycDeleteTarget(emp)}
+                            className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-rose-500"
+                            aria-label={`Xóa hồ sơ KYC của ${emp.CompanyName}`}>
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />Xóa KYC
+                          </button>}
                         </td>
 
                         <td className="py-4 px-4">
@@ -2913,12 +2924,13 @@ export default function AdminUserManagementPage() {
             </div>
 
             <div className="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <FileCheck className="w-4 h-4 text-indigo-600" />
                   Tài Liệu Giấy Phép Kinh Doanh
                 </h4>
-                <div className="flex items-center gap-2">
+                {(empDetailModal.employer?.kycDocuments?.length > 0 || ['Approved', 'Rejected'].includes(empDetailModal.employer?.KYCStatus)) && <div className="flex flex-wrap items-center gap-2">
+                  {empDetailModal.employer?.kycDocuments?.length > 0 && <>
                   <button
                     onClick={() => handleUpdateKyc(empDetailModal.employer?.EmployerID, 'Approved')}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
@@ -2931,7 +2943,15 @@ export default function AdminUserManagementPage() {
                   >
                     ✕ Từ chối Giấy phép KD
                   </button>
-                </div>
+                  </>}
+                  <button type="button" onClick={() => setKycDeleteTarget({
+                    ...empDetailModal.employer,
+                    LatestKycDocumentID: empDetailModal.employer.kycDocuments?.[0]?.DocumentID || null,
+                    KycDocumentCount: empDetailModal.employer.kycDocuments?.length || 0
+                  })} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-rose-500">
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />Xóa KYC
+                  </button>
+                </div>}
               </div>
 
               {empDetailModal.employer?.kycDocuments?.length > 0 ? (
@@ -3238,6 +3258,17 @@ export default function AdminUserManagementPage() {
       )}
 
       {/* MODAL: MỞ KHÓA GÓI DỊCH VỤ DOANH NGHIỆP TRỰC TIẾP (ADMIN UNLOCK) */}
+      {kycDeleteTarget && <DeleteKYCModal employer={kycDeleteTarget}
+        onCancel={() => setKycDeleteTarget(null)}
+        onDeleted={message => {
+          const employerId = kycDeleteTarget.EmployerID;
+          setKycDeleteTarget(null);
+          showNotification('success', message);
+          fetchStats();
+          fetchEmployers();
+          if (empDetailModal.open && empDetailModal.employer?.EmployerID === employerId) openEmployerDetail(employerId);
+          window.dispatchEvent(new Event('notifications-changed'));
+        }} />}
       {unlockModal.open && unlockModal.employer && (
         <AdminUnlockPackageModal
           isOpen

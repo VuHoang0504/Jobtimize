@@ -104,6 +104,7 @@ const submitKYC = async (req, res) => {
     const taxCertificateUrl = taxCertificateFile ? `/uploads/kyc/${taxCertificateFile.filename}` : null;
 
     await withTransaction(async query => {
+      await query('SELECT EmployerID FROM Employers WITH(UPDLOCK,HOLDLOCK) WHERE EmployerID=@ID', { ID: emp.EmployerID });
       // Insert into KYCDocuments
       const document = await query(
         `INSERT INTO KYCDocuments (EmployerID, BusinessLicenseUrl, TaxCertificateUrl, TaxCode, SubmittedAt, RejectionReason)
@@ -122,7 +123,7 @@ const submitKYC = async (req, res) => {
         `UPDATE Employers SET KYCStatus = 'Pending' WHERE EmployerID = @EmployerID`,
         { EmployerID: emp.EmployerID }
       );
-      await enqueue(query, 'kyc_submitted', { employerId: emp.EmployerID }, `kyc:submitted:${document.recordset[0].DocumentID}`);
+      await enqueue(query, 'kyc_submitted', { employerId: emp.EmployerID, documentId: document.recordset[0].DocumentID }, `kyc:submitted:${document.recordset[0].DocumentID}`);
     });
 
     return res.status(200).json({
@@ -154,7 +155,7 @@ const getKYCStatus = async (req, res) => {
       `SELECT TOP 1 DocumentID, EmployerID, BusinessLicenseUrl, TaxCertificateUrl, TaxCode, SubmittedAt, RejectionReason
        FROM KYCDocuments
        WHERE EmployerID = @EmployerID
-       ORDER BY SubmittedAt DESC`,
+       ORDER BY SubmittedAt DESC,DocumentID DESC`,
       { EmployerID: emp.EmployerID }
     );
 
