@@ -1,6 +1,7 @@
 const { withTransaction, enqueue } = require('../services/notificationStore');
 const { executeQuery } = require('../config/db');
 const AIMatchingService = require('../services/aiMatchingService');
+const screeningService = require('../services/screeningService');
 const browseGroups = require('../../../shared/jobBrowseGroups.json');
 
 // Get all published jobs with search & filter
@@ -304,6 +305,12 @@ const applyJob = async (req, res) => {
       }
     }
 
+    // Calculate screening evaluation
+    const criteria = await screeningService.getJobScreeningCriteria(jobId);
+    const requiredSkills = await screeningService.getJobSkills(jobId);
+    const cvContext = await AIMatchingService.getCVContext(profileId, targetCvId);
+    const screeningEval = screeningService.evaluateScreening(cvContext, criteria, requiredSkills);
+
     // Insert JobApplication
     const insertRes = await withTransaction(async query => {
       const activeCandidate = await query("SELECT UserID FROM Users WITH(HOLDLOCK,ROWLOCK) WHERE UserID=@ID AND Status='Active'", { ID: req.user.userId });
@@ -314,16 +321,27 @@ const applyJob = async (req, res) => {
       const duplicate = await query('SELECT ApplicationID FROM JobApplications WITH(UPDLOCK,HOLDLOCK) WHERE JobID=@JobID AND ProfileID=@ProfileID', { JobID: jobId, ProfileID: profileId });
       if (duplicate.recordset.length) throw Object.assign(new Error('Bạn đã nộp đơn ứng tuyển cho công việc này rồi!'), { status: 409 });
       const insertRes = await query(
-        `INSERT INTO JobApplications (JobID, ProfileID, CVID, CVVersionID, MatchScore, MatchDetailsJson, Status, AppliedAt)
-         OUTPUT INSERTED.ApplicationID, INSERTED.CVVersionID, INSERTED.MatchScore, INSERTED.Status, INSERTED.AppliedAt
-         VALUES (@JobID, @ProfileID, @CVID, @CVVersionID, @MatchScore, @MatchDetails, 'Applied', GETDATE())`,
+        `INSERT INTO JobApplications (
+          JobID, ProfileID, CVID, CVVersionID, MatchScore, MatchDetailsJson, Status, AppliedAt,
+          ScreeningResultGroup, ScreeningScore, ScreeningDetailsJson, CriteriaVersion
+        )
+         OUTPUT INSERTED.ApplicationID, INSERTED.CVVersionID, INSERTED.MatchScore, INSERTED.Status, INSERTED.AppliedAt,
+                INSERTED.ScreeningResultGroup, INSERTED.ScreeningScore
+         VALUES (
+          @JobID, @ProfileID, @CVID, @CVVersionID, @MatchScore, @MatchDetails, 'Applied', GETDATE(),
+          @ScreeningResultGroup, @ScreeningScore, @ScreeningDetailsJson, @CriteriaVersion
+        )`,
         {
           JobID: jobId,
           ProfileID: profileId,
           CVID: targetCvId || null,
           CVVersionID: aiResult.cvVersionId,
           MatchDetails: JSON.stringify(aiResult),
-          MatchScore: aiResult.matchScore
+          MatchScore: aiResult.matchScore,
+          ScreeningResultGroup: screeningEval.resultGroup,
+          ScreeningScore: screeningEval.screeningScore,
+          ScreeningDetailsJson: JSON.stringify(screeningEval),
+          CriteriaVersion: screeningEval.criteriaVersion
         }
       );
       await enqueue(query, 'application', { applicationId: insertRes.recordset[0].ApplicationID }, `application:${jobId}:${profileId}`);
@@ -335,7 +353,8 @@ const applyJob = async (req, res) => {
       message: 'Nộp hồ sơ ứng tuyển thành công! Đã đối chiếu mức độ phù hợp của hồ sơ.',
       data: {
         application: insertRes.recordset[0],
-        aiAnalysis: aiResult
+        aiAnalysis: aiResult,
+        screening: screeningEval
       }
     });
   } catch (error) {

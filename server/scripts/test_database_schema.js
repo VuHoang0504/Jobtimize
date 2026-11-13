@@ -49,7 +49,9 @@ test('unified schema and separate seed initialize a fresh SQL database and safel
         ['Interviews', 'Version'], ['CandidateInvitations', 'RespondedAt'], ['Notifications', 'ReadAt'],
         ['NotificationOutbox', 'EventKey'], ['NotificationRecommendationState', 'Fingerprint'],
         ['AccountModerationActions', 'ActorUserID'], ['UserReports', 'ResolvedByUserID'],
-        ['PaymentTransactions', 'OrderCode'], ['EmployerSubscriptions', 'AmountPaid']
+        ['PaymentTransactions', 'OrderCode'], ['EmployerSubscriptions', 'AmountPaid'],
+        ['JobApplications', 'ScreeningResultGroup'], ['JobScreeningCriteria', 'ConfigJson'],
+        ['JobScreeningTemplates', 'TemplateName'], ['AIDeepReviews', 'Summary'], ['JobScreeningQueue', 'Status']
       ]) assert.ok(columns.some(c => c.tableName === table && c.columnName === column), `${table}.${column}`);
       for (const table of ['Roles', 'Users', 'SkillTaxonomy', 'SubscriptionPackages', 'JobPostings']) {
         assert.equal((await query(`SELECT COUNT(*) n FROM ${table}`)).recordset[0].n, 0, `${table} must stay empty without seed.sql`);
@@ -63,7 +65,7 @@ test('unified schema and separate seed initialize a fresh SQL database and safel
       const seed = (await fs.readFile(path.resolve(__dirname, '../../database/seed.sql'), 'utf8')).replace(/\bJobtimizeDB\b/g, name);
       for (const batch of seed.split(/^\s*GO\s*$/im).filter(value => value.trim())) await query(batch);
       assert.equal((await query('SELECT COUNT(*) n FROM Roles')).recordset[0].n, 3);
-      for (const table of ['Users', 'SkillTaxonomy', 'SubscriptionPackages', 'JobPostings']) {
+      for (const table of ['Users', 'SkillTaxonomy', 'SubscriptionPackages', 'JobPostings', 'JobScreeningCriteria', 'JobScreeningTemplates']) {
         assert.ok((await query(`SELECT COUNT(*) n FROM ${table}`)).recordset[0].n > 0, `${table} initial data`);
       }
     });

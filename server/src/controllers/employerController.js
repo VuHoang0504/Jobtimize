@@ -2,6 +2,8 @@ const { withTransaction, enqueue } = require('../services/notificationStore');
 const { executeQuery } = require('../config/db');
 const emailService = require('../services/emailService');
 const { canViewApplicantMatching, applicantMatchDetails } = require('../services/applicantMatchingAccess');
+const screeningService = require('../services/screeningService');
+const deepReviewService = require('../services/deepReviewService');
 
 // Helper to get EmployerID from authenticated UserID
 const getEmployerId = async (userId) => {
@@ -258,6 +260,16 @@ const postJob = async (req, res) => {
       return newJob;
     });
 
+    const { screeningLevel, minGpa, gpaScale, mandatoryCertificates } = req.body;
+    if (screeningLevel !== undefined || minGpa !== undefined || mandatoryCertificates !== undefined) {
+      await screeningService.saveJobScreeningCriteria(newJob.JobID, {
+        screeningLevel,
+        minGpa,
+        gpaScale,
+        mandatoryCertificates
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Đăng tin tuyển dụng thành công! Tin đang chờ Admin kiểm duyệt trước khi xuất bản.',
@@ -311,6 +323,8 @@ const getJobDetailsForEdit = async (req, res) => {
       isMandatory: Boolean(s.IsMandatory)
     }));
 
+    job.screeningCriteria = await screeningService.getJobScreeningCriteria(jobId);
+
     return res.json({
       success: true,
       data: job
@@ -326,7 +340,8 @@ const updateJob = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { jobId } = req.params;
-    const { title, categoryId, description, requirements, salaryRange, location, skills } = req.body;
+    const { title, categoryId, description, requirements, salaryRange, location, skills,
+            screeningLevel, minGpa, gpaScale, mandatoryCertificates } = req.body;
 
     if (!title || !description || !requirements) {
       return res.status(400).json({ success: false, message: 'Vui lòng điền đầy đủ Tiêu đề, Mô tả và Yêu cầu công việc' });
@@ -387,6 +402,19 @@ const updateJob = async (req, res) => {
           );
         }
       }
+    }
+
+    if (screeningLevel !== undefined || minGpa !== undefined || mandatoryCertificates !== undefined) {
+      await screeningService.saveJobScreeningCriteria(jobId, {
+        screeningLevel,
+        minGpa,
+        gpaScale,
+        mandatoryCertificates
+      });
+      // Recalculate screening for all applications in background
+      screeningService.recalculateJobApplications(jobId).catch(err => {
+        console.error('Background recalculation error:', err.message);
+      });
     }
 
     return res.json({
@@ -524,7 +552,7 @@ const getMyJobPostings = async (req, res) => {
 // 4. ATS & INTERVIEW SCHEDULING (UC-E08, UC-E10)
 // ==========================================
 
-// ATS - Get Applicants for a specific job sorted by AI MatchScore (UC-E08)
+// ATS - Get Applicants for a specific job with Server-side Pagination & Advanced Filters (UC-E08)
 const getJobApplicantsATS = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -535,7 +563,7 @@ const getJobApplicantsATS = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập' });
     }
 
-    const jobCheck = await executeQuery('SELECT JobID, Title FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID', {
+    const jobCheck = await executeQuery('SELECT JobID, Title, Status FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID', {
       JobID: jobId,
       EmployerID: emp.EmployerID
     });
@@ -545,57 +573,375 @@ const getJobApplicantsATS = async (req, res) => {
 
     const jobInfo = jobCheck.recordset[0];
     const matchingAccess = await canViewApplicantMatching(emp.EmployerID);
+    const screeningCriteria = await screeningService.getJobScreeningCriteria(jobId);
+
+    // Filter Mode: 'normal' (turn off screening filter) vs 'filtered'
+    // Default to 'filtered' if criteria is enabled; 'normal' if criteria is disabled unless explicitly overridden
+    const reqFilterMode = req.query.filterMode;
+    const isNormalBrowsing = reqFilterMode === 'normal' || (screeningCriteria.IsEnabled === false && reqFilterMode !== 'filtered');
+
+    // Summary counts for all applications of this job
+    const summaryRes = await executeQuery(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN ja.ScreeningResultGroup = 'Passed' THEN 1 ELSE 0 END) AS passed,
+        SUM(CASE WHEN ja.ScreeningResultGroup = 'ReviewNeeded' THEN 1 ELSE 0 END) AS reviewNeeded,
+        SUM(CASE WHEN ja.ScreeningResultGroup = 'Failed' THEN 1 ELSE 0 END) AS failed,
+        SUM(CASE WHEN ja.ScreeningResultGroup IS NULL OR cvDoc.Status IN ('Queued', 'Processing') THEN 1 ELSE 0 END) AS preparing
+      FROM JobApplications ja
+      LEFT JOIN CVDocumentVersions cvDoc ON ja.CVVersionID = cvDoc.VersionID
+      WHERE ja.JobID = @JobID
+    `, { JobID: jobId });
+
+    const summaryRow = summaryRes.recordset[0] || {};
+    const summary = {
+      total: summaryRow.total || 0,
+      passed: summaryRow.passed || 0,
+      reviewNeeded: summaryRow.reviewNeeded || 0,
+      failed: summaryRow.failed || 0,
+      preparing: summaryRow.preparing || 0
+    };
+
+    // Pagination params
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const offset = (page - 1) * limit;
+
+    // Standard Filters
+    const status = req.query.status && req.query.status !== 'ALL' ? req.query.status : null;
+    const search = req.query.search ? req.query.search.trim() : null;
+
+    // Quick & Advanced Filters
+    const screeningGroup = !isNormalBrowsing && matchingAccess && req.query.screeningGroup && req.query.screeningGroup !== 'ALL'
+      ? req.query.screeningGroup : null;
+    const scoreMin = !isNormalBrowsing && matchingAccess && req.query.scoreMin != null && req.query.scoreMin !== ''
+      ? parseFloat(req.query.scoreMin) : null;
+    const scoreMax = !isNormalBrowsing && matchingAccess && req.query.scoreMax != null && req.query.scoreMax !== ''
+      ? parseFloat(req.query.scoreMax) : null;
+    const gpaMin = !isNormalBrowsing && matchingAccess && req.query.gpaMin != null && req.query.gpaMin !== ''
+      ? parseFloat(req.query.gpaMin) : null;
+    const skillId = !isNormalBrowsing && matchingAccess && req.query.skillId ? parseInt(req.query.skillId, 10) : null;
+
+    const yoeMin = !isNormalBrowsing && req.query.yoeMin != null && req.query.yoeMin !== '' ? parseFloat(req.query.yoeMin) : null;
+    const yoeMax = !isNormalBrowsing && req.query.yoeMax != null && req.query.yoeMax !== '' ? parseFloat(req.query.yoeMax) : null;
+    const location = req.query.location ? req.query.location.trim() : null;
+    const candidateTitle = req.query.title ? req.query.title.trim() : null;
+
+    let whereClause = 'WHERE ja.JobID = @JobID';
+    const params = { JobID: jobId, Limit: limit, Offset: offset };
+
+    if (status) {
+      whereClause += ' AND ja.Status = @Status';
+      params.Status = status;
+    }
+    if (search) {
+      whereClause += ' AND (u.FullName LIKE @SearchPattern OR u.Email LIKE @SearchPattern OR cp.Headline LIKE @SearchPattern)';
+      params.SearchPattern = `%${search}%`;
+    }
+    if (screeningGroup) {
+      whereClause += ' AND ja.ScreeningResultGroup = @ScreeningGroup';
+      params.ScreeningGroup = screeningGroup;
+    }
+    if (scoreMin != null && !isNaN(scoreMin)) {
+      whereClause += ' AND COALESCE(ja.ScreeningScore, ja.MatchScore, 0) >= @ScoreMin';
+      params.ScoreMin = scoreMin;
+    }
+    if (scoreMax != null && !isNaN(scoreMax)) {
+      whereClause += ' AND COALESCE(ja.ScreeningScore, ja.MatchScore, 0) <= @ScoreMax';
+      params.ScoreMax = scoreMax;
+    }
+    if (gpaMin != null && !isNaN(gpaMin)) {
+      whereClause += ` AND TRY_CAST(JSON_VALUE(ja.ScreeningDetailsJson, '$.features.candidateGpa') AS FLOAT) >= @GpaMin`;
+      params.GpaMin = gpaMin;
+    }
+    if (skillId) {
+      whereClause += ` AND EXISTS (
+        SELECT 1 FROM OPENJSON(ja.ScreeningDetailsJson, '$.matchedSkills')
+        WITH (skillId INT '$.skillId')
+        WHERE skillId = @SkillId
+      )`;
+      params.SkillId = skillId;
+    }
+    if (yoeMin != null && !isNaN(yoeMin)) {
+      whereClause += ` AND TRY_CAST(JSON_VALUE(ja.ScreeningDetailsJson, '$.features.yoe') AS FLOAT) >= @YoeMin`;
+      params.YoeMin = yoeMin;
+    }
+    if (yoeMax != null && !isNaN(yoeMax)) {
+      whereClause += ` AND TRY_CAST(JSON_VALUE(ja.ScreeningDetailsJson, '$.features.yoe') AS FLOAT) <= @YoeMax`;
+      params.YoeMax = yoeMax;
+    }
+    if (location) {
+      whereClause += ` AND (cp.CurrentLocation LIKE @LocationPattern OR JSON_VALUE(ja.ScreeningDetailsJson, '$.personal.location') LIKE @LocationPattern)`;
+      params.LocationPattern = `%${location}%`;
+    }
+    if (candidateTitle) {
+      whereClause += ` AND cp.Headline LIKE @TitlePattern`;
+      params.TitlePattern = `%${candidateTitle}%`;
+    }
+
+    // Total count of matching applicants
+    const countQuery = `
+      SELECT COUNT(*) AS totalMatching
+      FROM JobApplications ja
+      JOIN CandidateProfiles cp ON ja.ProfileID = cp.ProfileID
+      JOIN Users u ON cp.UserID = u.UserID
+      LEFT JOIN CVDocumentVersions cvDoc ON ja.CVVersionID = cvDoc.VersionID
+      ${whereClause}
+    `;
+    const countRes = await executeQuery(countQuery, params);
+    const totalItems = countRes.recordset[0]?.totalMatching || 0;
+    const totalPages = Math.ceil(totalItems / limit) || 1;
+
+    // Sorting rule:
+    // When NOT in normal browsing and matchingAccess: Stable sort by result group ('Passed' > 'ReviewNeeded' > 'Failed'), score DESC, AppliedAt DESC, ApplicationID DESC
+    // When in Normal Browsing or no matchingAccess: AppliedAt DESC, ApplicationID DESC
+    const orderByClause = (!isNormalBrowsing && matchingAccess)
+      ? `ORDER BY
+          CASE ja.ScreeningResultGroup
+            WHEN 'Passed' THEN 1
+            WHEN 'ReviewNeeded' THEN 2
+            WHEN 'Failed' THEN 3
+            ELSE 4
+          END ASC,
+          COALESCE(ja.ScreeningScore, ja.MatchScore, 0) DESC,
+          ja.AppliedAt DESC,
+          ja.ApplicationID DESC`
+      : `ORDER BY ja.AppliedAt DESC, ja.ApplicationID DESC`;
 
     const applicantsQuery = `
-      SELECT ja.ApplicationID, ja.JobID, ja.ProfileID, ja.CVID, ja.MatchDetailsJson, ja.MatchScore, ja.Status, ja.AppliedAt,
+      SELECT ja.ApplicationID, ja.JobID, ja.ProfileID, ja.CVID, ja.CVVersionID,
+             ja.MatchDetailsJson, ja.MatchScore, ja.Status, ja.AppliedAt,
+             ja.ScreeningResultGroup, ja.ScreeningScore, ja.ScreeningDetailsJson, ja.CriteriaVersion,
              cp.Headline, cp.DesiredSalary, cp.CurrentLocation, cp.Bio,
              u.FullName, u.Email, u.Phone, u.AvatarUrl,
              cv.Title AS CVTitle, cv.FileUrl AS CVFileUrl,
+             cvDoc.Status AS CVDataStatus,
              (
                SELECT TOP 1 iv.InterviewID, iv.InterviewDate, iv.InterviewType, iv.LocationOrLink, iv.Notes, iv.Status, iv.Version, iv.RespondedAt
                FROM Interviews iv
                WHERE iv.ApplicationID = ja.ApplicationID
                ORDER BY iv.InterviewID DESC
                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
-             ) AS InterviewJson
+             ) AS InterviewJson,
+             (
+               SELECT TOP 1 r.ReviewID, r.Summary, r.CreatedAt
+               FROM AIDeepReviews r
+               WHERE r.ApplicationID = ja.ApplicationID
+               ORDER BY r.ReviewID DESC
+               FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+             ) AS DeepReviewJson
       FROM JobApplications ja
       JOIN CandidateProfiles cp ON ja.ProfileID = cp.ProfileID
       JOIN Users u ON cp.UserID = u.UserID
       LEFT JOIN CVs cv ON ja.CVID = cv.CVID
-      WHERE ja.JobID = @JobID
-      ORDER BY ${matchingAccess ? 'ja.MatchScore DESC,' : ''} ja.AppliedAt DESC
+      LEFT JOIN CVDocumentVersions cvDoc ON ja.CVVersionID = cvDoc.VersionID
+      ${whereClause}
+      ${orderByClause}
+      OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
     `;
 
-    const applicantsRes = await executeQuery(applicantsQuery, { JobID: jobId });
+    const applicantsRes = await executeQuery(applicantsQuery, params);
 
     const applicants = applicantsRes.recordset.map(a => {
       let interview = null;
+      let deepReview = null;
       try {
         if (a.InterviewJson) interview = JSON.parse(a.InterviewJson);
-      } catch (e) {
-        interview = null;
-      }
+      } catch (e) { interview = null; }
+      try {
+        if (a.DeepReviewJson) deepReview = JSON.parse(a.DeepReviewJson);
+      } catch (e) { deepReview = null; }
+
       return {
         ...a,
         ...applicantMatchDetails(a, matchingAccess),
         CVTitle: (() => { try { return JSON.parse(a.MatchDetailsJson)?.cvTitle || a.CVTitle; } catch { return a.CVTitle; } })(),
         CVFileUrl: a.CVID ? `/api/cv-documents/applications/${a.ApplicationID}/file` : null,
         interview,
-        InterviewJson: undefined
+        deepReview: matchingAccess ? deepReview : null,
+        InterviewJson: undefined,
+        DeepReviewJson: undefined
       };
     });
 
     return res.json({
       success: true,
       data: {
-        job: jobInfo,
+        job: {
+          ...jobInfo,
+          screeningCriteria
+        },
         matchingAccess,
+        isNormalBrowsing,
+        summary,
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages
+        },
         applicants
       }
     });
   } catch (error) {
     console.error('getJobApplicantsATS error:', error);
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Update Job Flexible Screening Configuration (UC-E08)
+const updateJobScreeningConfig = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { jobId } = req.params;
+    const emp = await getEmployerId(userId);
+    if (!emp) return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập' });
+
+    const jobCheck = await executeQuery('SELECT JobID FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID', {
+      JobID: jobId,
+      EmployerID: emp.EmployerID
+    });
+    if (!jobCheck.recordset.length) return res.status(404).json({ success: false, message: 'Không tìm thấy tin tuyển dụng' });
+
+    const { isEnabled, config, screeningLevel, minGpa, gpaScale, mandatoryCertificates } = req.body;
+
+    const saved = await screeningService.saveJobScreeningCriteria(jobId, {
+      isEnabled: isEnabled !== false,
+      configJson: config,
+      screeningLevel,
+      minGpa,
+      gpaScale,
+      mandatoryCertificates
+    });
+
+    // Asynchronously trigger recalculation for all existing applicants
+    screeningService.recalculateJobApplications(jobId).catch(err => {
+      console.error('Background recalculation error:', err.message);
+    });
+
+    return res.json({
+      success: true,
+      message: 'Cập nhật cấu hình sàng lọc thành công. Hệ thống đang đồng bộ lại kết quả hồ sơ.',
+      data: saved
+    });
+  } catch (error) {
+    console.error('updateJobScreeningConfig error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Toggle Screening On/Off for Job (UC-E08)
+const toggleJobScreening = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { jobId } = req.params;
+    const emp = await getEmployerId(userId);
+    if (!emp) return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập' });
+
+    const jobCheck = await executeQuery('SELECT JobID FROM JobPostings WHERE JobID = @JobID AND EmployerID = @EmployerID', {
+      JobID: jobId,
+      EmployerID: emp.EmployerID
+    });
+    if (!jobCheck.recordset.length) return res.status(404).json({ success: false, message: 'Không tìm thấy tin tuyển dụng' });
+
+    const { isEnabled } = req.body;
+    const result = await screeningService.toggleJobScreening(jobId, isEnabled);
+
+    // Recalculate applications in background
+    screeningService.recalculateJobApplications(jobId).catch(err => {
+      console.error('Background recalculation error:', err.message);
+    });
+
+    return res.json({
+      success: true,
+      message: isEnabled ? 'Đã bật chức năng sàng lọc tự động' : 'Đã chuyển sang chế độ duyệt hồ sơ thông thường',
+      data: result
+    });
+  } catch (error) {
+    console.error('toggleJobScreening error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Save Filter Template (UC-E08)
+const saveJobScreeningTemplate = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const emp = await getEmployerId(userId);
+    if (!emp) return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập' });
+
+    const { templateName, description, config } = req.body;
+    const saved = await screeningService.saveFilterTemplate(emp.EmployerID, {
+      templateName,
+      description,
+      configJson: config
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Lưu mẫu bộ lọc thành công',
+      data: saved
+    });
+  } catch (error) {
+    console.error('saveJobScreeningTemplate error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get Filter Templates (UC-E08)
+const getJobScreeningTemplates = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const emp = await getEmployerId(userId);
+    if (!emp) return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập' });
+
+    const templates = await screeningService.listFilterTemplates(emp.EmployerID);
+    return res.json({
+      success: true,
+      data: templates
+    });
+  } catch (error) {
+    console.error('getJobScreeningTemplates error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Delete Filter Template (UC-E08)
+const deleteJobScreeningTemplate = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { templateId } = req.params;
+    const emp = await getEmployerId(userId);
+    if (!emp) return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập' });
+
+    const deleted = await screeningService.deleteFilterTemplate(emp.EmployerID, templateId);
+    if (!deleted) return res.status(404).json({ success: false, message: 'Không tìm thấy mẫu bộ lọc hoặc đã bị xóa' });
+
+    return res.json({
+      success: true,
+      message: 'Đã xóa mẫu bộ lọc thành công'
+    });
+  } catch (error) {
+    console.error('deleteJobScreeningTemplate error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Generate On-Demand AI Deep Review for an Application (UC-E08)
+const generateDeepAIReview = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { applicationId } = req.params;
+
+    const review = await deepReviewService.getOrGenerateDeepReview(applicationId, userId);
+    return res.json({
+      success: true,
+      message: review.isCached ? 'Tải nhận xét chuyên sâu đã lưu thành công' : 'Đã hoàn tất phân tích nhận xét chuyên sâu',
+      data: review
+    });
+  } catch (error) {
+    console.error('generateDeepAIReview error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 
@@ -1167,6 +1513,12 @@ module.exports = {
 
   // ATS & Interviews (UC-E08, UC-E10)
   getJobApplicantsATS,
+  updateJobScreeningConfig,
+  toggleJobScreening,
+  saveJobScreeningTemplate,
+  getJobScreeningTemplates,
+  deleteJobScreeningTemplate,
+  generateDeepAIReview,
   updateApplicationStatus,
   scheduleInterview,
   getScheduledInterviews,

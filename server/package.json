@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "db:init": "node scripts/initDb.js",
     "seed:jobs": "node scripts/seedJobs.js",
+    "seed:qa": "node scripts/seed_50_qa_applicants.js",
     "check:smtp": "node scripts/check_smtp.js",
     "test:otp": "node --test scripts/test_otp.js",
     "test:notifications": "node --test scripts/test_notifications.js",

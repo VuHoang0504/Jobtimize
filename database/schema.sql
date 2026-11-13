@@ -219,6 +219,11 @@ CREATE TABLE dbo.JobApplications (
     ProfileID INT FOREIGN KEY REFERENCES CandidateProfiles(ProfileID) ON DELETE NO ACTION,
     CVID INT NULL, -- Original CV may be removed; CVVersionID retains the submitted snapshot.
     MatchScore FLOAT NULL, 
+    MatchDetailsJson NVARCHAR(MAX) NULL,
+    ScreeningResultGroup NVARCHAR(20) NULL, -- 'Passed', 'ReviewNeeded', 'Failed'
+    ScreeningScore FLOAT NULL,
+    ScreeningDetailsJson NVARCHAR(MAX) NULL,
+    CriteriaVersion INT NULL,
     Status NVARCHAR(30) DEFAULT 'Applied', -- 'Applied', 'Screening', 'Interviewing', 'Offered', 'Rejected'
     AppliedAt DATETIME DEFAULT GETDATE()
 );
@@ -265,7 +270,12 @@ CREATE TABLE dbo.EmployerSubscriptions (
     StartDate DATETIME DEFAULT GETDATE(),
     EndDate DATETIME NOT NULL,
     RemainingPosts INT NOT NULL,
-    RemainingSearches INT NOT NULL
+    RemainingSearches INT NOT NULL,
+    AmountPaid DECIMAL(18,2) NULL,
+    PaymentMethod NVARCHAR(50) NULL,
+    PaymentStatus NVARCHAR(30) NULL,
+    TransactionCode NVARCHAR(100) NULL,
+    CreatedAt DATETIME NULL DEFAULT GETDATE()
 );
 END;
 GO
@@ -487,6 +497,14 @@ BEGIN
     UpdatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
   );
 END;
+IF OBJECT_ID(N'dbo.JobNotificationPreferences', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.JobNotificationPreferences (
+    UserID INT PRIMARY KEY REFERENCES dbo.Users(UserID) ON DELETE CASCADE,
+    Enabled BIT NOT NULL,
+    CategoryIds NVARCHAR(MAX) NOT NULL CHECK (ISJSON(CategoryIds) = 1)
+  );
+END;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.JobApplications') AND name='IX_JobApplications_NotificationLookup')
   CREATE INDEX IX_JobApplications_NotificationLookup ON dbo.JobApplications(ProfileID,JobID) INCLUDE(ApplicationID);
 
@@ -618,5 +636,96 @@ IF @cvForeignKey IS NOT NULL
 BEGIN
   DECLARE @dropCVForeignKey NVARCHAR(MAX)=N'ALTER TABLE dbo.JobApplications DROP CONSTRAINT '+QUOTENAME(@cvForeignKey);
   EXEC(@dropCVForeignKey);
+END;
+GO
+
+-- ========================================================
+-- 10. SÀNG LỌC HỒ SƠ NÂNG CAO CHO GÓI TRẢ PHÍ (PAID ATS SCREENING)
+-- ========================================================
+
+IF OBJECT_ID(N'dbo.JobScreeningCriteria', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.JobScreeningCriteria (
+    CriteriaID INT IDENTITY(1,1) PRIMARY KEY,
+    JobID INT NOT NULL FOREIGN KEY REFERENCES JobPostings(JobID) ON DELETE CASCADE,
+    Version INT NOT NULL DEFAULT 1,
+    ScreeningLevel NVARCHAR(20) NOT NULL DEFAULT 'Balanced', -- 'Relaxed' (50%), 'Balanced' (70%), 'Strict' (85%)
+    MinGPA FLOAT NULL,
+    GPAScale INT NULL, -- 4 or 10
+    MandatoryCertificates NVARCHAR(MAX) NULL, -- JSON array of string certificate names
+    IsEnabled BIT NOT NULL DEFAULT 1,
+    ConfigJson NVARCHAR(MAX) NULL,
+    IsActive BIT NOT NULL DEFAULT 1,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+  );
+  CREATE INDEX IX_JobScreeningCriteria_Job ON dbo.JobScreeningCriteria(JobID, Version DESC);
+END;
+GO
+
+IF COL_LENGTH(N'dbo.JobScreeningCriteria', N'IsEnabled') IS NULL
+  ALTER TABLE dbo.JobScreeningCriteria ADD IsEnabled BIT NOT NULL DEFAULT 1;
+IF COL_LENGTH(N'dbo.JobScreeningCriteria', N'ConfigJson') IS NULL
+  ALTER TABLE dbo.JobScreeningCriteria ADD ConfigJson NVARCHAR(MAX) NULL;
+GO
+
+IF OBJECT_ID(N'dbo.JobScreeningTemplates', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.JobScreeningTemplates (
+    TemplateID INT IDENTITY(1,1) PRIMARY KEY,
+    EmployerID INT NOT NULL FOREIGN KEY REFERENCES Employers(EmployerID) ON DELETE CASCADE,
+    TemplateName NVARCHAR(150) NOT NULL,
+    Description NVARCHAR(500) NULL,
+    ConfigJson NVARCHAR(MAX) NOT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+  );
+  CREATE INDEX IX_JobScreeningTemplates_Emp ON dbo.JobScreeningTemplates(EmployerID, TemplateID DESC);
+END;
+GO
+
+IF COL_LENGTH(N'dbo.JobApplications', N'ScreeningResultGroup') IS NULL
+  ALTER TABLE dbo.JobApplications ADD ScreeningResultGroup NVARCHAR(20) NULL; -- 'Passed', 'ReviewNeeded', 'Failed'
+IF COL_LENGTH(N'dbo.JobApplications', N'ScreeningScore') IS NULL
+  ALTER TABLE dbo.JobApplications ADD ScreeningScore FLOAT NULL;
+IF COL_LENGTH(N'dbo.JobApplications', N'ScreeningDetailsJson') IS NULL
+  ALTER TABLE dbo.JobApplications ADD ScreeningDetailsJson NVARCHAR(MAX) NULL;
+IF COL_LENGTH(N'dbo.JobApplications', N'CriteriaVersion') IS NULL
+  ALTER TABLE dbo.JobApplications ADD CriteriaVersion INT NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.JobApplications') AND name = N'IX_JobApplications_Screening')
+  CREATE INDEX IX_JobApplications_Screening ON dbo.JobApplications(JobID, ScreeningResultGroup);
+GO
+
+IF OBJECT_ID(N'dbo.AIDeepReviews', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.AIDeepReviews (
+    ReviewID INT IDENTITY(1,1) PRIMARY KEY,
+    ApplicationID INT NOT NULL FOREIGN KEY REFERENCES JobApplications(ApplicationID) ON DELETE CASCADE,
+    CVVersionID INT NULL REFERENCES CVDocumentVersions(VersionID),
+    CriteriaVersion INT NULL,
+    Summary NVARCHAR(MAX) NOT NULL,
+    DetailsJson NVARCHAR(MAX) NOT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+  );
+  CREATE INDEX IX_AIDeepReviews_App ON dbo.AIDeepReviews(ApplicationID, CVVersionID, CriteriaVersion);
+END;
+GO
+
+IF OBJECT_ID(N'dbo.JobScreeningQueue', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.JobScreeningQueue (
+    QueueID INT IDENTITY(1,1) PRIMARY KEY,
+    JobID INT NOT NULL FOREIGN KEY REFERENCES JobPostings(JobID) ON DELETE CASCADE,
+    CriteriaVersion INT NOT NULL,
+    Status NVARCHAR(20) NOT NULL DEFAULT 'Pending', -- 'Pending', 'Processing', 'Completed', 'Failed'
+    TotalCount INT NOT NULL DEFAULT 0,
+    ProcessedCount INT NOT NULL DEFAULT 0,
+    ErrorMessage NVARCHAR(500) NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+  );
+  CREATE INDEX IX_JobScreeningQueue_Status ON dbo.JobScreeningQueue(Status, QueueID);
 END;
 GO

@@ -265,7 +265,7 @@ export default function AdminAnalyticsDashboard() {
                 <option value="demo">Dữ liệu mẫu có sẵn</option>
               </select>
             </label>
-            <AdminReportPeriod disabled={loading} onApply={value => { setTxPage(1); setPeriodFilter(value); }} />
+            <AdminReportPeriod onApply={value => { setTxPage(1); setPeriodFilter(value); }} />
 
             <div role="group" aria-label="Thao tác báo cáo" className="flex min-w-0 flex-wrap items-center gap-2.5">
               {/* Refresh Button */}

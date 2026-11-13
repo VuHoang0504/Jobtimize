@@ -370,7 +370,24 @@ const getEmployers = async (req, res) => {
         u.FullName, u.Email, u.Phone, u.AvatarUrl, u.Status, u.CreatedAt,
         (SELECT COUNT(*) FROM JobPostings jp WHERE jp.EmployerID = e.EmployerID) AS TotalJobs,
         (SELECT COUNT(*) FROM JobApplications ja JOIN JobPostings jp ON ja.JobID = jp.JobID WHERE jp.EmployerID = e.EmployerID) AS TotalApplicants,
-        (SELECT TOP 1 kd.BusinessLicenseUrl FROM KYCDocuments kd WHERE kd.EmployerID = e.EmployerID ORDER BY kd.SubmittedAt DESC) AS LatestLicenseUrl
+        (SELECT TOP 1 kd.BusinessLicenseUrl FROM KYCDocuments kd WHERE kd.EmployerID = e.EmployerID ORDER BY kd.SubmittedAt DESC) AS LatestLicenseUrl,
+        (SELECT TOP 1 sp.PackageName 
+         FROM EmployerSubscriptions es
+         JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
+         WHERE es.EmployerID = e.EmployerID AND es.EndDate > GETDATE()
+         ORDER BY es.EndDate DESC) AS CurrentPackageName,
+        (SELECT TOP 1 es.EndDate 
+         FROM EmployerSubscriptions es
+         WHERE es.EmployerID = e.EmployerID AND es.EndDate > GETDATE()
+         ORDER BY es.EndDate DESC) AS SubscriptionEndDate,
+        (SELECT TOP 1 es.RemainingPosts
+         FROM EmployerSubscriptions es
+         WHERE es.EmployerID = e.EmployerID AND es.EndDate > GETDATE()
+         ORDER BY es.EndDate DESC) AS RemainingPosts,
+        (SELECT TOP 1 es.RemainingSearches
+         FROM EmployerSubscriptions es
+         WHERE es.EmployerID = e.EmployerID AND es.EndDate > GETDATE()
+         ORDER BY es.EndDate DESC) AS RemainingSearches
       FROM Employers e
       JOIN Users u ON e.UserID = u.UserID
       ${whereClause}
@@ -423,7 +440,7 @@ const getEmployerDetail = async (req, res) => {
 
     const employer = empRes.recordset[0];
 
-    const [kycRes, jobsRes] = await Promise.all([
+    const [kycRes, jobsRes, subRes, historyRes] = await Promise.all([
       executeQuery(
         `SELECT DocumentID, BusinessLicenseUrl, SubmittedAt, RejectionReason 
          FROM KYCDocuments 
@@ -438,6 +455,27 @@ const getEmployerDetail = async (req, res) => {
          WHERE jp.EmployerID = @EmployerID
          ORDER BY jp.CreatedAt DESC`,
         { EmployerID: employer.EmployerID }
+      ),
+      executeQuery(
+        `SELECT TOP 1 es.SubID, es.EmployerID, es.PackageID, sp.PackageName, sp.Price,
+                     es.StartDate, es.EndDate, es.RemainingPosts, es.RemainingSearches,
+                     es.PaymentMethod, es.PaymentStatus, es.TransactionCode,
+                     CASE WHEN es.EndDate > GETDATE() THEN 1 ELSE 0 END AS IsActive
+         FROM EmployerSubscriptions es
+         JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
+         WHERE es.EmployerID = @EmployerID
+         ORDER BY es.EndDate DESC, es.SubID DESC`,
+        { EmployerID: employer.EmployerID }
+      ),
+      executeQuery(
+        `SELECT TOP 10 es.SubID, es.PackageID, sp.PackageName, sp.Price,
+                      es.StartDate, es.EndDate, es.RemainingPosts, es.RemainingSearches,
+                      es.AmountPaid, es.PaymentMethod, es.PaymentStatus, es.TransactionCode, es.CreatedAt
+         FROM EmployerSubscriptions es
+         JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
+         WHERE es.EmployerID = @EmployerID
+         ORDER BY es.SubID DESC`,
+        { EmployerID: employer.EmployerID }
       )
     ]);
 
@@ -446,7 +484,9 @@ const getEmployerDetail = async (req, res) => {
       data: {
         ...employer,
         kycDocuments: kycRes.recordset || [],
-        jobPostings: jobsRes.recordset || []
+        jobPostings: jobsRes.recordset || [],
+        subscription: subRes.recordset[0] || null,
+        subscriptionHistory: historyRes.recordset || []
       }
     });
   } catch (error) {
@@ -1131,6 +1171,211 @@ const deleteSkill = async (req, res) => {
   }
 };
 
+// 18. Get Subscription Packages for Admin
+const getSubscriptionPackagesAdmin = async (req, res) => {
+  try {
+    const result = await executeQuery(`
+      SELECT PackageID, PackageName, Price, DurationDays, PostLimit, SearchLimit
+      FROM SubscriptionPackages
+      ORDER BY Price ASC
+    `);
+    return res.json({ success: true, data: result.recordset || [] });
+  } catch (error) {
+    console.error('getSubscriptionPackagesAdmin error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi khi tải danh sách gói dịch vụ' });
+  }
+};
+
+// 19. Unlock / Grant Paid Subscription Package to Employer Directly
+const unlockEmployerPackage = async (req, res) => {
+  try {
+    const { employerId } = req.params;
+    const { packageId, durationDays, posts, searches, note } = req.body;
+
+    if (!packageId) {
+      return res.status(400).json({ success: false, message: 'Vui lòng chọn gói dịch vụ cần mở khóa' });
+    }
+
+    // 1. Fetch employer and user info
+    const empRes = await executeQuery(`
+      SELECT e.EmployerID, e.UserID, e.CompanyName, u.FullName, u.Email
+      FROM Employers e
+      JOIN Users u ON e.UserID = u.UserID
+      WHERE e.EmployerID = @EmployerID
+    `, { EmployerID: employerId });
+
+    if (!empRes.recordset?.length) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy doanh nghiệp' });
+    }
+    const employer = empRes.recordset[0];
+
+    // 2. Fetch package info
+    const pkgRes = await executeQuery(`
+      SELECT PackageID, PackageName, Price, DurationDays, PostLimit, SearchLimit
+      FROM SubscriptionPackages
+      WHERE PackageID = @PackageID
+    `, { PackageID: packageId });
+
+    if (!pkgRes.recordset?.length) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin gói dịch vụ' });
+    }
+    const pkg = pkgRes.recordset[0];
+
+    const days = Number(durationDays) > 0 ? Number(durationDays) : (pkg.DurationDays || 30);
+    const postCount = Number(posts) >= 0 ? Number(posts) : (pkg.PostLimit || 15);
+    const searchCount = Number(searches) >= 0 ? Number(searches) : (pkg.SearchLimit || 100);
+    const adminRef = `ADMIN-UNLOCK-${Date.now()}`;
+    const adminNote = note ? String(note).trim() : 'Admin mở khóa gói trực tiếp';
+
+    // 3. Create or extend subscription in EmployerSubscriptions
+    const currentSubRes = await executeQuery(`
+      SELECT TOP 1 SubID, EndDate, CASE WHEN EndDate > GETDATE() THEN 1 ELSE 0 END AS IsActive
+      FROM EmployerSubscriptions
+      WHERE EmployerID = @EmployerID
+      ORDER BY EndDate DESC, SubID DESC
+    `, { EmployerID: employerId });
+
+    const currentSub = currentSubRes.recordset?.[0];
+    let subResult;
+
+    if (currentSub?.IsActive) {
+      const updateRes = await executeQuery(`
+        UPDATE EmployerSubscriptions
+        SET PackageID = @PackageID,
+            EndDate = DATEADD(DAY, @Days, EndDate),
+            RemainingPosts = RemainingPosts + @Posts,
+            RemainingSearches = RemainingSearches + @Searches,
+            PaymentMethod = 'AdminUnlock',
+            PaymentStatus = 'Completed',
+            TransactionCode = @Ref
+        OUTPUT INSERTED.*
+        WHERE SubID = @SubID
+      `, {
+        PackageID: packageId,
+        Days: days,
+        Posts: postCount,
+        Searches: searchCount,
+        Ref: adminRef,
+        SubID: currentSub.SubID
+      });
+      subResult = updateRes.recordset[0];
+    } else {
+      const insertRes = await executeQuery(`
+        INSERT INTO EmployerSubscriptions (
+          EmployerID, PackageID, StartDate, EndDate, RemainingPosts, RemainingSearches,
+          AmountPaid, PaymentMethod, PaymentStatus, TransactionCode, CreatedAt
+        )
+        OUTPUT INSERTED.*
+        VALUES (
+          @EmployerID, @PackageID, GETDATE(), DATEADD(DAY, @Days, GETDATE()),
+          @Posts, @Searches, 0, 'AdminUnlock', 'Completed', @Ref, GETDATE()
+        )
+      `, {
+        EmployerID: employerId,
+        PackageID: packageId,
+        Days: days,
+        Posts: postCount,
+        Searches: searchCount,
+        Ref: adminRef
+      });
+      subResult = insertRes.recordset[0];
+    }
+
+    // 4. Record transaction in PaymentTransactions with Status = 'Success'
+    await executeQuery(`
+      INSERT INTO PaymentTransactions (
+        TransactionRef, EmployerID, PackageID, Amount, Status,
+        PaymentMethod, GatewayTransactionNo, CreatedAt, PaidAt
+      )
+      VALUES (
+        @Ref, @EmployerID, @PackageID, 0, 'Success',
+        'AdminUnlock', @Note, GETDATE(), GETDATE()
+      )
+    `, {
+      Ref: adminRef,
+      EmployerID: employerId,
+      PackageID: packageId,
+      Note: adminNote
+    });
+
+    // 5. Insert in-app notification to employer
+    try {
+      const eventKey = `admin_unlock_package_${Date.now()}`;
+      await executeQuery(`
+        INSERT INTO Notifications (
+          UserID, RecipientRole, EventKey, Type, Title, Body, Href, IsActive, CreatedAt
+        )
+        VALUES (
+          @UserID, 'Employer', @EventKey, 'System', @Title, @Body, '/employer/pricing', 1, SYSUTCDATETIME()
+        )
+      `, {
+        UserID: employer.UserID,
+        EventKey: eventKey,
+        Title: 'Kích hoạt gói dịch vụ tuyển dụng',
+        Body: `Quản trị viên đã mở khóa gói dịch vụ ${pkg.PackageName} cho doanh nghiệp của bạn (Thời hạn: ${days} ngày, ${postCount} tin đăng, ${searchCount} lượt tìm kiếm CV).`
+      });
+    } catch (notifErr) {
+      console.error('Failed to insert in-app notification for unlock package:', notifErr.message);
+    }
+
+    return res.json({
+      success: true,
+      message: `Đã mở khóa thành công gói ${pkg.PackageName} cho doanh nghiệp ${employer.CompanyName}!`,
+      data: {
+        subscription: subResult,
+        package: pkg,
+        employer: {
+          EmployerID: employer.EmployerID,
+          CompanyName: employer.CompanyName
+        }
+      }
+    });
+  } catch (error) {
+    console.error('unlockEmployerPackage error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Lỗi khi mở khóa gói cho doanh nghiệp' });
+  }
+};
+
+// 20. Get Employer Subscription & History for Admin
+const getEmployerSubscriptionAdmin = async (req, res) => {
+  try {
+    const { employerId } = req.params;
+
+    const [activeRes, historyRes] = await Promise.all([
+      executeQuery(`
+        SELECT TOP 1 es.SubID, es.EmployerID, es.PackageID, sp.PackageName, sp.Price,
+                     es.StartDate, es.EndDate, es.RemainingPosts, es.RemainingSearches,
+                     es.PaymentMethod, es.PaymentStatus, es.TransactionCode,
+                     CASE WHEN es.EndDate > GETDATE() THEN 1 ELSE 0 END AS IsActive
+        FROM EmployerSubscriptions es
+        JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
+        WHERE es.EmployerID = @EmployerID
+        ORDER BY es.EndDate DESC, es.SubID DESC
+      `, { EmployerID: employerId }),
+      executeQuery(`
+        SELECT TOP 20 es.SubID, es.PackageID, sp.PackageName, sp.Price,
+                      es.StartDate, es.EndDate, es.RemainingPosts, es.RemainingSearches,
+                      es.AmountPaid, es.PaymentMethod, es.PaymentStatus, es.TransactionCode, es.CreatedAt
+        FROM EmployerSubscriptions es
+        JOIN SubscriptionPackages sp ON es.PackageID = sp.PackageID
+        WHERE es.EmployerID = @EmployerID
+        ORDER BY es.SubID DESC
+      `, { EmployerID: employerId })
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        activeSubscription: activeRes.recordset?.[0] || null,
+        history: historyRes.recordset || []
+      }
+    });
+  } catch (error) {
+    console.error('getEmployerSubscriptionAdmin error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi khi tải thông tin gói dịch vụ' });
+  }
+};
+
 module.exports = {
   // KYC & Payment routes
   reviewEmployerKYC,
@@ -1142,6 +1387,9 @@ module.exports = {
   getCandidateDetail,
   getEmployers,
   getEmployerDetail,
+  getSubscriptionPackagesAdmin,
+  unlockEmployerPackage,
+  getEmployerSubscriptionAdmin,
   updateUserStatus,
   updateEmployerKYC,
   resetUserPassword,

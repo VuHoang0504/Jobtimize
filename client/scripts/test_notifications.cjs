@@ -44,35 +44,42 @@ function tree(Inbox, user) {
 const candidate = { userId: 1, role: 'Candidate' };
 const notice = { id: 17, type: 'invitation', title: 'Lời mời thật', body: 'Công ty mời bạn ứng tuyển', href: '/candidate/dashboard?tab=invitations&invitationId=2', createdAt: '2026-10-28T03:00:00Z', readAt: null };
 
-test('admin period form supports exact day, month, year and inclusive range, only applies on submit', async () => {
+test('admin period presets update both dates immediately and each field has its own calendar', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2024-03-30T17:30:00Z') });
+  const env = globals();
   const Period = (await component('components/common/AdminReportPeriod.jsx')).default;
-  let mounted, applied = [];
+  let mounted;
+  const applied = [];
   try {
     renderer.act(() => { mounted = renderer.create(React.createElement(Period, { onApply: value => applied.push(value) })); });
-    const change = async (mode, values) => {
+    const fromInput = () => mounted.root.findByProps({ 'aria-label': 'Từ ngày' });
+    const toInput = () => mounted.root.findByProps({ 'aria-label': 'Đến ngày' });
+    assert.deepEqual(mounted.root.findAllByType('option').map(text), ['1 tuần', '1 tháng', '3 tháng', '6 tháng', '1 năm']);
+    for (const [mode, fromDate] of [
+      ['7d', '2024-03-25'], ['30d', '2024-02-29'], ['3m', '2023-12-31'], ['6m', '2023-09-30'], ['1y', '2023-03-31']
+    ]) {
       renderer.act(() => mounted.root.findByType('select').props.onChange({ target: { value: mode } }));
-      for (const [label, value] of values) renderer.act(() => mounted.root.findByProps({ 'aria-label': label }).props.onChange({ target: { value } }));
-      const before = applied.length;
-      assert.equal(applied.length, before);
-      renderer.act(() => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }));
-      assert.equal(applied.at(-1).timeRange, mode);
-    };
-    await change('day', [['Ngày', '2024-02-29']]); assert.equal(applied.at(-1).date, '2024-02-29');
-    await change('month', [['Tháng', '2024-02']]); assert.equal(applied.at(-1).month, '2024-02');
-    await change('year', [['Năm', '2024']]); assert.equal(applied.at(-1).year, '2024');
-    await change('custom', [['Từ ngày', '2024-02-01'], ['Đến hết ngày', '2024-02-29']]); assert.equal(applied.at(-1).toDate, '2024-02-29');
-    assert.deepEqual(applied.at(-1), { timeRange: 'custom', fromDate: '2024-02-01', toDate: '2024-02-29' }, 'Only active filter fields are sent');
+      assert.equal(fromInput().props.value, fromDate);
+      assert.equal(toInput().props.value, '2024-03-31');
+      assert.deepEqual(applied.at(-1), { timeRange: 'custom', fromDate, toDate: '2024-03-31' });
+    }
+    renderer.act(() => button(mounted.root, 'Mở lịch Từ ngày').props.onClick());
+    renderer.act(() => button(mounted.root, '15/03/2023').props.onClick());
+    assert.equal(fromInput().props.value, '2023-03-15');
+    renderer.act(() => button(mounted.root, 'Mở lịch Đến ngày').props.onClick());
+    renderer.act(() => button(mounted.root, '20/03/2024').props.onClick());
+    assert.equal(toInput().props.value, '2024-03-20');
+    assert.equal(applied.length, 5, 'Calendar edits apply only after submission');
+    renderer.act(() => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+    assert.deepEqual(applied.at(-1), { timeRange: 'custom', fromDate: '2023-03-15', toDate: '2024-03-20' });
     const beforeInvalid = applied.length;
-    renderer.act(() => mounted.root.findByProps({ 'aria-label': 'Từ ngày' }).props.onChange({ target: { value: '2024-03-01' } }));
+    renderer.act(() => fromInput().props.onChange({ target: { value: '2024-03-21' } }));
     renderer.act(() => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }));
     assert.equal(applied.length, beforeInvalid, 'Invalid ranges must not fetch a report');
     assert.ok(text(mounted.root.findByProps({ role: 'alert' })).includes('Ngày kết thúc'));
-    renderer.act(() => mounted.root.findByProps({ 'aria-label': 'Đến hết ngày' }).props.onChange({ target: { value: '2024-03-02' } }));
+    renderer.act(() => toInput().props.onChange({ target: { value: '2024-03-21' } }));
     assert.equal(mounted.root.findAllByProps({ role: 'alert' }).length, 0);
-    renderer.act(() => mounted.update(React.createElement(Period, { disabled: true, onApply: value => applied.push(value) })));
-    renderer.act(() => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }));
-    assert.equal(applied.length, beforeInvalid, 'A loading report cannot be submitted twice');
-  } finally { mounted?.unmount(); }
+  } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
 });
 
 test('admin analytics renders empty periods and uses same server filters for full exports and pagination', async () => {
@@ -93,16 +100,17 @@ test('admin analytics renders empty periods and uses same server filters for ful
     assert.ok(text(mounted.toJSON()).includes('Chưa có kỳ gốc'));
     assert.ok(text(mounted.toJSON()).includes('Chưa có dữ liệu'));
     assert.ok(!text(mounted.toJSON()).includes('85%'), 'Empty periods cannot invent an average match score');
-    renderer.act(() => mounted.root.findByProps({ 'aria-label': 'Kiểu thời gian báo cáo' }).props.onChange({ target: { value: 'month' } }));
-    renderer.act(() => mounted.root.findByProps({ 'aria-label': 'Tháng' }).props.onChange({ target: { value: '2024-02' } }));
+    renderer.act(() => mounted.root.findByProps({ 'aria-label': 'Từ ngày' }).props.onChange({ target: { value: '2024-02-01' } }));
+    renderer.act(() => mounted.root.findByProps({ 'aria-label': 'Đến ngày' }).props.onChange({ target: { value: '2024-02-29' } }));
     await renderer.act(async () => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }));
-    assert.ok(calls.some(url => url.includes('/admin/analytics?') && url.includes('timeRange=month') && url.includes('month=2024-02')));
+    const hasRange = url => url.includes('timeRange=custom&fromDate=2024-02-01&toDate=2024-02-29');
+    assert.ok(calls.some(url => url.includes('/admin/analytics?') && hasRange(url)));
     await renderer.act(async () => button(mounted.root, 'Sau').props.onClick());
-    assert.ok(calls.some(url => url.includes('/admin/transactions?') && url.includes('page=2')));
+    assert.ok(calls.some(url => url.includes('/admin/transactions?') && url.includes('page=2') && hasRange(url)));
     await renderer.act(async () => button(mounted.root, 'Xuất Báo Cáo').props.onClick());
     await renderer.act(async () => button(mounted.root, 'Xuất file').props.onClick());
     assert.ok(exports[0].includes('kind=summary')); assert.ok(exports[1].includes('kind=transactions'));
-    assert.ok(exports.every(url => url.includes('timeRange=month') && url.includes('month=2024-02') && !url.includes('page=')));
+    assert.ok(exports.every(url => hasRange(url) && !url.includes('page=')));
     assert.equal(clicks.length, 2);
     assert.ok(text(mounted.toJSON()).includes('Chưa có giao dịch thanh toán đã xác nhận'));
     await renderer.act(async () => button(mounted.root, 'Xem dữ liệu mẫu').props.onClick());
@@ -147,6 +155,35 @@ test('inbox renders real counts, unread filter, read-all and paused background p
     await renderer.act(async () => { for (const tick of env.timers.values()) await tick(); }); assert.equal(calls, before);
     document.hidden = false; await renderer.act(async () => { document.dispatchEvent(new Event('visibilitychange')); }); assert.equal(calls, before + 1);
     renderer.act(() => mounted.unmount()); assert.equal(env.timers.size, 0);
+  } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
+});
+
+test('candidates can save job categories from the bell and return to the inbox', async () => {
+  const env = globals();
+  let mounted, saved;
+  notificationTestApi = {
+    get: async url => ({ data: {
+      success: true,
+      data: url === '/metadata/categories' ? [{ CategoryID: 4, CategoryName: 'Kế toán' }]
+        : url === '/notifications/job-preferences' ? { enabled: true, categoryIds: [] } : [notice],
+      total: 1,
+      unread: 1
+    } }),
+    put: async (url, preferences) => {
+      assert.equal(url, '/notifications/job-preferences');
+      saved = preferences;
+    }
+  };
+  try {
+    const Inbox = (await component('components/common/NotificationInbox.jsx')).default;
+    await renderer.act(async () => { mounted = renderer.create(tree(Inbox, candidate)); });
+    await renderer.act(async () => button(mounted.root, 'Thông báo').props.onClick());
+    await renderer.act(async () => button(mounted.root, 'Cài đặt thông báo việc làm').props.onClick());
+    const category = mounted.root.findByProps({ 'aria-label': 'Kế toán' });
+    renderer.act(() => category.props.onChange({ target: { checked: true } }));
+    await renderer.act(async () => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+    assert.deepEqual(saved, { enabled: true, categoryIds: [4] });
+    assert.ok(button(mounted.root, 'Lời mời thật'));
   } finally { if (mounted) renderer.act(() => mounted.unmount()); env.restore(); }
 });
 

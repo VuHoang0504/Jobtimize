@@ -579,9 +579,188 @@ IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'JobApplications')
             SET @CId = SCOPE_IDENTITY();
           END;
 
-          INSERT INTO JobApplications (JobID, ProfileID, CVID, MatchScore, Status, AppliedAt)
-          SELECT TOP 6 JobID, @PId, @CId, 86.5, 'Applied', DATEADD(DAY, -JobID * 3, GETDATE())
+          INSERT INTO JobApplications (JobID, ProfileID, CVID, MatchScore, ScreeningResultGroup, ScreeningScore, CriteriaVersion, Status, AppliedAt)
+          SELECT TOP 6 JobID, @PId, @CId, 86.5, 'Passed', 86.5, 1, 'Applied', DATEADD(DAY, -JobID * 3, GETDATE())
           FROM JobPostings;
         END
+
+        DECLARE @CandidateUser2 INT = (
+          SELECT TOP 1 u.UserID
+          FROM Users u
+          JOIN UserRoles ur ON u.UserID = ur.UserID
+          JOIN Roles r ON ur.RoleID = r.RoleID
+          WHERE r.RoleName = 'Candidate' AND u.Email LIKE '%quan%'
+        );
+
+        IF @CandidateUser2 IS NOT NULL
+        BEGIN
+          DECLARE @PId2 INT = (SELECT TOP 1 ProfileID FROM CandidateProfiles WHERE UserID = @CandidateUser2);
+          DECLARE @CId2 INT = (SELECT TOP 1 CVID FROM CVs WHERE ProfileID = @PId2);
+          IF @PId2 IS NOT NULL
+          BEGIN
+            INSERT INTO JobApplications (JobID, ProfileID, CVID, MatchScore, ScreeningResultGroup, ScreeningScore, CriteriaVersion, Status, AppliedAt)
+            SELECT TOP 4 JobID, @PId2, @CId2, 91.0, 'Passed', 91.0, 1, 'Interviewing', DATEADD(DAY, -JobID * 2, GETDATE())
+            FROM JobPostings WHERE JobID >= 3;
+          END;
+        END;
       END
+GO
+
+-- ========================================================
+-- 9. NẠP GIAO DỊCH THANH TOÁN (PAYMENTTRANSACTIONS)
+-- ========================================================
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PaymentTransactions')
+   AND (SELECT COUNT(*) FROM PaymentTransactions) = 0
+BEGIN
+  DECLARE @FptEmp INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%FPT%');
+  DECLARE @KmsEmp INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%KMS%');
+  DECLARE @VngEmp INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%VNG%');
+  DECLARE @ShopeeEmp INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%Shopee%');
+  DECLARE @PkgPro INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE PackageName = N'Gói Tiêu Chuẩn (Pro Recruiter)');
+  DECLARE @PkgEnterprise INT = (SELECT TOP 1 PackageID FROM SubscriptionPackages WHERE PackageName = N'Gói Doanh Nghiệp (Enterprise AI)');
+
+  IF @FptEmp IS NOT NULL AND @PkgEnterprise IS NOT NULL
+    INSERT INTO PaymentTransactions (TransactionRef, EmployerID, PackageID, Amount, Status, PaymentMethod, GatewayTransactionNo, CreatedAt, PaidAt)
+    VALUES ('TXN-DEMO-FPT01', @FptEmp, @PkgEnterprise, 4990000, 'Success', 'BankTransfer', 'BANK-FT-99281', DATEADD(MONTH, -1, GETDATE()), DATEADD(MONTH, -1, GETDATE()));
+
+  IF @VngEmp IS NOT NULL AND @PkgEnterprise IS NOT NULL
+    INSERT INTO PaymentTransactions (TransactionRef, EmployerID, PackageID, Amount, Status, PaymentMethod, GatewayTransactionNo, CreatedAt, PaidAt)
+    VALUES ('TXN-DEMO-VNG02', @VngEmp, @PkgEnterprise, 4990000, 'Success', 'VNPay', 'VNP-9921448', DATEADD(DAY, -10, GETDATE()), DATEADD(DAY, -10, GETDATE()));
+
+  IF @ShopeeEmp IS NOT NULL AND @PkgEnterprise IS NOT NULL
+    INSERT INTO PaymentTransactions (TransactionRef, EmployerID, PackageID, Amount, Status, PaymentMethod, GatewayTransactionNo, CreatedAt, PaidAt)
+    VALUES ('TXN-DEMO-SHP03', @ShopeeEmp, @PkgEnterprise, 4990000, 'Success', 'PayOS', 'PAYOS-883192', DATEADD(DAY, -5, GETDATE()), DATEADD(DAY, -5, GETDATE()));
+
+  -- Mở khóa trực tiếp từ Admin (AdminUnlock) cho KMS Technology Đà Nẵng
+  IF @KmsEmp IS NOT NULL AND @PkgEnterprise IS NOT NULL
+    INSERT INTO PaymentTransactions (TransactionRef, EmployerID, PackageID, Amount, Status, PaymentMethod, GatewayTransactionNo, CreatedAt, PaidAt)
+    VALUES ('TXN-ADMIN-KMS01', @KmsEmp, @PkgEnterprise, 0, 'Success', 'AdminUnlock', N'Admin cấp gói Enterprise AI phục vụ demo tuyển dụng', DATEADD(DAY, -1, GETDATE()), DATEADD(DAY, -1, GETDATE()));
+END
+GO
+
+-- ========================================================
+-- 10. NẠP TIÊU CHÍ SÀNG LỌC HỒ SƠ ỨNG VIÊN (JOBSCREENINGCRITERIA)
+-- ========================================================
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'JobScreeningCriteria')
+   AND (SELECT COUNT(*) FROM JobScreeningCriteria) = 0
+BEGIN
+  DECLARE @KmsQaJob INT = (
+    SELECT TOP 1 JobID FROM JobPostings 
+    WHERE Title LIKE N'%Kiểm thử%' OR Title LIKE N'%QA%'
+    ORDER BY JobID DESC
+  );
+  DECLARE @FptDevJob INT = (
+    SELECT TOP 1 JobID FROM JobPostings 
+    WHERE Title LIKE N'%Fullstack%'
+    ORDER BY JobID ASC
+  );
+
+  IF @KmsQaJob IS NOT NULL
+  BEGIN
+    INSERT INTO JobScreeningCriteria (
+      JobID, Version, ScreeningLevel, MinGPA, GPAScale, MandatoryCertificates, IsEnabled, ConfigJson, IsActive, CreatedAt, UpdatedAt
+    )
+    VALUES (
+      @KmsQaJob,
+      1,
+      'Balanced',
+      2.8,
+      4,
+      '["ISTQB Foundation","TOEIC"]',
+      1,
+      N'{"isEnabled":true,"thresholds":{"qualified":70,"needsReview":50},"weights":{"experience":25,"skills":25,"projects":20,"education":10,"languages":10,"workConditions":10},"experience":{"minTotalYears":{"value":2,"mode":"PREFERRED"},"minRoleYears":{"value":1.5,"mode":"PREFERRED"},"industry":{"value":"Công nghệ phần mềm","mode":"INFORMATIONAL"},"tools":{"value":["Playwright","Cypress","Postman","Selenium"],"mode":"PREFERRED"},"rolesHeld":{"value":["Automation QA","QC Engineer","Tester"],"mode":"INFORMATIONAL"},"managementExp":{"value":false,"mode":"INFORMATIONAL"}},"education":{"degreeLevel":{"value":"Đại học","mode":"INFORMATIONAL"},"major":{"value":"Công nghệ thông tin","mode":"INFORMATIONAL"},"school":{"value":"","mode":"INFORMATIONAL"},"gpa":{"min":2.8,"scale":4,"mode":"PREFERRED"}},"projects":{"hasProjects":{"value":true,"mode":"INFORMATIONAL"},"projectType":{"value":"Automation Testing Framework","mode":"INFORMATIONAL"},"minScale":{"value":"","mode":"INFORMATIONAL"},"roleInProject":{"value":"QA Engineer","mode":"INFORMATIONAL"},"technologies":{"value":["TypeScript","Playwright","SQL Server"],"mode":"PREFERRED"},"quantifiableAchievements":{"value":false,"mode":"INFORMATIONAL"}},"languages":{"items":[{"language":"ISTQB Foundation","certificate":"ISTQB Foundation","mode":"REQUIRED","allowSelfDeclared":false},{"language":"English","certificate":"TOEIC","mode":"REQUIRED","allowSelfDeclared":false}]},"locationWorkMode":{"city":{"value":"Đà Nẵng","mode":"INFORMATIONAL"},"workMode":{"value":"ALL","mode":"INFORMATIONAL"},"willingToTravel":{"value":false,"mode":"INFORMATIONAL"},"willingToRelocate":{"value":false,"mode":"INFORMATIONAL"}},"availability":{"earliestJoin":{"value":"","mode":"INFORMATIONAL"},"maxNoticePeriodWeeks":{"value":4,"mode":"INFORMATIONAL"},"contractType":{"value":"Toàn thời gian","mode":"INFORMATIONAL"}},"expectedSalary":{"maxExpected":{"value":35000000,"mode":"INFORMATIONAL"},"mode":"INFORMATIONAL","warnBudgetMismatch":true},"industrySpecific":{"portfolioRequired":{"value":false,"mode":"INFORMATIONAL"},"githubRequired":{"value":false,"mode":"INFORMATIONAL"},"driverLicense":{"value":false,"mode":"INFORMATIONAL"},"shiftWork":{"value":false,"mode":"INFORMATIONAL"},"securityClearance":{"value":false,"mode":"INFORMATIONAL"}},"employmentHistory":{"minAvgTenureMonths":{"value":null,"mode":"INFORMATIONAL"},"maxJobHops":{"value":null,"mode":"INFORMATIONAL"},"maxGapMonths":{"value":null,"mode":"INFORMATIONAL"}}}',
+      1,
+      SYSUTCDATETIME(),
+      SYSUTCDATETIME()
+    );
+  END;
+
+  IF @FptDevJob IS NOT NULL
+  BEGIN
+    INSERT INTO JobScreeningCriteria (
+      JobID, Version, ScreeningLevel, MinGPA, GPAScale, MandatoryCertificates, IsEnabled, ConfigJson, IsActive, CreatedAt, UpdatedAt
+    )
+    VALUES (
+      @FptDevJob,
+      1,
+      'Balanced',
+      2.5,
+      4,
+      '[]',
+      1,
+      N'{"isEnabled":true,"thresholds":{"qualified":70,"needsReview":50},"weights":{"experience":30,"skills":30,"projects":20,"education":10,"languages":5,"workConditions":5},"experience":{"minTotalYears":{"value":3,"mode":"PREFERRED"},"minRoleYears":{"value":2,"mode":"PREFERRED"},"industry":{"value":"Công nghệ thông tin","mode":"INFORMATIONAL"},"tools":{"value":["Git","Docker","Postman"],"mode":"PREFERRED"},"rolesHeld":{"value":["Fullstack Developer","Backend Developer"],"mode":"INFORMATIONAL"},"managementExp":{"value":false,"mode":"INFORMATIONAL"}},"education":{"degreeLevel":{"value":"Đại học","mode":"INFORMATIONAL"},"major":{"value":"CNTT","mode":"INFORMATIONAL"},"school":{"value":"","mode":"INFORMATIONAL"},"gpa":{"min":2.5,"scale":4,"mode":"PREFERRED"}},"projects":{"hasProjects":{"value":true,"mode":"INFORMATIONAL"},"projectType":{"value":"Web Application","mode":"INFORMATIONAL"},"minScale":{"value":"","mode":"INFORMATIONAL"},"roleInProject":{"value":"","mode":"INFORMATIONAL"},"technologies":{"value":["React.js","Node.js","TypeScript"],"mode":"PREFERRED"},"quantifiableAchievements":{"value":false,"mode":"INFORMATIONAL"}},"languages":{"items":[{"language":"English","certificate":"","mode":"PREFERRED","allowSelfDeclared":true}]},"locationWorkMode":{"city":{"value":"Hà Nội","mode":"INFORMATIONAL"},"workMode":{"value":"ALL","mode":"INFORMATIONAL"},"willingToTravel":{"value":false,"mode":"INFORMATIONAL"},"willingToRelocate":{"value":false,"mode":"INFORMATIONAL"}},"availability":{"earliestJoin":{"value":"","mode":"INFORMATIONAL"},"maxNoticePeriodWeeks":{"value":4,"mode":"INFORMATIONAL"},"contractType":{"value":"Toàn thời gian","mode":"INFORMATIONAL"}},"expectedSalary":{"maxExpected":{"value":45000000,"mode":"INFORMATIONAL"},"mode":"INFORMATIONAL","warnBudgetMismatch":true},"industrySpecific":{"portfolioRequired":{"value":false,"mode":"INFORMATIONAL"},"githubRequired":{"value":false,"mode":"INFORMATIONAL"},"driverLicense":{"value":false,"mode":"INFORMATIONAL"},"shiftWork":{"value":false,"mode":"INFORMATIONAL"},"securityClearance":{"value":false,"mode":"INFORMATIONAL"}},"employmentHistory":{"minAvgTenureMonths":{"value":null,"mode":"INFORMATIONAL"},"maxJobHops":{"value":null,"mode":"INFORMATIONAL"},"maxGapMonths":{"value":null,"mode":"INFORMATIONAL"}}}',
+      1,
+      SYSUTCDATETIME(),
+      SYSUTCDATETIME()
+    );
+  END;
+END;
+GO
+
+-- ========================================================
+-- 11. NẠP MẪU BỘ LỌC TÁI SỬ DỤNG (JOBSCREENINGTEMPLATES)
+-- ========================================================
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'JobScreeningTemplates')
+   AND (SELECT COUNT(*) FROM JobScreeningTemplates) = 0
+BEGIN
+  DECLARE @KmsEmployer INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%KMS%');
+  DECLARE @FptEmployer INT = (SELECT TOP 1 EmployerID FROM Employers WHERE CompanyName LIKE N'%FPT%');
+
+  IF @KmsEmployer IS NOT NULL
+  BEGIN
+    INSERT INTO JobScreeningTemplates (EmployerID, TemplateName, Description, ConfigJson, CreatedAt, UpdatedAt)
+    VALUES
+    (
+      @KmsEmployer,
+      N'Tiêu chuẩn Kỹ sư Kiểm thử QA/QC Tự động (ISTQB + Automation)',
+      N'Bộ tiêu chí sàng lọc chuyên sâu dành cho vị trí Automation QA: ưu tiên kinh nghiệm Playwright/Cypress/Selenium, yêu cầu chứng chỉ kiểm thử ISTQB và tiếng Anh.',
+      N'{"isEnabled":true,"thresholds":{"qualified":70,"needsReview":50},"weights":{"experience":25,"skills":25,"projects":20,"education":10,"languages":10,"workConditions":10},"experience":{"minTotalYears":{"value":2,"mode":"PREFERRED"},"minRoleYears":{"value":1.5,"mode":"PREFERRED"},"industry":{"value":"Software Development","mode":"INFORMATIONAL"},"tools":{"value":["Playwright","Cypress","Postman"],"mode":"PREFERRED"},"rolesHeld":{"value":["Automation Tester","QA Engineer"],"mode":"INFORMATIONAL"},"managementExp":{"value":false,"mode":"INFORMATIONAL"}},"education":{"degreeLevel":{"value":"Đại học","mode":"INFORMATIONAL"},"major":{"value":"CNTT","mode":"INFORMATIONAL"},"school":{"value":"","mode":"INFORMATIONAL"},"gpa":{"min":2.8,"scale":4,"mode":"PREFERRED"}},"projects":{"hasProjects":{"value":true,"mode":"INFORMATIONAL"},"projectType":{"value":"Automation Framework","mode":"INFORMATIONAL"},"minScale":{"value":"","mode":"INFORMATIONAL"},"roleInProject":{"value":"","mode":"INFORMATIONAL"},"technologies":{"value":["TypeScript","Playwright","SQL Server"],"mode":"PREFERRED"},"quantifiableAchievements":{"value":false,"mode":"INFORMATIONAL"}},"languages":{"items":[{"language":"ISTQB Foundation","certificate":"ISTQB Foundation","mode":"REQUIRED","allowSelfDeclared":false},{"language":"English","certificate":"TOEIC","mode":"REQUIRED","allowSelfDeclared":false}]},"locationWorkMode":{"city":{"value":"Đà Nẵng","mode":"INFORMATIONAL"},"workMode":{"value":"ALL","mode":"INFORMATIONAL"},"willingToTravel":{"value":false,"mode":"INFORMATIONAL"},"willingToRelocate":{"value":false,"mode":"INFORMATIONAL"}},"availability":{"earliestJoin":{"value":"","mode":"INFORMATIONAL"},"maxNoticePeriodWeeks":{"value":4,"mode":"INFORMATIONAL"},"contractType":{"value":"Toàn thời gian","mode":"INFORMATIONAL"}},"expectedSalary":{"maxExpected":{"value":35000000,"mode":"INFORMATIONAL"},"mode":"INFORMATIONAL","warnBudgetMismatch":true},"industrySpecific":{"portfolioRequired":{"value":false,"mode":"INFORMATIONAL"},"githubRequired":{"value":false,"mode":"INFORMATIONAL"},"driverLicense":{"value":false,"mode":"INFORMATIONAL"},"shiftWork":{"value":false,"mode":"INFORMATIONAL"},"securityClearance":{"value":false,"mode":"INFORMATIONAL"}},"employmentHistory":{"minAvgTenureMonths":{"value":null,"mode":"INFORMATIONAL"},"maxJobHops":{"value":null,"mode":"INFORMATIONAL"},"maxGapMonths":{"value":null,"mode":"INFORMATIONAL"}}}',
+      SYSUTCDATETIME(),
+      SYSUTCDATETIME()
+    ),
+    (
+      @KmsEmployer,
+      N'Mẫu sàng lọc Tiêu chuẩn IT / Phần mềm (General Developer)',
+      N'Mẫu tiêu chí linh hoạt phù hợp tuyển dụng các vị trí lập trình viên Web, Backend, Frontend nói chung.',
+      N'{"isEnabled":true,"thresholds":{"qualified":70,"needsReview":50},"weights":{"experience":25,"skills":25,"projects":20,"education":10,"languages":10,"workConditions":10},"experience":{"minTotalYears":{"value":2,"mode":"PREFERRED"},"minRoleYears":{"value":1,"mode":"PREFERRED"},"industry":{"value":"","mode":"INFORMATIONAL"},"tools":{"value":["Git","Docker"],"mode":"PREFERRED"},"rolesHeld":{"value":[],"mode":"INFORMATIONAL"},"managementExp":{"value":false,"mode":"INFORMATIONAL"}},"education":{"degreeLevel":{"value":"","mode":"INFORMATIONAL"},"major":{"value":"","mode":"INFORMATIONAL"},"school":{"value":"","mode":"INFORMATIONAL"},"gpa":{"min":2.5,"scale":4,"mode":"PREFERRED"}},"projects":{"hasProjects":{"value":true,"mode":"INFORMATIONAL"},"projectType":{"value":"","mode":"INFORMATIONAL"},"minScale":{"value":"","mode":"INFORMATIONAL"},"roleInProject":{"value":"","mode":"INFORMATIONAL"},"technologies":{"value":[],"mode":"PREFERRED"},"quantifiableAchievements":{"value":false,"mode":"INFORMATIONAL"}},"languages":{"items":[{"language":"English","certificate":"","mode":"PREFERRED","allowSelfDeclared":true}]},"locationWorkMode":{"city":{"value":"","mode":"INFORMATIONAL"},"workMode":{"value":"ALL","mode":"INFORMATIONAL"},"willingToTravel":{"value":false,"mode":"INFORMATIONAL"},"willingToRelocate":{"value":false,"mode":"INFORMATIONAL"}},"availability":{"earliestJoin":{"value":"","mode":"INFORMATIONAL"},"maxNoticePeriodWeeks":{"value":null,"mode":"INFORMATIONAL"},"contractType":{"value":"Toàn thời gian","mode":"INFORMATIONAL"}},"expectedSalary":{"maxExpected":{"value":null,"mode":"INFORMATIONAL"},"mode":"INFORMATIONAL","warnBudgetMismatch":true},"industrySpecific":{"portfolioRequired":{"value":false,"mode":"INFORMATIONAL"},"githubRequired":{"value":false,"mode":"INFORMATIONAL"},"driverLicense":{"value":false,"mode":"INFORMATIONAL"},"shiftWork":{"value":false,"mode":"INFORMATIONAL"},"securityClearance":{"value":false,"mode":"INFORMATIONAL"}},"employmentHistory":{"minAvgTenureMonths":{"value":null,"mode":"INFORMATIONAL"},"maxJobHops":{"value":null,"mode":"INFORMATIONAL"},"maxGapMonths":{"value":null,"mode":"INFORMATIONAL"}}}',
+      SYSUTCDATETIME(),
+      SYSUTCDATETIME()
+    );
+  END;
+
+  IF @FptEmployer IS NOT NULL
+  BEGIN
+    INSERT INTO JobScreeningTemplates (EmployerID, TemplateName, Description, ConfigJson, CreatedAt, UpdatedAt)
+    VALUES
+    (
+      @FptEmployer,
+      N'Sàng lọc Senior Developer / Tech Lead (3+ năm kinh nghiệm)',
+      N'Mẫu sàng lọc khắt khe cho ứng viên Senior với trọng số kinh nghiệm và dự án thực chiến cao.',
+      N'{"isEnabled":true,"thresholds":{"qualified":75,"needsReview":55},"weights":{"experience":35,"skills":25,"projects":25,"education":5,"languages":5,"workConditions":5},"experience":{"minTotalYears":{"value":4,"mode":"PREFERRED"},"minRoleYears":{"value":3,"mode":"PREFERRED"},"industry":{"value":"","mode":"INFORMATIONAL"},"tools":{"value":["CI/CD","Docker","Kubernetes"],"mode":"PREFERRED"},"rolesHeld":{"value":["Senior Developer","Tech Lead"],"mode":"INFORMATIONAL"},"managementExp":{"value":true,"mode":"INFORMATIONAL"}},"education":{"degreeLevel":{"value":"Đại học","mode":"INFORMATIONAL"},"major":{"value":"CNTT","mode":"INFORMATIONAL"},"school":{"value":"","mode":"INFORMATIONAL"},"gpa":{"min":2.5,"scale":4,"mode":"PREFERRED"}},"projects":{"hasProjects":{"value":true,"mode":"INFORMATIONAL"},"projectType":{"value":"Enterprise Distributed System","mode":"INFORMATIONAL"},"minScale":{"value":"Large Scale","mode":"INFORMATIONAL"},"roleInProject":{"value":"Lead / Core Engineer","mode":"INFORMATIONAL"},"technologies":{"value":[],"mode":"PREFERRED"},"quantifiableAchievements":{"value":true,"mode":"INFORMATIONAL"}},"languages":{"items":[{"language":"English","certificate":"","mode":"PREFERRED","allowSelfDeclared":true}]},"locationWorkMode":{"city":{"value":"","mode":"INFORMATIONAL"},"workMode":{"value":"ALL","mode":"INFORMATIONAL"},"willingToTravel":{"value":false,"mode":"INFORMATIONAL"},"willingToRelocate":{"value":false,"mode":"INFORMATIONAL"}},"availability":{"earliestJoin":{"value":"","mode":"INFORMATIONAL"},"maxNoticePeriodWeeks":{"value":4,"mode":"INFORMATIONAL"},"contractType":{"value":"Toàn thời gian","mode":"INFORMATIONAL"}},"expectedSalary":{"maxExpected":{"value":null,"mode":"INFORMATIONAL"},"mode":"INFORMATIONAL","warnBudgetMismatch":true},"industrySpecific":{"portfolioRequired":{"value":false,"mode":"INFORMATIONAL"},"githubRequired":{"value":true,"mode":"INFORMATIONAL"},"driverLicense":{"value":false,"mode":"INFORMATIONAL"},"shiftWork":{"value":false,"mode":"INFORMATIONAL"},"securityClearance":{"value":false,"mode":"INFORMATIONAL"}},"employmentHistory":{"minAvgTenureMonths":{"value":18,"mode":"INFORMATIONAL"},"maxJobHops":{"value":3,"mode":"INFORMATIONAL"},"maxGapMonths":{"value":3,"mode":"INFORMATIONAL"}}}',
+      SYSUTCDATETIME(),
+      SYSUTCDATETIME()
+    );
+  END;
+END;
+GO
+
+-- ========================================================
+-- 12. NẠP ĐÁNH GIÁ CHUYÊN SÂU MẪU (AIDEEPREVIEWS)
+-- ========================================================
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'AIDeepReviews')
+   AND (SELECT COUNT(*) FROM AIDeepReviews) = 0
+BEGIN
+  DECLARE @SampleAppID INT = (SELECT TOP 1 ApplicationID FROM JobApplications);
+  IF @SampleAppID IS NOT NULL
+  BEGIN
+    INSERT INTO AIDeepReviews (ApplicationID, CriteriaVersion, Summary, DetailsJson, CreatedAt)
+    VALUES (
+      @SampleAppID,
+      1,
+      N'Ứng viên có nền tảng chuyên môn vững chắc, đáp ứng đầy đủ tiêu chí kỹ thuật và kinh nghiệm thực chiến theo yêu cầu tuyển dụng.',
+      N'{"strengths":["Nền tảng kỹ thuật và kỹ năng lập trình vững vàng","Kinh nghiệm làm việc thực tế với các công nghệ lõi","Khả năng thích ứng nhanh và tinh thần tự học cao"],"concerns":[],"recommendation":"Ưu tiên sắp xếp lịch phỏng vấn chuyên môn vòng 1"}',
+      SYSUTCDATETIME()
+    );
+  END;
+END;
 GO

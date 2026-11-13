@@ -49,8 +49,8 @@ function prepareCatalog(jobs, requirements, taxonomy) {
   });
 }
 
-function rankPreparedJobs(cvText, catalog, applied = new Set()) {
-  return catalog.filter(({ job }) => !applied.has(job.JobID)).map(({ job, matchers, total }) => {
+function rankPreparedJobs(cvText, catalog, applied = new Set(), categories = new Set()) {
+  return catalog.filter(({ job }) => !applied.has(job.JobID) && (!categories.size || categories.has(job.CategoryID))).map(({ job, matchers, total }) => {
     const earned = matchers.reduce((sum, skill) => sum + (skill.matches(cvText) ? skill.weight : 0), 0);
     // Compare the unrounded score to the agreed threshold.
     return { ...job, score: total ? earned / total * 100 : 0 };
@@ -72,16 +72,19 @@ async function getCVText(cv) {
 async function refreshRecommendations() {
   await require('./cvAnalysisService').initialize();
   const [jobResult, skillResult, taxonomyResult, profileResult, stateResult, appliedResult] = await Promise.all([
-    executeQuery(`SELECT j.JobID,j.Title,j.Description,j.Requirements,e.CompanyName FROM JobPostings j
+    executeQuery(`SELECT j.JobID,j.CategoryID,j.Title,j.Description,j.Requirements,e.CompanyName FROM JobPostings j
       JOIN Employers e ON e.EmployerID=j.EmployerID JOIN Users u ON u.UserID=e.UserID
       WHERE j.Status='Published' AND u.Status='Active' AND (j.ExpiresAt IS NULL OR j.ExpiresAt>GETDATE()) ORDER BY j.JobID`),
     executeQuery(`SELECT r.JobID,r.SkillID,r.IsMandatory,t.SkillName,t.NormalizedName FROM JobSkillRequirements r JOIN SkillTaxonomy t ON t.SkillID=r.SkillID ORDER BY r.JobID,r.SkillID`),
     executeQuery('SELECT SkillID,SkillName,NormalizedName FROM SkillTaxonomy ORDER BY SkillID'),
-    executeQuery(`SELECT p.ProfileID,p.UserID,c.CVID,CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT(c.Title,'|',v.ConfirmedJson,'|',v.Status,'|',v.VersionID,'|',CONVERT(VARCHAR(30),c.UpdatedAt,126))),2) AS CVHash
+    executeQuery(`SELECT p.ProfileID,p.UserID,c.CVID,COALESCE(prefs.CategoryIds,N'[]') AS CategoryIds,
+      CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT(c.Title,'|',v.ConfirmedJson,'|',v.Status,'|',v.VersionID,'|',CONVERT(VARCHAR(30),c.UpdatedAt,126))),2) AS CVHash
       FROM CandidateProfiles p JOIN Users u ON u.UserID=p.UserID
+      LEFT JOIN JobNotificationPreferences prefs ON prefs.UserID=p.UserID
       CROSS APPLY(SELECT TOP 1 CVID,Title,CvData,FileUrl,UpdatedAt FROM CVs WHERE ProfileID=p.ProfileID AND IsPrimary=1 AND IsArchived=0 ORDER BY UpdatedAt DESC,CVID DESC)c
       OUTER APPLY(SELECT TOP 1 VersionID,ConfirmedJson,Status FROM CVDocumentVersions WHERE CVID=c.CVID ORDER BY VersionNumber DESC)v
-      WHERE p.IsLookingForJob=1 AND u.Status='Active' AND EXISTS(SELECT 1 FROM UserRoles ur JOIN Roles r ON r.RoleID=ur.RoleID WHERE ur.UserID=p.UserID AND r.RoleName='Candidate')`),
+      WHERE p.IsLookingForJob=1 AND u.Status='Active' AND COALESCE(prefs.Enabled,1)=1
+      AND EXISTS(SELECT 1 FROM UserRoles ur JOIN Roles r ON r.RoleID=ur.RoleID WHERE ur.UserID=p.UserID AND r.RoleName='Candidate')`),
     executeQuery('SELECT ProfileID,Fingerprint FROM NotificationRecommendationState'),
     executeQuery('SELECT ProfileID,JobID FROM JobApplications ORDER BY ProfileID,JobID')
   ]);
@@ -97,7 +100,7 @@ async function refreshRecommendations() {
   for (const id of failedProfiles.keys()) if (!eligible.has(id)) failedProfiles.delete(id);
   // Every tick scans cheap hashes; only changed sources cause CV extraction/scoring.
   const dirty = profileResult.recordset.map(p => ({ ...p, applied: appliedByProfile.get(p.ProfileID) || [] }))
-    .map(p => ({ ...p, fingerprint: digest([p.CVID, p.CVHash, catalogHash, p.applied]) }))
+    .map(p => ({ ...p, fingerprint: digest([p.CVID, p.CVHash, catalogHash, p.applied, p.CategoryIds]) }))
     .filter(p => states.get(p.ProfileID) !== p.fingerprint && (failedProfiles.get(p.ProfileID)?.fingerprint !== p.fingerprint || failedProfiles.get(p.ProfileID).retryAt <= Date.now())).slice(0, 20);
   const prepared = dirty.length ? prepareCatalog(jobs, skills, taxonomy) : [];
   for (const profile of dirty) {
@@ -110,7 +113,7 @@ async function refreshRecommendations() {
         await query('DELETE FROM NotificationRecommendationState WHERE ProfileID=@ID', { ID: profile.ProfileID });
       });
       const text = await getCVText(cv);
-      const ranked = rankPreparedJobs(text, prepared, new Set(profile.applied));
+      const ranked = rankPreparedJobs(text, prepared, new Set(profile.applied), new Set(JSON.parse(profile.CategoryIds)));
       await withTransaction(async query => {
         await query(`UPDATE Notifications SET IsActive=0 WHERE UserID=@UserID AND Type='job_match'`, { UserID: profile.UserID });
         for (const job of ranked) {

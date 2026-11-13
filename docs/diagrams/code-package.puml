@@ -1,0 +1,36 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam packageStyle rectangle
+package "client.pages" as pages
+package "client.components" as components
+package "client.context" as context
+package "client.services" as api
+package "server.routes" as routes
+package "server.middleware" as middleware
+package "server.controllers" as controllers
+package "server.services" as services
+package "shared.cv" as shared
+package "server.utils" as utils
+package "server.config" as config
+package "client.utils / hooks" as clientutils
+pages ..> components
+components ..> context
+context ..> api
+pages ..> api
+pages ..> context
+components ..> api
+api ..> routes : HTTP /api
+routes ..> middleware
+routes ..> controllers
+controllers ..> services
+controllers ..> config
+services ..> config
+middleware ..> utils
+services ..> shared
+components ..> shared
+pages ..> clientutils
+controllers ..> utils
+middleware ..> config
+@enduml
